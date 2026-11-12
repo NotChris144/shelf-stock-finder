@@ -17,7 +17,7 @@ const BASE_FILTER = 'boxVisibilityOnWeb=1 AND boxSaleAllowed=1 AND sellPrice > 0
 const ATTRS = [
   'boxId', 'boxName', 'sellPrice', 'cashPriceCalculated', 'exchangePriceCalculated', 'categoryFriendlyName',
   'superCatFriendlyName', 'imageUrls', 'Grade', 'rating', 'Manufacturer', 'Phone Model', 'Model Name', 'CPU Model',
-  'Generation',
+  'Generation', 'priceLastChanged',
 ];
 
 export interface Preset {
@@ -94,6 +94,24 @@ export function search(q: string, store: string, preset: Preset | undefined, sig
   cache.set(key, { at: Date.now(), p });
   p.catch(() => cache.delete(key));
   return p;
+}
+
+/**
+ * Look products up by the ID printed (and barcoded) on their shelf labels. Not limited to one
+ * store, because a label in your hand proves the item exists; `here` says which of them the
+ * website also lists as in stock at `store`.
+ */
+export async function lookupIds(ids: string[], store: string): Promise<{ hits: Hit[]; here: Set<string> }> {
+  const filters = ids.map((id) => `objectID:"${id.replace(/[^\w.-]/g, '')}"`).join(' OR ');
+  const base = { indexName: CONFIG.index, query: '', hitsPerPage: ids.length, filters, attributesToHighlight: [], analytics: false, clickAnalytics: false };
+  const r = await post([
+    { ...base, attributesToRetrieve: ATTRS },
+    { ...base, attributesToRetrieve: ['boxId'], facetFilters: [[`stores:${store}`]] },
+  ]);
+  return {
+    hits: (r[0].hits ?? []) as Hit[],
+    here: new Set(((r[1].hits ?? []) as Hit[]).map((h) => String(h.boxId))),
+  };
 }
 
 /** Every branch name, for the store picker. */

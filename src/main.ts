@@ -1,9 +1,10 @@
 import './styles.css';
 import snapshot from './data/eol-snapshot.json';
-import { PRESETS, fetchStores, search } from './api.ts';
+import { PRESETS, fetchStores, lookupIds, search } from './api.ts';
 import { DEMO_HITS } from './demo.ts';
 import { fetchEolDb, type EolDb } from './eol.ts';
 import { toItem } from './parse.ts';
+import type { ScanHost, Scanner } from './scan.ts';
 import { makeCtx } from './support.ts';
 import type { Hit, Item } from './types.ts';
 
@@ -315,7 +316,7 @@ function perfBadge(it: Item): string {
   return it.perf ? `<span class="badge speed">${bars(it.perf.tier)}${it.perf.label}</span>` : '';
 }
 
-function cardHtml(g: Group): string {
+function cardHtml(g: Group, note = ''): string {
   const it = g.head;
   const n = g.items.length;
   const grades = [...new Set(g.items.map((i) => i.grade).filter(Boolean))].sort();
@@ -331,6 +332,7 @@ function cardHtml(g: Group): string {
         <span class="title">${esc(it.title)}</span>
         <span class="sub">${esc(it.sub)}</span>
         ${meta ? `<span class="meta">${esc(meta)}</span>` : ''}
+        ${note ? `<span class="meta">${esc(note)}</span>` : ''}
         <span class="badges">${supportBadge(it)}${perfBadge(it)}</span>
       </span>
       <span class="price">${price}</span>
@@ -357,7 +359,16 @@ function detailHtml(g: Group): string {
       </a></li>`;
     })
     .join('');
-  return `<div class="detail">${why}${speed}<ul class="variants">${rows}</ul></div>`;
+  const scanned = g.key.startsWith('scan:');
+  let priced = '';
+  if (it.priceChanged) {
+    const days = Math.floor((Date.now() - it.priceChanged) / 864e5);
+    const when = new Date(it.priceChanged).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const ago = days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
+    priced = `<p class="why${days <= 7 ? ' st-warn' : ''}"><b>Price</b>${money(it.price)} on the system, last changed ${when} (${ago}).${scanned ? ' If the label shows a different price, it needs reprinting.' : ''}</p>`;
+  }
+  const similar = scanned && (it.model || it.title) ? `<button type="button" class="chip" data-act="similar" data-v="${esc(it.model || it.title)}">Find similar in stock</button>` : '';
+  return `<div class="detail">${priced}${why}${speed}<ul class="variants">${rows}</ul>${similar}</div>`;
 }
 
 const QUICK: { title: string; note: string; patch: Partial<Filters> }[] = [
@@ -418,7 +429,7 @@ function renderResults(): void {
   if (hiddenUnknown) parts.push(`${hiddenUnknown} hidden (update status unknown)`);
   if (total > hits.length) parts.push(`first ${hits.length} of ${total.toLocaleString('en-GB')} — search to narrow`);
   main.innerHTML = `<p class="summary">${parts.join(' · ')}${activeCount() ? ' <button type="button" class="link" data-act="reset">Clear filters</button>' : ''}</p>
-    <ul class="list" id="list">${groups.slice(0, shown).map(cardHtml).join('')}</ul>
+    <ul class="list" id="list">${groups.slice(0, shown).map((g) => cardHtml(g)).join('')}</ul>
     <div id="sentinel"></div>`;
   pager.observe($('#sentinel'));
 }
@@ -434,7 +445,7 @@ const pager = new IntersectionObserver(
     if (!entries.some((e) => e.isIntersecting) || shown >= groups.length) return;
     const next = groups.slice(shown, shown + PAGE);
     shown += PAGE;
-    document.getElementById('list')?.insertAdjacentHTML('beforeend', next.map(cardHtml).join(''));
+    document.getElementById('list')?.insertAdjacentHTML('beforeend', next.map((g) => cardHtml(g)).join(''));
   },
   { rootMargin: '600px' },
 );
@@ -480,6 +491,89 @@ async function openSheet(): Promise<void> {
 }
 let storeList: string[] = [];
 const sheetOpen = (): boolean => $<HTMLDialogElement>('#sheet').open;
+
+// ------------------------------------------------------------------ barcode scanner
+
+/** null = the code is not a product (a serial sticker, say). */
+const scanResults = new Map<string, { item: Item; here: boolean } | null>();
+const scanGroups = new Map<string, Group>();
+const scanOrder: string[] = [];
+const scanPending = new Set<string>();
+const scanQueue = new Set<string>();
+let scanTimer = 0;
+let scanner: Scanner | null = null;
+
+function renderTray(): void {
+  const tray = document.getElementById('scanTray');
+  if (!tray) return;
+  if (!scanOrder.length) {
+    tray.innerHTML = `<p class="summary">${demo ? 'Demo mode can’t look up labels — remove ?demo from the address.' : 'Scanned items appear here with their current price.'}</p>`;
+    return;
+  }
+  const cards = scanOrder.map((id) => {
+    const here = scanResults.get(id)?.here;
+    return cardHtml(scanGroups.get('scan:' + id)!, here ? `Listed in stock at ${branch}` : `Not listed in ${branch}'s online stock`);
+  });
+  tray.innerHTML = `<p class="summary">${scanOrder.length} scanned · tap for details</p><ul class="list">${cards.join('')}</ul>`;
+}
+
+async function flushScans(): Promise<void> {
+  const ids = [...scanQueue];
+  scanQueue.clear();
+  try {
+    const r = demo ? { hits: [] as Hit[], here: new Set<string>() } : await lookupIds(ids, branch);
+    for (const id of ids) {
+      const hit = r.hits.find((h) => String(h.boxId) === id);
+      if (!hit) {
+        scanResults.set(id, null);
+        continue;
+      }
+      const item = toItem(hit, 0, ctx);
+      scanResults.set(id, { item, here: r.here.has(id) });
+      scanGroups.set('scan:' + id, { key: 'scan:' + id, items: [item], head: item, min: item.price, max: item.price });
+      scanOrder.unshift(id);
+      navigator.vibrate?.(40);
+    }
+  } catch {
+    /* offline: leave the codes unresolved so the next sighting retries */
+  }
+  for (const id of ids) scanPending.delete(id);
+  renderTray();
+  scanner?.refresh();
+}
+
+const scanHost: ScanHost = {
+  onCode(code) {
+    if (scanResults.has(code) || scanPending.has(code)) return;
+    scanPending.add(code);
+    scanQueue.add(code);
+    clearTimeout(scanTimer);
+    // A cabinet shot finds many labels at once; one request covers them all.
+    scanTimer = window.setTimeout(() => void flushScans(), 80);
+  },
+  labelFor(code) {
+    const r = scanResults.get(code);
+    if (r === null) return null;
+    if (!r) return scanPending.has(code) ? undefined : null;
+    return `${r.item.title}${r.item.storage ? ' ' + r.item.storage.split(' ')[0] : ''} · ${money(r.item.price)}`;
+  },
+  onPick(code) {
+    const card = document.querySelector<HTMLElement>(`#scanTray .card[data-key="scan:${CSS.escape(code)}"]`);
+    if (!card) return;
+    card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (!card.classList.contains('open')) card.querySelector<HTMLElement>('.card-main')?.click();
+  },
+};
+
+async function openScan(): Promise<Scanner> {
+  const dialog = $<HTMLDialogElement>('#scanner');
+  if (scanner && dialog.open) return scanner;
+  const { openScanner } = await import('./scan.ts');
+  scanner = openScanner(dialog, scanHost);
+  dialog.addEventListener('close', () => (scanner = null), { once: true });
+  renderTray();
+  return scanner;
+}
 
 // ------------------------------------------------------------------ actions
 
@@ -551,12 +645,20 @@ document.addEventListener('click', (ev) => {
       apply({ ...DEFAULTS }, true);
       window.scrollTo({ top: 0 });
       break;
+    case 'scan':
+      void openScan();
+      break;
+    case 'similar':
+      $<HTMLDialogElement>('#scanner').close();
+      apply({ ...DEFAULTS, q: v }, true);
+      window.scrollTo({ top: 0 });
+      break;
     case 'more':
       void openSheet();
       break;
     case 'toggle': {
       const li = el.closest<HTMLElement>('.card')!;
-      const g = groups.find((x) => x.key === li.dataset.key);
+      const g = groups.find((x) => x.key === li.dataset.key) ?? scanGroups.get(li.dataset.key ?? '');
       if (!g) break;
       const open = li.classList.toggle('open');
       el.setAttribute('aria-expanded', String(open));
@@ -624,7 +726,7 @@ readHash();
 $<HTMLInputElement>('#q').value = F.q;
 void load();
 // Handy when checking parsing against live data from the dev console.
-if (import.meta.env.DEV) Object.assign(window, { shelf: { items: () => items, hits: () => hits } });
+if (import.meta.env.DEV) Object.assign(window, { shelf: { items: () => items, hits: () => hits, openScan } });
 if (matchMedia('(hover: hover) and (pointer: fine)').matches) $<HTMLInputElement>('#q').focus();
 
 // Keep lifecycle data current without anyone having to redeploy.

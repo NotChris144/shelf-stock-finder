@@ -148,7 +148,10 @@ export function toItem(h: Hit, idx: number, ctx: SupportCtx): Item {
       /^(iphone|ipad|galaxy|pixel|moto|xperia|redmi|poco)/i.test(model) ||
       (brand !== '' && model.toLowerCase().startsWith(brand.toLowerCase()));
     title = hasBrand ? model : `${brand} ${model}`.trim();
-    gkey = [kind, brandKey, model.toLowerCase(), p.storage, p.ram, p.variant.split(' · ')[1] ?? ''].join('|');
+    // Tablets of one model come in several screen sizes (iPad Pro 11″ and 13″), so show and group by it.
+    const size = kind === 'tablet' ? (name.match(/(\d{1,2}(?:\.\d)?)\s*(?:"|''|”)/)?.[1] ?? '') : '';
+    if (size) title += ` ${size}″`;
+    gkey = [kind, brandKey, model.toLowerCase(), size, p.storage, p.ram, p.variant.split(' · ')[1] ?? ''].join('|');
   } else if (p && isPc) {
     title = model;
   }
@@ -165,6 +168,7 @@ export function toItem(h: Hit, idx: number, ctx: SupportCtx): Item {
     img: img ? encodeURI(img) : '',
     grade,
     rating: Number(h.rating) || 0,
+    priceChanged: Date.parse(String(h.priceLastChanged ?? '').replace(' ', 'T')) || 0,
     kind,
     brand,
     model,

@@ -49,6 +49,8 @@ export interface Item {
   img: string;
   grade: string;
   rating: number;
+  /** Epoch ms of the last price change on CeX's system (0 when unknown). */
+  priceChanged: number;
   kind: Kind;
   brand: string;
   model: string;

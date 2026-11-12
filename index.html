@@ -39,6 +39,9 @@
           aria-label="Search stock"
           placeholder="Search stock…"
         />
+        <button type="button" class="scan-open" data-act="scan" aria-label="Scan a label barcode">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M8 8.5v7M11 8.5v7M13.5 8.5v7M16 8.5v7" /></svg>
+        </button>
         <button type="button" id="clear" data-act="clear" aria-label="Clear search" hidden>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
         </button>
@@ -49,6 +52,7 @@
     <main id="results"></main>
     <button type="button" class="fab" id="fab" data-act="more" hidden>Filters</button>
     <dialog class="sheet" id="sheet" aria-label="Filters"></dialog>
+    <dialog class="scanner" id="scanner" aria-label="Barcode scanner"></dialog>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
