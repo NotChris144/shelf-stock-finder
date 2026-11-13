@@ -1090,28 +1090,41 @@ function setHot(el: HTMLElement | null): void {
   if (hot && navigator.userActivation?.hasBeenActive) navigator.vibrate?.(8);
 }
 
+/** Open the panel now, holding on to the finger so a slide keeps reporting here. */
+function startHold(pointerId: number): void {
+  window.clearTimeout(holdTimer);
+  if (holding) return;
+  holding = true;
+  openHold();
+  try {
+    filtersBtn.setPointerCapture(pointerId);
+  } catch {
+    /* the finger has already lifted */
+  }
+  if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.(15);
+}
+
 filtersBtn.addEventListener('pointerdown', (ev) => {
   if (isHome() || F.mode) return;
   holdStart = { x: ev.clientX, y: ev.clientY };
   holdMoved = false;
   window.clearTimeout(holdTimer);
-  holdTimer = window.setTimeout(() => {
-    holding = true;
-    openHold();
-    try {
-      filtersBtn.setPointerCapture(ev.pointerId);
-    } catch {
-      /* the finger has already lifted */
-    }
-    if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.(15);
-  }, 280);
+  holdTimer = window.setTimeout(() => startHold(ev.pointerId), 200);
 });
 
 filtersBtn.addEventListener('pointermove', (ev) => {
-  const far = Math.hypot(ev.clientX - holdStart.x, ev.clientY - holdStart.y);
+  const dx = ev.clientX - holdStart.x;
+  const dy = ev.clientY - holdStart.y;
+  const far = Math.hypot(dx, dy);
   if (!holding) {
-    if (far > 14) window.clearTimeout(holdTimer);
-    return;
+    // A flick upward off the button is intent on its own: open at once, no waiting.
+    if (dy < -10 && -dy > Math.abs(dx)) {
+      startHold(ev.pointerId);
+      holdMoved = true;
+    } else {
+      if (far > 14) window.clearTimeout(holdTimer);
+      return;
+    }
   }
   if (far > 16) holdMoved = true;
   const panel = holdEl.querySelector<HTMLElement>('.hold-panel');

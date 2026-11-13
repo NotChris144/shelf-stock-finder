@@ -1583,14 +1583,19 @@ input {
 
 /* ---------------------------------------------------------------- bottom bar (thumb reach) */
 
+/* The bar sits just clear of the home indicator, not a full safe area plus a margin above it. */
+:root {
+  --dock-gap: max(10px, calc(env(safe-area-inset-bottom) - 14px));
+}
+
 body {
-  padding-bottom: calc(104px + env(safe-area-inset-bottom));
+  padding-bottom: calc(84px + var(--dock-gap));
 }
 
 .dock {
   position: fixed;
   left: 50%;
-  bottom: calc(10px + env(safe-area-inset-bottom));
+  bottom: var(--dock-gap);
   z-index: 12;
   transform: translateX(-50%);
   display: grid;
@@ -1659,7 +1664,7 @@ body:has(main input:focus) .dock {
 .hold-tip {
   position: fixed;
   right: max(12px, calc(50% - 210px));
-  bottom: calc(86px + env(safe-area-inset-bottom));
+  bottom: calc(76px + var(--dock-gap));
   z-index: 12;
   margin: 0;
   padding: 8px 12px;
