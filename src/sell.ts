@@ -4,7 +4,7 @@
 // no step up is offered — the screen is shown to customers, so it has to hold up when read.
 
 import { norm, stripNet } from './eol.ts';
-import { cameraText } from './specs.ts';
+import { cameraText, waterTight } from './specs.ts';
 import type { Item } from './types.ts';
 
 const YEAR = 365.25 * 864e5;
@@ -34,7 +34,8 @@ export const getsUpdates = (s: Item['support']): boolean => s.status === 'ok' ||
 
 function cameraScore(it: Item): number | null {
   const s = it.specs;
-  if (!s) return null;
+  // Nobody picks a tablet for its camera, and only some tablets have a sheet to judge it by.
+  if (!s || it.kind !== 'phone') return null;
   // Lens count and megapixels say what a camera can do, not how good its pictures are, so the
   // phone's class (its chip) scales the result: a budget 50MP sensor is not a flagship camera.
   const lenses = 0.25 + (s.ultrawide ? 0.15 : 0) + (s.zoom ? 0.2 : 0) + (s.mp >= 48 ? 0.1 : 0);
@@ -57,7 +58,8 @@ export function quality(it: Item, now: number): number {
   const grade = GRADE[it.grade] ?? 0.5;
   const camera = cameraScore(it) ?? speed;
   // Battery is rated within its own platform: iPhones last as long on far fewer mAh.
-  const mah = it.specs?.mah ?? 0;
+  // Phones only: just some tablets have a sheet, and those would outrank the rest for it.
+  const mah = it.kind === 'phone' ? (it.specs?.mah ?? 0) : 0;
   const battery = !mah ? 0.5 : it.os === 'iOS' ? clamp((mah - 1800) / 2900) : clamp((mah - 3000) / 2200);
   return updates * 0.3 + speed * 0.28 + camera * 0.1 + storage * 0.12 + battery * 0.1 + grade * 0.1;
 }
@@ -146,6 +148,34 @@ export function diff(from: Item, to: Item): Diff {
       else if (r <= 0.88) losses.push(`Smaller battery: ${num(cb.mah)} mAh instead of ${num(ca.mah)} (when new)`);
     }
     if (cb.year - ca.year >= 1) gains.push(`${plural(cb.year - ca.year, 'year')} newer model (${cb.year})`);
+  }
+
+  // Features are only compared when both have a full spec sheet, so "has" and "has not" are both known.
+  const sa = ca?.sheet;
+  const sb = cb?.sheet;
+  if (sa && sb) {
+    if (sb.g5 && !sa.g5) gains.push(`Has 5G; the ${from.title} is 4G only`);
+    else if (sa.g5 && !sb.g5) losses.push('4G only, no 5G');
+
+    const screen: string[] = [];
+    if (sb.pan === 'OLED' && sa.pan === 'LCD') screen.push('OLED instead of LCD (deeper blacks, richer colour)');
+    if ((sb.hz ?? 60) >= 90 && (sa.hz ?? 60) < 90) screen.push(`smoother ${sb.hz}Hz scrolling`);
+    if (screen.length) gains.push(`Better screen: ${screen.join(', ')}`);
+    else if (sa.pan === 'OLED' && sb.pan === 'LCD') losses.push('LCD screen instead of OLED');
+
+    const power: string[] = [];
+    if (sa.w && sb.w && sb.w >= sa.w * 1.5) power.push(`faster charging (${sb.w}W instead of ${sa.w}W)`);
+    if (sb.wl !== undefined && sa.wl === undefined) power.push('wireless charging');
+    if (power.length) gains.push(power.join(', ').replace(/^./, (c) => c.toUpperCase()));
+    else if (sa.wl !== undefined && sb.wl === undefined) losses.push('No wireless charging');
+
+    if (waterTight(sb) && !waterTight(sa)) gains.push(`Water resistant (${sb.ip})`);
+    else if (waterTight(sa) && !waterTight(sb)) losses.push('Not water resistant');
+
+    const gone: string[] = [];
+    if (sa.sd && !sb.sd) gone.push('no memory card slot');
+    if (sa.jack && !sb.jack) gone.push('no headphone socket');
+    if (gone.length) losses.push(gone.join(', ').replace(/^./, (c) => c.toUpperCase()));
   }
 
   const ga = GRADE[from.grade];
@@ -336,9 +366,11 @@ export function compareRows(list: Product[], now: number): Row[] {
     row('Updates', updText, updRank),
     row('Speed', (it) => it.perf?.label ?? '—', (it) => it.perf?.tier ?? 0),
     row('Storage', (it) => (it.storageGb ? gb(it.storageGb) : '—'), (it) => it.storageGb),
-    row('Camera', (it) => (it.specs ? cameraText(it.specs) : '—'), (it) => cameraScore(it) ?? 0),
+    row('Camera', (it) => (it.specs && it.kind === 'phone' ? cameraText(it.specs) : '—'), (it) => cameraScore(it) ?? 0),
     row('Battery', (it) => (it.specs?.mah ? `${num(it.specs.mah)} mAh` : '—'), (it) => it.specs?.mah ?? 0),
-    row('Screen', (it) => (it.screen ? `${it.screen}″` : '—'), (it) => it.screen),
+    row('Screen', (it) => (it.screen ? [`${it.screen}″`, it.specs?.sheet?.pan, (it.specs?.sheet?.hz ?? 0) >= 90 && `${it.specs?.sheet?.hz}Hz`].filter(Boolean).join(' ') : '—'), (it) => it.screen),
+    // Yes or no only where the sheet says so; a model without a sheet shows a dash, not a guess.
+    row('5G', (it) => (it.specs?.sheet ? (it.specs.sheet.g5 ? 'Yes' : 'No') : '—'), (it) => (it.specs?.sheet?.g5 ? 1 : 0)),
     row('Condition', (it) => (it.grade ? `Grade ${it.grade}` : '—'), (it) => GRADE[it.grade] ?? 0),
   ];
   return rows.filter((r): r is Row => r !== null);

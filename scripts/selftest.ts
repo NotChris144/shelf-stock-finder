@@ -1,10 +1,13 @@
 // Prints how the sample listings are parsed and scored:  npm run selftest
 import snapshot from '../src/data/eol-snapshot.json' with { type: 'json' };
+import sheets from '../src/data/specs.json' with { type: 'json' };
 import { DEMO_HITS } from '../src/demo.ts';
 import type { EolDb } from '../src/eol.ts';
 import { toItem } from '../src/parse.ts';
+import { useSheets, type SheetFile } from '../src/specs.ts';
 import { makeCtx } from '../src/support.ts';
 
+useSheets(sheets as unknown as SheetFile);
 const ctx = makeCtx(snapshot as unknown as EolDb);
 const pad = (s: string, n: number): string => (s.length > n ? s.slice(0, n - 1) + '…' : s.padEnd(n));
 for (const [i, h] of DEMO_HITS.entries()) {

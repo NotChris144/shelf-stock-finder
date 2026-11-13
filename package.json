@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
     "update-support": "node scripts/update-support.ts",
+    "specs": "node scripts/update-specs.ts",
     "selftest": "node scripts/selftest.ts",
     "sellcheck": "node scripts/sellcheck.ts"
   },

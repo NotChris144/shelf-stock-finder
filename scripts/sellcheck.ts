@@ -1,11 +1,14 @@
 // Prints the recommendations the sales flows would make from the sample listings:  node scripts/sellcheck.ts
 import snapshot from '../src/data/eol-snapshot.json' with { type: 'json' };
+import sheets from '../src/data/specs.json' with { type: 'json' };
 import { DEMO_HITS } from '../src/demo.ts';
 import type { EolDb } from '../src/eol.ts';
 import { toItem } from '../src/parse.ts';
 import { diff, fit, products, stepUps } from '../src/sell.ts';
+import { useSheets, type SheetFile } from '../src/specs.ts';
 import { makeCtx } from '../src/support.ts';
 
+useSheets(sheets as unknown as SheetFile);
 const ctx = makeCtx(snapshot as unknown as EolDb);
 const all = products(DEMO_HITS.map((h, i) => toItem(h, i, ctx)), ctx.now);
 const name = (p: { head: { title: string; storage: string; grade: string }; price: number; score: number }): string =>

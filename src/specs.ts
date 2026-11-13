@@ -1,12 +1,70 @@
-// Camera, battery and release-year facts for common phones.
+// Camera, battery, screen and feature facts for phones and tablets.
 //
-// Hand-compiled from manufacturer specifications. A model that is missing here simply gets no
-// camera or battery comparison; nothing is estimated. Battery is capacity when new, in mAh
-// (0 = not recorded).
+// They come from spec sheets read off GSMArena's device pages by `npm run specs` and saved in
+// src/data/specs.json, keyed by CeX's own maker and model name. A model with no sheet falls back
+// to a short hand-compiled table of the basics, and one in neither simply gets no comparison:
+// nothing is estimated. Battery is capacity when new, in mAh (0 = not recorded).
 
 import { norm, stripNet } from './eol.ts';
 
+/** One device's spec sheet as saved, with short names to keep the file small. */
+export interface Sheet {
+  /** GSMArena's name for the device, and its page id there. */
+  n: string;
+  id: number;
+  /** Year and month it went on sale. */
+  y: number;
+  m?: number;
+  /** Screen: inches, panel, refresh rate, resolution ("1080x2400"). */
+  scr: number;
+  pan?: 'OLED' | 'LCD';
+  hz?: number;
+  res?: string;
+  /** Battery in mAh, wired charging in watts, wireless charging in watts (0 = has it, speed not given). */
+  mah: number;
+  w?: number;
+  wl?: number;
+  /** Main camera megapixels, an ultra-wide lens, optical zoom of the longest lens, selfie megapixels. */
+  mp: number;
+  uw?: 1;
+  tz?: number;
+  sf?: number;
+  /** Processor as sold in the UK, and the memory sizes it came with, in GB. */
+  chip: string;
+  ram?: number[];
+  g5?: 1;
+  /** Water and dust rating, e.g. "IP68". */
+  ip?: string;
+  /** Memory card slot, headphone socket, contactless, USB-C. */
+  sd?: 1;
+  jack?: 1;
+  nfc?: 1;
+  usbc?: 1;
+  /** Weight in grams. */
+  wt?: number;
+  /** System it launched with, and the newest it has been upgraded to. */
+  os?: string;
+  up?: string;
+}
+
+export interface SheetFile {
+  /** Date the file was last rebuilt. */
+  at: string;
+  source: string;
+  /** Keyed "maker|model", both as CeX writes them, normalised. */
+  sheets: Record<string, Sheet>;
+}
+
+let SHEETS: Record<string, Sheet> = {};
+
+/** Hand the saved spec sheets over, once, before any stock is read. */
+export function useSheets(file: SheetFile): void {
+  SHEETS = file.sheets;
+}
+
 export interface Specs {
+  /** The full sheet, when there is one; without it only the basics below are known. */
+  sheet?: Sheet;
   year: number;
   mah: number;
   /** Main camera megapixels. */
@@ -81,6 +139,11 @@ for (const [brand, list] of Object.entries(TABLE)) {
 }
 
 export function specsFor(brand: string, models: string[]): Specs | null {
+  // A sheet only counts when the name matches exactly: a 5G model must not borrow the 4G one's.
+  for (const raw of models) {
+    const s = raw ? SHEETS[`${brand}|${norm(raw)}`] : undefined;
+    if (s) return { sheet: s, year: s.y, mah: s.mah, mp: s.mp, ultrawide: Boolean(s.uw), zoom: s.tz ?? 0, screen: s.scr };
+  }
   const m = MAP.get(brand);
   if (!m) return null;
   for (const raw of models) {
@@ -94,6 +157,9 @@ export function specsFor(brand: string, models: string[]): Specs | null {
   }
   return null;
 }
+
+/** Safe under water (IP67, IP68 and the like), as opposed to merely splash-proof (IP54). */
+export const waterTight = (s: Sheet | undefined): boolean => /[789]$/.test(s?.ip ?? '');
 
 /** "48MP main, ultra-wide, 5× zoom" */
 export function cameraText(s: Specs): string {

@@ -1,0 +1,21 @@
+{
+  "phones": {
+    "Samsung": ["Galaxy S22", "Galaxy S24", "Galaxy S26 FE", "Galaxy S26 Ultra", "Galaxy S23 Ultra", "Galaxy Z Fold7", "Galaxy A12", "Galaxy A16", "Galaxy A17", "Galaxy S20 FE", "Galaxy S23", "Galaxy S24 Ultra", "Galaxy S25", "Galaxy S25 Ultra", "Galaxy S26", "Galaxy Z Flip6", "Galaxy A04E", "Galaxy A06", "Galaxy A07", "Galaxy A11", "Galaxy A13", "Galaxy A14", "Galaxy A18", "Galaxy A20e", "Galaxy A21S", "Galaxy A25", "Galaxy A35", "Galaxy A54", "Galaxy S10", "Galaxy S20 Plus", "Galaxy S22 Plus", "Galaxy S24 FE", "Galaxy S7", "Galaxy S8 Plus", "Galaxy Z Flip3", "Galaxy Z Flip7", "Galaxy Z Flip7 FE", "Galaxy Z Fold5", "Galaxy Z Fold8 Ultra", "Galazy S26 FE"],
+    "Apple": ["iPhone 12", "iPhone 14 Plus", "iPhone 12 Mini", "iPhone 16 Pro", "iPhone 13 Pro Max", "iPhone 14", "iPhone 14 Pro", "iPhone 15", "iPhone 17 Pro", "iPhone 8", "iPhone 11", "iPhone 12 Pro", "iPhone 12 Pro Max", "iPhone 13", "iPhone 13 Mini", "iPhone 13 Pro", "iPhone 16 Pro Max", "iPhone 17 Pro Max", "iPhone 8 Plus", "iPhone SE 2nd Gen", "iPhone X", "iPhone 14 Pro Max", "iPhone 15 Plus", "iPhone 15 Pro", "iPhone 16 Plus", "iPhone 16e", "iPhone 17", "iPhone 18 Pro", "iPhone XR", "iPhone XS", "iPhone XS Max", "iPhone 11 Pro", "iPhone 15 Pro Max", "iPhone 16", "iPhone 4S", "iPhone 7 Plus", "iPhone SE 3rd Gen"],
+    "Motorola": ["Edge 70", "Moto G24", "Moto G34", "Moto G8"],
+    "Google": ["Pixel 11 Pro", "Pixel 11 Pro XL", "Pixel 9 Pro", "Pixel 10 Pro", "Pixel 11", "Pixel 4a", "Pixel 6", "Pixel 6 Pro", "Pixel 6A", "Pixel 7", "Pixel 9 Pro XL", "Pixel 9a"],
+    "Redmi": ["A7 Pro"],
+    "Oppo": ["Find X9"],
+    "Honor": ["Magic V6", "Magic7 Lite", "Magic8 Lite"],
+    "OnePlus": ["9", "13"],
+    "Oukitel": ["wp53"],
+    "TCL": ["K70"]
+  },
+  "tablets": {
+    "Samsung": ["Galaxy Tab 3", "Galaxy Tab A 10.1 (2019)", "Galaxy Tab S10 Lite", "Galaxy Tab S11 Ultra", "Galaxy Tab A 10.1", "Galaxy Tab A 10.5", "Galaxy Tab A11", "Galaxy Tab A7 Lite", "Galaxy Tab A8", "Galaxy Tab A9", "Galaxy Tab Active", "Galaxy Tab S10 Ultra", "Galaxy Tab S6 Lite", "Galaxy Tab S7", "Galaxy Tab S9 FE 5G"],
+    "Amazon": ["Alexa Tablet 8", "Fire 7", "Kindle Fire HD 10", "Kindle Fire HDX", "tablet 8 2026"],
+    "Microsoft": ["Surface", "Surface Pro 8"],
+    "Huawei": ["MediaPad T3 10"],
+    "Bush": ["Spira B3"]
+  }
+}

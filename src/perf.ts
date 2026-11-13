@@ -294,6 +294,8 @@ export interface PerfInput {
   cpu: string;
   /** "CPU Model" attribute from CeX, when the index returns it. */
   cpuAttr: string;
+  /** Processor named on the model's spec sheet, when it has one. */
+  chip?: string;
   /** Full text to mine for iPad generation hints. */
   text: string;
 }
@@ -313,6 +315,8 @@ export function perfFor(p: PerfInput): Perf | null {
     const s = chip ? chipScore('apple ' + chip) : undefined;
     return s ? make(s, 'Apple ' + chip, false) : null;
   }
-  const s = phoneScore(p.brand, p.models);
-  return s ? make(s, '', false) : null;
+  // The spec sheet names the chip: it labels a score found by model, and finds one when the
+  // model itself is not in the table.
+  const s = phoneScore(p.brand, p.models) ?? (p.chip ? chipScore(p.chip) : undefined);
+  return s ? make(s, p.chip ?? '', false) : null;
 }

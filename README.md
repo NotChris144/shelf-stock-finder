@@ -29,6 +29,28 @@ Filters and settings. `npm run sellcheck` prints sample recommendations.
 Search filters adapt to the category: phones, tablets, laptops, desktops and consoles each get
 their own (`FACETS` in `src/main.ts`).
 
+## Phone and tablet spec sheets
+
+CeX's records name a phone but hold nothing about its camera, battery, screen or chip. Those come
+from [GSMArena](https://www.gsmarena.com)'s device pages, read ahead of time by a script and saved
+in `src/data/specs.json`; the app only ever reads that file.
+
+```
+npm run specs              # look up models in scripts/spec-models.json that have no sheet yet
+npm run specs -- --cex     # first add whatever the store stocks now to that list
+npm run specs -- --max=30  # ask for at most 30 pages this run (default 18)
+```
+
+- GSMArena refuses an address for ten hours after roughly 50 page requests in a short spell, so a
+  run asks for a few pages, several seconds apart, and stops at the first refusal. Run it again
+  another day to carry on; pages already read are kept in `.cache/specs`.
+- A sheet is saved under CeX's own maker and model name, and only when that name matches exactly
+  one GSMArena device. Anything else gets no sheet rather than a guess.
+- An opened card lists the sheet and names the device it came from. A model with no sheet falls
+  back to the short hand-compiled table in `src/specs.ts`, or shows nothing.
+- Filters that read the sheet (5G, wireless charging, water resistance and so on) only appear once
+  85% of the phones on screen have one.
+
 ## Film spines
 
 Film & TV cards have a **Spine** button. It opens a scan of the whole printed sleeve (back, spine,

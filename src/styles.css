@@ -2487,3 +2487,39 @@ body:has(main input:focus) .dock {
   pointer-events: none;
   animation: reveal 0.2s ease-out;
 }
+
+/* ---------------------------------------------------------------- spec sheet */
+
+/* The model's facts as a short two-column list inside an opened card. */
+.specs {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 7px 14px;
+  margin: 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-size: 14px;
+}
+
+.specs dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.specs dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.specs-src {
+  margin: -2px 2px 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.specs-src a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

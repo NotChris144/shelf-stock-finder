@@ -11,6 +11,15 @@
         ],
         "createdAt": "2026-11-13T02:00:53.137Z",
         "reason": "Claude decided: the only width transition is the absolutely positioned quick-filter panel narrowing (180ms) to make room for its side column; the rows must reflow, a scale transform would squash the text, and the reflow is confined to the panel's own few rows"
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "scripts/update-specs.ts"
+        ],
+        "createdAt": "2026-11-13T02:38:49.637Z",
+        "reason": "Claude decided: the flagged img tag is inside a regular expression that reads GSMArena's HTML in a Node script; no image is rendered"
       }
     ]
   }

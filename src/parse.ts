@@ -145,7 +145,8 @@ export function toItem(h: Hit, idx: number, ctx: SupportCtx): Item {
   const grade = first(h.Grade).trim().toUpperCase() || p?.grade || '';
 
   const support = supportFor({ kind, brand: brandKey, models, cpu: p?.cpu ?? '', os: p?.os ?? '', category, name, text }, ctx);
-  const perf = perfFor({ kind, brand: brandKey, models, cpu: p?.cpu ?? '', cpuAttr: isPc ? '' : first(h['CPU Model']), text });
+  const specs = kind === 'phone' || kind === 'tablet' ? specsFor(brandKey, models) : null;
+  const perf = perfFor({ kind, brand: brandKey, models, cpu: p?.cpu ?? '', cpuAttr: isPc ? '' : first(h['CPU Model']), chip: specs?.sheet?.chip ?? '', text });
 
   let title = name;
   // The category is part of the key: the PS4 and PS5 editions of a game share a name but are different products.
@@ -164,7 +165,6 @@ export function toItem(h: Hit, idx: number, ctx: SupportCtx): Item {
     title = model;
   }
 
-  const specs = kind === 'phone' ? specsFor(brandKey, models) : null;
   const img = h.imageUrls?.medium ?? h.imageUrls?.small ?? h.imageUrls?.large ?? '';
   return {
     id: String(h.boxId),

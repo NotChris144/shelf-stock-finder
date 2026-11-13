@@ -1,17 +1,22 @@
 import './styles.css';
 import snapshot from './data/eol-snapshot.json';
+import sheetFile from './data/specs.json';
 import { PRESETS, clearCache, fetchStores, lookupIds, search } from './api.ts';
 import { findCover, forget, remembered, spineOf, type Cover } from './covers.ts';
 import { DEMO_HITS } from './demo.ts';
 import { fetchEolDb, type EolDb } from './eol.ts';
 import { clearStock, homeHtml, renderFlow, resetPickQuery, setPickQuery, type FlowHost } from './flows.ts';
 import { getsUpdates, type FitType } from './sell.ts';
+import { cameraText, useSheets, waterTight, type SheetFile } from './specs.ts';
 import { toItem } from './parse.ts';
 import type { ScanHost, Scanner } from './scan.ts';
 import { makeCtx } from './support.ts';
 import type { Group, Hit, Item } from './types.ts';
 
 // ------------------------------------------------------------------ helpers
+
+// Spec sheets are in place before any stock is read.
+useSheets(sheetFile as unknown as SheetFile);
 
 const $ = <T extends HTMLElement>(sel: string): T => document.querySelector<T>(sel)!;
 const ESC: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -112,6 +117,8 @@ interface Facet {
   test(it: Item): boolean;
   /** Applied by the search service (matching any one value), for categories too big to fetch whole. */
   server?: string[];
+  /** Reads the model's full spec sheet, so it can only be trusted when most of the shelf has one. */
+  sheet?: boolean;
 }
 interface FacetGroup {
   name: string;
@@ -121,6 +128,8 @@ interface FacetGroup {
 }
 
 const where = (id: string, label: string, test: (it: Item) => boolean): Facet => ({ id, label, test });
+/** A feature only a full spec sheet records: without one, "has it" and "has not" are both unknown. */
+const onSheet = (id: string, label: string, test: (it: Item) => boolean): Facet => ({ id, label, test, sheet: true });
 const atLeast = (key: 'storageGb' | 'ramGb', id: string, n: number, label: string): Facet => where(id, label, (it) => it[key] >= n);
 const system = (id: string, label: string, os: string): Facet => where(id, label, (it) => it.os === os);
 const inCategory = (id: string, label: string, re: RegExp): Facet => where(id, label, (it) => re.test(it.category));
@@ -169,10 +178,33 @@ const FACETS: Record<Exclude<Shelf, ''>, FacetGroup[]> = {
       name: 'Size',
       options: [where('pcomp', 'Compact (under 6″)', (it) => it.screen > 0 && it.screen < 6), where('pbig', 'Large (6.5″ and up)', (it) => it.screen >= 6.5)],
     },
-    { name: 'Battery', quick: ['bat'], options: [where('bat', 'Big battery', (it) => (it.specs?.mah ?? 0) >= 4500)] },
+    {
+      name: 'Battery',
+      quick: ['bat'],
+      options: [
+        where('bat', 'Big battery', (it) => (it.specs?.mah ?? 0) >= 4500),
+        onSheet('fast', 'Fast charging (25W+)', (it) => (it.specs?.sheet?.w ?? 0) >= 25),
+        onSheet('wl', 'Wireless charging', (it) => it.specs?.sheet?.wl !== undefined),
+      ],
+    },
     {
       name: 'Camera',
       options: [where('uw', 'Ultra-wide camera', (it) => Boolean(it.specs?.ultrawide)), where('zoom', 'Zoom camera', (it) => Boolean(it.specs?.zoom))],
+    },
+    {
+      name: 'Screen',
+      options: [onSheet('oled', 'OLED screen', (it) => it.specs?.sheet?.pan === 'OLED'), onSheet('hz', 'Smooth (90Hz+)', (it) => (it.specs?.sheet?.hz ?? 0) >= 90)],
+    },
+    // These read the model's spec sheet, so a phone without one is left out rather than guessed at.
+    {
+      name: 'Features',
+      quick: ['g5'],
+      options: [
+        onSheet('g5', '5G', (it) => Boolean(it.specs?.sheet?.g5)),
+        onSheet('ip', 'Water resistant', (it) => waterTight(it.specs?.sheet)),
+        onSheet('sd', 'Memory card slot', (it) => Boolean(it.specs?.sheet?.sd)),
+        onSheet('jack', 'Headphone socket', (it) => Boolean(it.specs?.sheet?.jack)),
+      ],
     },
   ],
   tablet: [
@@ -409,9 +441,26 @@ function brandsFor(fx: string[]): string[] {
 const isMobile = (s: Shelf): boolean => s === 'phone' || s === 'tablet';
 /** Speed ratings exist for anything with a processor we can read. */
 const isDevice = (s: Shelf): boolean => isMobile(s) || s === 'laptop' || s === 'desktop';
+/**
+ * Share of the phones and tablets on screen that have a full spec sheet. Filters that read the
+ * sheet are held back until this is high: "5G" that silently leaves out every phone without a
+ * sheet would look like an answer and be wrong.
+ */
+function sheetCover(): number {
+  const mobile = items.filter((it) => it.kind === 'phone' || it.kind === 'tablet');
+  return mobile.length ? mobile.filter((it) => it.specs?.sheet).length / mobile.length : 0;
+}
+
 const facetGroups = (): FacetGroup[] => {
   const s = shelf();
-  return s ? FACETS[s] : [];
+  if (!s) return [];
+  const all = FACETS[s];
+  if (!all.some((g) => g.options.some((o) => o.sheet)) || sheetCover() >= 0.85) return all;
+  // Keep any already switched on, so a saved link still shows what it is filtering by.
+  const keep = (o: Facet): boolean => !o.sheet || F.fx.includes(o.id);
+  return all
+    .map((g) => ({ ...g, options: g.options.filter(keep), quick: g.quick?.filter((id) => g.options.some((o) => o.id === id && keep(o))) }))
+    .filter((g) => g.options.length);
 };
 
 // ------------------------------------------------------------------ URL state
@@ -912,6 +961,40 @@ async function openCover(it: Item, btn: HTMLElement | null): Promise<void> {
   showCover(it, c);
 }
 
+const MONTH = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/** The model's spec sheet in plain words. Only what is recorded: a missing fact is a missing row. */
+function specsHtml(it: Item): string {
+  const s = it.specs;
+  if (!s) return '';
+  const sh = s.sheet;
+  const join = (parts: (string | false | 0 | undefined)[]): string => parts.filter(Boolean).join(' · ');
+  const rows: [string, string][] = [];
+  const size = it.screen || s.screen;
+  if (size) rows.push(['Screen', join([`${size}″`, sh?.pan, sh?.hz && `${sh.hz}Hz`])]);
+  if (s.mah) rows.push(['Battery', join([`${s.mah.toLocaleString('en-GB')} mAh when new`, sh?.w && `${sh.w}W charging`, sh?.wl !== undefined && 'wireless charging'])]);
+  if (s.mp) rows.push(['Camera', join([cameraText(s), sh?.sf && `${sh.sf}MP selfie`])]);
+  if (sh) {
+    const ram = it.ramGb ? `${it.ramGb}GB memory` : sh.ram?.length ? `${sh.ram.length > 1 ? `${sh.ram[0]} to ${sh.ram[sh.ram.length - 1]}` : sh.ram[0]}GB memory` : '';
+    if (sh.chip) rows.push(['Chip', join([sh.chip, ram])]);
+    // A Wi-Fi tablet has no mobile network to speak of.
+    if (it.kind === 'phone') rows.push(['Network', sh.g5 ? '5G' : '4G, no 5G']);
+    const extras = join([
+      sh.ip && `${sh.ip} ${waterTight(sh) ? 'water resistant' : 'splash resistant'}`,
+      sh.sd && 'memory card slot',
+      sh.jack && 'headphone socket',
+      sh.nfc && 'contactless (NFC)',
+      sh.usbc && 'USB-C',
+    ]);
+    if (extras) rows.push(['Extras', extras]);
+  }
+  if (s.year) rows.push(['Released', join([`${sh?.m ? `${MONTH[sh.m - 1]} ` : ''}${s.year}`, sh?.os && `came with ${sh.os}`])]);
+  if (!rows.length) return '';
+  // Naming the sheet's own device makes a wrong match visible at a glance.
+  const src = sh ? `<p class="specs-src">Spec sheet for the ${esc(sh.n)}, from <a href="https://www.gsmarena.com/x-${sh.id}.php" target="_blank" rel="noopener noreferrer">GSMArena</a></p>` : '';
+  return `<dl class="specs">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${src}`;
+}
+
 function detailHtml(g: Group): string {
   const it = g.head;
   const s = it.support;
@@ -944,7 +1027,7 @@ function detailHtml(g: Group): string {
     scanned && (it.model || it.title)
       ? `<div class="detail-acts">${sellable ? `<button type="button" class="chip" aria-pressed="true" data-act="stepup" data-v="${esc(it.id)}">Find a step up</button>` : ''}<button type="button" class="chip" data-act="similar" data-v="${esc(it.model || it.title)}">Find similar in stock</button></div>`
       : '';
-  return `<div class="detail">${priced}${why}${speed}<ul class="variants">${rows}</ul>${similar}</div>`;
+  return `<div class="detail">${priced}${why}${speed}${specsHtml(it)}<ul class="variants">${rows}</ul>${similar}</div>`;
 }
 
 const isHome = (): boolean => !F.mode && !F.q.trim() && !F.preset;
