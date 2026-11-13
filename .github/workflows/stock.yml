@@ -1,0 +1,54 @@
+name: Stock activity
+
+# Every 15 minutes while the shop is open, list everything Eastbourne has in stock and record
+# what has come in and what has gone since the last look (scripts/track-stock.ts).
+#
+# The record lives on its own branch, `stock-data`, as a single commit that is replaced each
+# time, so it never builds up history. The app reads log.json straight from that branch, so new
+# stock shows without redeploying the site.
+
+on:
+  schedule:
+    # 08:00 to 20:45 UTC: 9am to 6pm UK in winter and summer, with an hour or two either side.
+    - cron: '*/15 8-20 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stock
+  cancel-in-progress: false
+
+jobs:
+  look:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Get the last look
+        run: |
+          mkdir -p stock-data
+          if git fetch -q --depth=1 origin stock-data 2>/dev/null; then
+            git show FETCH_HEAD:state.json > stock-data/state.json
+            git show FETCH_HEAD:log.json > stock-data/log.json
+          else
+            echo "No record yet: this look sets the starting point."
+          fi
+      - name: Compare with the shelf now
+        id: look
+        run: node scripts/track-stock.ts stock-data
+      - name: Save the record
+        if: steps.look.outputs.changed == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd stock-data
+          git init -q -b stock-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state.json log.json
+          git commit -q -m "Stock at $(date -u +'%Y-%m-%d %H:%M') UTC"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" stock-data

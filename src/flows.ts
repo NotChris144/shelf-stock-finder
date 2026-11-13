@@ -8,10 +8,13 @@
 // round, so from there every line is a plain fact addressed to the customer.
 
 import { compareRows, diffProducts, fit, fitKind, products, stepUps, type Aspect, type Diff, type FitNeeds, type FitType, type Product } from './sell.ts';
-import type { Group, Item } from './types.ts';
+import { activityRows, drawActivity, TITLES, type ActivityKind } from './activity.ts';
+import type { Group, Hit, Item } from './types.ts';
 
 export interface FlowState {
-  mode: '' | 'up' | 'fit';
+  mode: '' | 'up' | 'fit' | ActivityKind;
+  /** Which kind of item the activity screens are narrowed to ('' = all). */
+  ac: string;
   /** Product ID of the phone the customer picked (step up). */
   pick: string;
   bud: number;
@@ -26,7 +29,11 @@ export interface FlowHost {
   esc(s: string): string;
   money(n: number): string;
   chip(act: string, value: string | number, label: string, on: boolean, extra?: string): string;
-  cardHtml(g: Group, note?: string, opts?: { cls?: string; tag?: string; vt?: string }): string;
+  cardHtml(g: Group, note?: string, opts?: { cls?: string; tag?: string; vt?: string; when?: string; plain?: boolean }): string;
+  /** A search result as the app reads it. */
+  toItem(h: Hit): Item;
+  /** Real products from the branch, for sample screens. */
+  sampleHits(): Promise<Hit[]>;
   /** Lets the shared card handler expand a card drawn here. */
   register(g: Group): void;
   /** Every in-stock phone or tablet at the branch. */
@@ -109,6 +116,7 @@ export function homeHtml(host: FlowHost): string {
       <p>Options around their price, side by side.</p>
       <div class="chips wrap">${BUDGETS.map((b) => host.chip('bud', b, `£${b}`, false)).join('')}${host.chip('bud', 0, 'Other', false, ' ghost')}</div>
     </div>
+    ${activityRows()}
     <h3>Browse</h3>
     <div class="tiles">${host.categories().map(([id, label]) => `<button type="button" class="tile" data-act="preset" data-v="${id}"><span>${label}</span>${ICON_NEXT}</button>`).join('')}</div>
     ${recent.length ? `<h3>Recent searches</h3><div class="chips wrap browse">${recent.map((r) => host.chip('recent', r, host.esc(r), false)).join('')}</div>` : ''}
@@ -358,6 +366,14 @@ export function renderFlow(host: FlowHost, s: FlowState, root: HTMLElement): voi
            <div id="flowBody"></div>`;
     }
     void drawUp(host, s, root.querySelector<HTMLElement>('#flowBody')!);
+    return;
+  }
+  if (s.mode === 'in' || s.mode === 'sold') {
+    if (root.dataset.shell !== s.mode) {
+      root.dataset.shell = s.mode;
+      root.innerHTML = `<div class="flow-head">${back}<h2>${TITLES[s.mode]}</h2></div><div id="flowBody"></div>`;
+    }
+    void drawActivity(host, s.mode, s.ac, root.querySelector<HTMLElement>('#flowBody')!);
     return;
   }
   root.dataset.shell = 'fit';

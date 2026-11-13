@@ -86,6 +86,31 @@ npm run specs -- --retry   # try again the models GSMArena had no match for
 - Filters that read the sheet (5G, wireless charging, water resistance and so on) only appear once
   85% of the phones on screen have one.
 
+## Stock activity
+
+The start screen's Activity group opens **Just in** (everything that has come into stock, newest
+first, with how long ago) and **Recently sold** (tech only: phones, tablets, computers, consoles and
+electronics).
+
+CeX's search says what a branch has now, not when it arrived or left, and not how many of each. So
+a GitHub job (`.github/workflows/stock.yml`) lists everything Eastbourne has in stock every 15
+minutes from 8am to 9pm UK time (about 8,000 products, in about a second) and compares it with the
+last list (`src/tracker.ts`):
+
+- A product that was not there before has come in. Another copy of something already on the shelf
+  doesn't show, because CeX lists one entry per product.
+- A product that has gone, and is still gone at the next look, has left: the last one sold, or now
+  and then moved to another store. Waiting for a second look keeps a hiccup in the search from
+  showing as a sale.
+- The first look only sets the starting point. Changes after a long gap (overnight) are shown as
+  "before 9:07" rather than with a time they did not happen at.
+
+The record is kept on the `stock-data` branch as one commit that is replaced each time, so it builds
+up no history, and the app reads `log.json` straight from there, so the site does not need
+redeploying. It holds a week of arrivals and a fortnight of sales. Until it records its first change,
+both screens show sample data (real items from the shelf with made-up times), clearly marked; the
+first real change replaces it.
+
 ## Film spines
 
 Film & TV cards have a **Spine** button. It opens a scan of the whole printed sleeve (back, spine,

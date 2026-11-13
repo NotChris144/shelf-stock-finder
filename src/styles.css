@@ -3273,3 +3273,137 @@ dialog[open][data-leaving]::backdrop {
     box-shadow: 0 14px 44px rgb(20 20 30 / 0.2), inset 0 0 0 0.5px var(--hair);
   }
 }
+
+/* ================================================================ stock activity */
+
+/* On the start screen: one inset group of two rows, as a settings list has. */
+.group {
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto 16px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 60px;
+  padding: 8px 12px 8px 14px;
+  text-align: left;
+  transition: background 0.4s;
+}
+
+.row + .row {
+  box-shadow: inset 60px 0.5px 0 var(--surface), inset 0 0.5px 0 var(--hair);
+}
+
+.row:active {
+  background: var(--fill-2);
+  transition-duration: 0s;
+}
+
+.row-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--fill-2);
+}
+
+.row-icon svg {
+  width: 19px;
+  height: 19px;
+  stroke-width: 2;
+}
+
+.row-icon.in {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 18%, transparent);
+}
+
+.row-text {
+  display: grid;
+  min-width: 0;
+}
+
+.row-text b {
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.row-text small {
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.row-n {
+  font-size: 15px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.row-n.is-sample {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  color: var(--warn);
+}
+
+.row > svg:last-child {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.4;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+/* The screens: a line saying how fresh the record is, the kinds of item, then the days. */
+.act-sub {
+  margin: -6px 2px 12px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.note.sample {
+  margin: -4px 0 14px;
+  font-size: 14px;
+}
+
+.frow.act-filter {
+  margin: 0 calc(-1 * var(--gutter)) 4px;
+}
+
+.act-filter .chip[aria-pressed='true'] {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.day {
+  margin: 20px 4px 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* When it happened, under the price, the way a message list puts its times. */
+.price .when {
+  margin-top: 3px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.feed .price {
+  font-size: 18px;
+}
+
+#flowBody > .fine {
+  margin-top: 18px;
+}

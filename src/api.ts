@@ -141,6 +141,25 @@ export async function lookupIds(ids: string[], store: string): Promise<{ hits: H
   };
 }
 
+/** A dozen of the most popular products in each department of a branch, for sample screens. */
+export async function sampleStock(store: string): Promise<Hit[]> {
+  const depts = ['Phones', 'Computing', 'Gaming', 'Electronics', 'Film & TV'];
+  const r = await post(
+    depts.map((d) => ({
+      indexName: CONFIG.index + ORDERED.pop,
+      query: '',
+      hitsPerPage: 12,
+      facetFilters: [[`stores:${store}`], [`superCatFriendlyName:${d}`]],
+      filters: BASE_FILTER,
+      attributesToRetrieve: ATTRS,
+      attributesToHighlight: [],
+      analytics: false,
+      clickAnalytics: false,
+    })),
+  );
+  return r.flatMap((x) => (x.hits ?? []) as Hit[]);
+}
+
 /** Every branch name, for the store picker. */
 export async function fetchStores(): Promise<string[]> {
   const r = await post([

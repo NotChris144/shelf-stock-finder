@@ -1,7 +1,8 @@
 import './styles.css';
 import snapshot from './data/eol-snapshot.json';
 import sheetFile from './data/specs.json';
-import { PRESETS, clearCache, fetchStores, lookupIds, search } from './api.ts';
+import { PRESETS, clearCache, fetchStores, lookupIds, sampleStock, search } from './api.ts';
+import { fillActivity, forgetLog } from './activity.ts';
 import { findCover, forget, remembered, spineOf, type Cover } from './covers.ts';
 import { DEMO_HITS } from './demo.ts';
 import { fetchEolDb, type EolDb } from './eol.ts';
@@ -60,7 +61,9 @@ interface Filters {
   /** Category-specific filters, as option ids (see FACETS). */
   fx: string[];
   /** Sales flow: '' (search), 'up' (step up from a pick) or 'fit' (match a budget). */
-  mode: '' | 'up' | 'fit';
+  mode: '' | 'up' | 'fit' | 'in' | 'sold';
+  /** Which kind of item the activity screens are narrowed to ('' = all). */
+  ac: string;
   pick: string;
   bud: number;
   ft: FitType;
@@ -69,7 +72,7 @@ interface Filters {
   fo: string;
 }
 
-const DEFAULTS: Filters = { q: '', preset: '', max: 0, up: 0, perf: 0, sort: 'rel', brands: [], grades: [], fx: [], mode: '', pick: '', bud: 0, ft: 'phone', need: 'u', fo: '' };
+const DEFAULTS: Filters = { q: '', preset: '', max: 0, up: 0, perf: 0, sort: 'rel', brands: [], grades: [], fx: [], mode: '', pick: '', bud: 0, ft: 'phone', need: 'u', fo: '', ac: '' };
 const FIT_TYPES: FitType[] = ['phone', 'iphone', 'android', 'ipad', 'androidtab'];
 const SORTS: [Sort, string][] = [
   ['rel', 'Best match'],
@@ -479,7 +482,8 @@ function readHash(): void {
     brands: p.get('b')?.split('~').filter(Boolean) ?? [],
     grades: p.get('g')?.split('~').filter(Boolean) ?? [],
     fx: p.get('x')?.split('~').filter(Boolean) ?? [],
-    mode: p.get('m') === 'up' || p.get('m') === 'fit' ? p.get('m') : '',
+    mode: ['up', 'fit', 'in', 'sold'].includes(p.get('m') ?? '') ? p.get('m') : '',
+    ac: p.get('ac') ?? '',
     pick: p.get('id') ?? '',
     bud: Number(p.get('bud')) || 0,
     ft: FIT_TYPES.includes(p.get('ft') as FitType) ? p.get('ft') : 'phone',
@@ -506,6 +510,7 @@ function writeHash(push = false): void {
     if (F.ft !== 'phone') p.set('ft', F.ft);
     if (F.need !== 'u') p.set('need', F.need);
     if (F.fo) p.set('fo', F.fo);
+    if (F.ac) p.set('ac', F.ac);
   }
   const h = p.toString();
   const url = location.pathname + location.search + (h ? '#' + h : '');
@@ -801,7 +806,8 @@ function perfBadge(it: Item): string {
   return it.perf ? `<span class="badge speed">${bars(it.perf.tier)}${it.perf.label}</span>` : '';
 }
 
-function cardHtml(g: Group, note = '', opts: { cls?: string; tag?: string; vt?: string } = {}): string {
+/** `when` puts a time under the price; `plain` leaves off the extras (the spine button). */
+function cardHtml(g: Group, note = '', opts: { cls?: string; tag?: string; vt?: string; when?: string; plain?: boolean } = {}): string {
   const it = g.head;
   const n = g.items.length;
   const grades = [...new Set(g.items.map((i) => i.grade).filter(Boolean))].sort();
@@ -812,7 +818,7 @@ function cardHtml(g: Group, note = '', opts: { cls?: string; tag?: string; vt?: 
   const price = g.max > g.min ? `<small>from</small>${money(g.min)}` : money(g.min);
   const tag = opts.tag ? `<span class="badge tag">${esc(opts.tag)}</span>` : '';
   // Films get a way to see the spine, unless an earlier look found no scan of it.
-  const spine = isFilm(it) && !demo && remembered(it.id) !== null;
+  const spine = !opts.plain && isFilm(it) && !demo && remembered(it.id) !== null;
   return `<li class="card${opts.cls ?? ''}${spine ? ' has-spine' : ''}" data-key="${esc(g.key)}"${opts.vt ? ` style="view-transition-name:${opts.vt}"` : ''}>
     <button type="button" class="card-main" data-act="toggle" aria-expanded="false">
       <span class="thumb">${icon}${img}</span>
@@ -823,7 +829,7 @@ function cardHtml(g: Group, note = '', opts: { cls?: string; tag?: string; vt?: 
         ${note ? `<span class="meta">${esc(note)}</span>` : ''}
         <span class="badges">${tag}${supportBadge(it)}${perfBadge(it)}</span>
       </span>
-      <span class="price">${price}</span>
+      <span class="price">${price}${opts.when ? `<span class="when">${esc(opts.when)}</span>` : ''}</span>
     </button>
     ${spine ? `<button type="button" class="spine-btn" data-act="cover" data-v="${esc(it.id)}" aria-label="Show the spine and cover of ${esc(it.title)}">${ICON_SPINE}<span>Spine</span></button>` : ''}
   </li>`;
@@ -1072,6 +1078,7 @@ function renderResults(): void {
   delete main.dataset.shell;
   if (home) {
     main.innerHTML = homeHtml(flowHost);
+    void fillActivity(main);
     return;
   }
   if (error) {
@@ -1196,6 +1203,8 @@ const flowHost: FlowHost = {
     return found.map((h, i) => toItem(h, i, ctx)).filter((it) => it.kind === kind);
   },
   scanned: (id) => scanResults.get(id)?.item,
+  toItem: (h) => toItem(h, 0, ctx),
+  sampleHits: () => sampleStock(branch),
   branch: () => branch,
   limit: () => stepLimit,
   recent: () => store.get<string[]>('recent', []),
@@ -2174,7 +2183,7 @@ function menuFor(key: string): MenuSpec | null {
 // ------------------------------------------------------------------ actions
 
 /** Which screen a set of choices shows. Moving between two of these is a change of place, not a refinement. */
-const screenOf = (f: Filters): string => (f.mode === 'up' ? (f.pick ? `up:${f.pick}` : 'up') : f.mode === 'fit' ? 'fit' : !f.q.trim() && !f.preset ? 'home' : 'list');
+const screenOf = (f: Filters): string => (f.mode === 'up' ? (f.pick ? `up:${f.pick}` : 'up') : f.mode ? f.mode : !f.q.trim() && !f.preset ? 'home' : 'list');
 
 /**
  * Change screen the way a phone does: the new one slides in from the right while the old one
@@ -2328,6 +2337,17 @@ document.addEventListener('click', (ev) => {
     case 'ftype':
       apply({ ft: v as FitType }, true);
       break;
+    case 'activity':
+      apply({ ...DEFAULTS, mode: v === 'sold' ? 'sold' : 'in' }, true, true);
+      window.scrollTo({ top: 0 });
+      break;
+    case 'ac':
+      apply({ ac: v });
+      break;
+    case 'retry-activity':
+      forgetLog();
+      apply({});
+      break;
     case 'focus':
       apply({ fo: F.fo === v ? '' : v }, true);
       break;
@@ -2451,6 +2471,13 @@ $('#sheet').addEventListener('click', (ev) => {
 });
 
 // Stock moves while the phone is in a pocket: on return, anything over a minute old is fetched again.
+// The stock record moves on while the phone is in a pocket too.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  forgetLog();
+  if (isHome()) void fillActivity($('#results'));
+  else if (F.mode === 'in' || F.mode === 'sold') render();
+});
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible' || Date.now() - loadedAt < 60_000 || isHome()) return;
   clearCache();
