@@ -342,14 +342,16 @@ async function inStock(): Promise<Stocked[]> {
 /**
  * What the script remembers between runs, in scripts/spec-state.json.
  *   used   – page requests made today, by when they were made
- *   fresh  – models that came into stock without a sheet and have not been looked up yet
- *   missed – models GSMArena has no exact match for, and the day that was last checked
- *   read   – the day each sheet was read
+ *   fresh   – models that have just come into stock without a sheet, not looked up yet
+ *   stocked – models in stock at the last check, so an arrival can be told from one already there
+ *   missed  – models GSMArena has no exact match for, and the day that was last checked
+ *   read    – the day each sheet was read
  */
 interface State {
   day: string;
   used: Record<string, number>;
   fresh: string[];
+  stocked?: string[];
   missed: Record<string, string>;
   read: Record<string, string>;
 }
@@ -393,17 +395,24 @@ if (state.day !== now.day) {
 if (mode !== 'manual' || args.has('--cex')) {
   try {
     let added = 0;
-    for (const s of await inStock()) {
+    const current = await inStock();
+    // Only a model that was not in stock at the last check has just arrived. The first check with
+    // this record has nothing to compare with, so it only notes what is there (and drops a queue
+    // kept before, which held every model without a sheet rather than just the arrivals).
+    const was = state.stocked ? new Set(state.stocked) : null;
+    if (!was) state.fresh = [];
+    for (const s of current) {
       const list = (models[s.kind][s.maker] ??= []);
       if (!list.includes(s.model)) {
         list.push(s.model);
         added++;
       }
-      // In stock with no sheet: first in the queue, unless GSMArena was found not to have it.
+      // Just arrived with no sheet: first in the queue, unless GSMArena was found not to have it.
       const k = keyOf(s.maker, s.model);
-      if (!file.sheets[k] && !state.fresh.includes(k) && daysSince(state.missed[k], now.day) > RETRY_MISS) state.fresh.push(k);
+      if (was && !was.has(k) && !file.sheets[k] && !state.fresh.includes(k) && daysSince(state.missed[k], now.day) > RETRY_MISS) state.fresh.push(k);
     }
-    console.log(`CeX ${STORE}: ${added} models not seen before, ${state.fresh.length} in stock without a sheet`);
+    state.stocked = [...new Set(current.map((s) => keyOf(s.maker, s.model)))].sort();
+    console.log(`CeX ${STORE}: ${added} models not seen before, ${state.fresh.length} just arrived without a sheet`);
   } catch (e) {
     console.log(`Could not read CeX stock (${e instanceof Error ? e.message : e}); carrying on with the saved list.`);
   }
