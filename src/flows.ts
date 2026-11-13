@@ -171,7 +171,8 @@ const skeleton = '<ul class="list"><li class="card skeleton"></li><li class="car
 function swap(el: HTMLElement, html: string): void {
   const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
   const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (doc.startViewTransition && !calm && el.childElementCount && document.visibilityState === 'visible') doc.startViewTransition(() => (el.innerHTML = html));
+  const midSlide = document.body.classList.contains('sliding');
+  if (doc.startViewTransition && !calm && !midSlide && el.childElementCount && document.visibilityState === 'visible') doc.startViewTransition(() => (el.innerHTML = html));
   else el.innerHTML = html;
 }
 

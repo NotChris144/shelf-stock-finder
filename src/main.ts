@@ -2183,32 +2183,44 @@ const screenOf = (f: Filters): string => (f.mode === 'up' ? (f.pick ? `up:${f.pi
  * (focusing a field, scrolling to the top) still finds the new screen in place.
  */
 function slide(way: 'push' | 'pop', change: () => void): void {
-  const main = $('#results');
-  if (calm() || swiped || document.visibilityState !== 'visible' || typeof main.animate !== 'function') return change();
-  const box = main.getBoundingClientRect();
-  const ghost = main.cloneNode(true) as HTMLElement;
+  const screen = $('#screen');
+  const bar = $('.top');
+  if (calm() || swiped || document.visibilityState !== 'visible' || typeof screen.animate !== 'function') return change();
+  const was = screen.getBoundingClientRect();
+  const barWas = bar.offsetHeight;
+  const ghost = screen.cloneNode(true) as HTMLElement;
   ghost.removeAttribute('id');
   for (const el of ghost.querySelectorAll('[id]')) el.removeAttribute('id');
   ghost.inert = true;
   ghost.setAttribute('aria-hidden', 'true');
   ghost.className = 'old-screen';
-  ghost.style.cssText = `top:${box.top}px;left:${box.left}px;width:${box.width}px`;
   document.body.append(ghost);
+  // The bar is solid for the length of the move, so neither screen can show through it.
+  document.body.classList.add('sliding');
   change();
   // Going forward, the new screen arrives over the old one, which eases back and dims. Going
   // back is the same film in reverse: the old screen slides off to show the new one beneath.
   const push = way === 'push';
+  // The bar gains or loses its row of categories between screens, and the new screen starts
+  // lower or higher to match. Where it has grown, the top of the old screen would sit behind
+  // the new row, so that strip is cut off. Where it has shrunk on the way back, the old screen
+  // (in front) reaches up to cover the gap, so the new one is not seen until it is uncovered.
+  const grew = bar.offsetHeight - barWas;
+  const cut = Math.max(0, grew);
+  const reach = !push && grew < 0 ? -grew : 0;
+  ghost.style.cssText = `top:${was.top - reach}px;left:${was.left}px;width:${was.width}px;padding-top:${reach}px;clip-path:inset(${cut}px -48px 0 -48px)`;
   const timing = { duration: 440, easing: EASE };
   const across: Keyframe[] = [{ transform: 'translateX(100%)' }, { transform: 'none' }];
   const behind: Keyframe[] = [{ transform: 'none', opacity: 1 }, { transform: 'translateX(-28%)', opacity: 0.35 }];
   ghost.classList.toggle('on-top', !push);
-  main.classList.toggle('on-top', push);
-  (push ? main : ghost).animate(push ? across : [...across].reverse(), { ...timing, fill: push ? 'none' : 'forwards' });
-  (push ? ghost : main).animate(push ? behind : [...behind].reverse(), { ...timing, fill: push ? 'forwards' : 'none' });
+  screen.classList.toggle('on-top', push);
+  (push ? screen : ghost).animate(push ? across : [...across].reverse(), { ...timing, fill: push ? 'none' : 'forwards' });
+  (push ? ghost : screen).animate(push ? behind : [...behind].reverse(), { ...timing, fill: push ? 'forwards' : 'none' });
   // Cleared on a timer, not when the animation reports back: a phone locked mid-move must not leave it behind.
   window.setTimeout(() => {
     ghost.remove();
-    main.classList.remove('on-top');
+    screen.classList.remove('on-top');
+    document.body.classList.remove('sliding');
   }, timing.duration + 60);
 }
 

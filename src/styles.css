@@ -3023,7 +3023,7 @@ a,
 }
 
 /* Whichever screen is in front during the move is solid, and casts a little shade on the one behind. */
-main.on-top,
+.screen.on-top,
 .old-screen.on-top {
   z-index: 3;
   min-height: 100dvh;
@@ -3031,8 +3031,18 @@ main.on-top,
   box-shadow: -12px 0 32px rgb(0 0 0 / 0.3);
 }
 
-main.on-top {
+.screen.on-top {
   position: relative;
+}
+
+/* While screens change places the bar is solid, so nothing passing behind it shows through, and
+   its row of categories fades in rather than landing on top of the old screen. */
+.sliding .top {
+  background: var(--bg);
+}
+
+.presets {
+  animation: fade 0.3s ease-out;
 }
 
 /* ---- the bar at the foot: a floating capsule, frosted, with the current place filled in */

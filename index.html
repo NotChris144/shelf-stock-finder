@@ -49,8 +49,11 @@
       </form>
       <nav class="chips presets" id="presets" aria-label="Categories"></nav>
     </div>
-    <section class="filters" id="filters" aria-label="Filters" hidden></section>
-    <main id="results"></main>
+    <!-- Everything below the bar that belongs to one screen: it slides as a piece when the screen changes. -->
+    <div class="screen" id="screen">
+      <section class="filters" id="filters" aria-label="Filters" hidden></section>
+      <main id="results"></main>
+    </div>
     <p class="hold-tip" id="holdTip" hidden>Tip: hold Filters and slide up. Slide left for more.</p>
     <nav class="dock" aria-label="Quick actions">
       <button type="button" class="dock-btn" id="dockHome" data-act="home">
