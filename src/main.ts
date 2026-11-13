@@ -718,6 +718,27 @@ function activeCount(): number {
 
 let tipShown = false;
 
+/** The curve iOS uses for sheets and pushes: quick off the mark, a long settle. */
+const EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
+const calm = (): boolean => matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** Where the selection thumb last sat in the category strip, so it can slide from there. */
+let thumbAt: { x: number; w: number } | null = null;
+
+/** Draw the thumb behind the chosen category. The strip is redrawn each time, so the slide starts from where it was before. */
+function placeThumb(on: HTMLElement | null): void {
+  if (!on || $('#presets').hidden) return void (thumbAt = on ? thumbAt : null);
+  const to = { x: on.offsetLeft, w: on.offsetWidth };
+  const thumb = document.createElement('i');
+  thumb.className = 'seg-thumb';
+  thumb.style.left = `${to.x}px`;
+  thumb.style.width = `${to.w}px`;
+  $('#presets').prepend(thumb);
+  if (thumbAt && to.w && (thumbAt.x !== to.x || thumbAt.w !== to.w) && !calm()) {
+    thumb.animate([{ transform: `translateX(${thumbAt.x - to.x}px) scaleX(${thumbAt.w / to.w})` }, { transform: 'none' }], { duration: 380, easing: EASE });
+  }
+  if (to.w) thumbAt = to;
+}
+
 function renderChrome(): void {
   $('#storeName').textContent = branch;
   const q = $<HTMLInputElement>('#q');
@@ -731,6 +752,7 @@ function renderChrome(): void {
   // Keep the chosen category in view when it sits past the edge of the strip.
   const on = $('#presets').querySelector<HTMLElement>('[aria-pressed="true"]');
   if (on) $('#presets').scrollLeft = Math.max(0, on.offsetLeft - 24);
+  placeThumb(on);
   // Redrawing the row must not throw it back to the start: the chip just used stays where it was.
   const keep = document.querySelector<HTMLElement>('#filters .frow.bar')?.scrollLeft ?? 0;
   $('#filters').innerHTML = filterControls(false);
@@ -765,7 +787,7 @@ function renderStatus(): void {
   if (loading) el.textContent = 'Searching…';
   else if (error) el.textContent = 'Offline';
   else if (F.mode || isHome()) el.textContent = demo ? 'Demo data' : 'In-stock only';
-  else el.textContent = `${total.toLocaleString('en-GB')} in stock${demo ? ' · demo' : ms ? ` · ${ms} ms` : ''}`;
+  else el.textContent = `${total.toLocaleString('en-GB')} in stock${demo ? ' · demo' : ''}`;
   document.body.classList.toggle('loading', loading);
 }
 
@@ -1126,7 +1148,7 @@ async function openSheet(): Promise<void> {
     const grades = ['A', 'B', 'C'].filter((g) => items.some((i) => i.grade === g));
     const plain = isHome() || Boolean(F.mode);
     sheet.innerHTML = `<form method="dialog" class="sheet-in">
-      <header><h2>${plain ? 'Settings' : 'Filters'}</h2><button class="icon-btn" value="close" aria-label="Close">${ICON_X}</button></header>
+      <header class="sheet-bar"><h2>${plain ? 'Settings' : 'Filters'}</h2><button class="done" value="close">Done</button></header>
       ${plain ? '' : `${filterControls(true)}
       <div class="frow wrap"><span class="flabel">Max £</span><input class="num" type="number" inputmode="numeric" min="0" step="5" placeholder="Any" value="${F.max || ''}" data-act="maxInput" aria-label="Maximum price in pounds"></div>
       ${brands.length > 1 ? `<div class="frow wrap"><span class="flabel">${brandLabel}</span>${brands.map(([b, n]) => chip('brand', b, `${esc(b)} <em>${n}</em>`, F.brands.includes(b))).join('')}</div>` : ''}
@@ -1820,6 +1842,19 @@ window.addEventListener(
   { passive: true },
 );
 
+/** Put a sheet or full-screen layer away the way it arrived: it slides off, then closes. */
+function dismiss(d: HTMLDialogElement): void {
+  if (!d.open || d.dataset.leaving) return;
+  if (calm()) return d.close();
+  d.dataset.leaving = '1';
+  window.setTimeout(() => {
+    delete d.dataset.leaving;
+    d.style.removeProperty('--from');
+    d.style.removeProperty('--pull');
+    d.close();
+  }, 290);
+}
+
 // The phone's Back button closes whatever is open before it leaves the page. A cover can be
 // opened over the scanner, so Back closes one layer at a time, the top one first.
 const LAYERS = ['#cover', '#sheet', '#scanner'];
@@ -1836,17 +1871,93 @@ for (const id of LAYERS) {
     }
   });
 }
-window.addEventListener('popstate', () => {
+/** The browser has already slid the page back itself (an edge swipe on an iPhone), so the app must not do it again. */
+let swiped = false;
+window.addEventListener('popstate', (ev) => {
+  swiped = (ev as PopStateEvent & { hasUAVisualTransition?: boolean }).hasUAVisualTransition === true;
   closeHold();
   if (ownBack) return void (ownBack = false);
   for (const id of LAYERS) {
     const d = $<HTMLDialogElement>(id);
     if (!d.open) continue;
     d.dataset.back = '1';
-    d.close();
+    dismiss(d);
     return;
   }
 });
+for (const id of LAYERS) {
+  const d = $<HTMLDialogElement>(id);
+  // Escape, and the buttons inside a sheet that close it, go the same way as everything else.
+  d.addEventListener('cancel', (ev) => {
+    ev.preventDefault();
+    dismiss(d);
+  });
+  d.addEventListener('submit', (ev) => {
+    if ((ev.target as HTMLFormElement).method !== 'dialog') return;
+    ev.preventDefault();
+    dismiss(d);
+  });
+}
+// The scanner's own close button, caught before the scanner closes it on the spot.
+$('#scanner').addEventListener(
+  'click',
+  (ev) => {
+    if (!(ev.target as HTMLElement).closest('[data-scan="close"]')) return;
+    ev.stopPropagation();
+    dismiss($<HTMLDialogElement>('#scanner'));
+  },
+  true,
+);
+
+// A sheet can be pulled down by its top edge to put it away. Past a third of the way, or with a
+// flick, it goes; otherwise it springs back.
+{
+  const sheet = $<HTMLDialogElement>('#sheet');
+  let finger = -1;
+  let from = 0;
+  let pulled = 0;
+  let since = 0;
+  sheet.addEventListener('pointerdown', (ev) => {
+    const t = ev.target as HTMLElement;
+    const onEdge = t.closest('.sheet-bar') || (t.classList.contains('sheet-in') && ev.clientY - sheet.getBoundingClientRect().top < 30);
+    if (!onEdge || t.closest('button, input') || sheet.dataset.leaving) return;
+    finger = ev.pointerId;
+    from = ev.clientY;
+    pulled = 0;
+    since = performance.now();
+    sheet.setPointerCapture(finger);
+  });
+  sheet.addEventListener('pointermove', (ev) => {
+    if (ev.pointerId !== finger) return;
+    pulled = Math.max(0, ev.clientY - from);
+    sheet.style.transition = 'none';
+    sheet.style.transform = `translateY(${pulled}px)`;
+    sheet.style.setProperty('--pull', String(Math.min(1, pulled / sheet.offsetHeight)));
+  });
+  const letGo = (ev: PointerEvent): void => {
+    if (ev.pointerId !== finger) return;
+    finger = -1;
+    const speed = pulled / Math.max(1, performance.now() - since);
+    sheet.style.transition = '';
+    sheet.style.transform = '';
+    if (pulled > Math.min(140, sheet.offsetHeight / 3) || (pulled > 24 && speed > 0.5)) {
+      // It carries on down from where the finger left it.
+      sheet.style.setProperty('--from', `${pulled}px`);
+      dismiss(sheet);
+    } else sheet.style.removeProperty('--pull');
+  };
+  sheet.addEventListener('pointerup', letGo);
+  sheet.addEventListener('pointercancel', letGo);
+}
+
+// ---- an app, not a page: nothing zooms, nothing selects, and a long press brings up no browser menu
+for (const type of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(type, (ev) => ev.preventDefault());
+window.addEventListener('wheel', (ev) => ev.ctrlKey && ev.preventDefault(), { passive: false });
+document.addEventListener('contextmenu', (ev) => {
+  if (!(ev.target as HTMLElement).closest('input, textarea')) ev.preventDefault();
+});
+// Once the large title has scrolled off, the search bar takes on its frosted backing.
+window.addEventListener('scroll', () => document.body.classList.toggle('stuck', window.scrollY > $('#lead').offsetHeight - 6), { passive: true });
 $('#cover').addEventListener('close', () => {
   coverTurn++;
   $('#cover').innerHTML = '';
@@ -2062,13 +2173,60 @@ function menuFor(key: string): MenuSpec | null {
 
 // ------------------------------------------------------------------ actions
 
+/** Which screen a set of choices shows. Moving between two of these is a change of place, not a refinement. */
+const screenOf = (f: Filters): string => (f.mode === 'up' ? (f.pick ? `up:${f.pick}` : 'up') : f.mode === 'fit' ? 'fit' : !f.q.trim() && !f.preset ? 'home' : 'list');
+
+/**
+ * Change screen the way a phone does: the new one slides in from the right while the old one
+ * eases back to the left, and the reverse on the way out. The old screen is kept for the length
+ * of the move as a lifeless copy, so the page itself changes at once and anything that follows
+ * (focusing a field, scrolling to the top) still finds the new screen in place.
+ */
+function slide(way: 'push' | 'pop', change: () => void): void {
+  const main = $('#results');
+  if (calm() || swiped || document.visibilityState !== 'visible' || typeof main.animate !== 'function') return change();
+  const box = main.getBoundingClientRect();
+  const ghost = main.cloneNode(true) as HTMLElement;
+  ghost.removeAttribute('id');
+  for (const el of ghost.querySelectorAll('[id]')) el.removeAttribute('id');
+  ghost.inert = true;
+  ghost.setAttribute('aria-hidden', 'true');
+  ghost.className = 'old-screen';
+  ghost.style.cssText = `top:${box.top}px;left:${box.left}px;width:${box.width}px`;
+  document.body.append(ghost);
+  change();
+  // Going forward, the new screen arrives over the old one, which eases back and dims. Going
+  // back is the same film in reverse: the old screen slides off to show the new one beneath.
+  const push = way === 'push';
+  const timing = { duration: 440, easing: EASE };
+  const across: Keyframe[] = [{ transform: 'translateX(100%)' }, { transform: 'none' }];
+  const behind: Keyframe[] = [{ transform: 'none', opacity: 1 }, { transform: 'translateX(-28%)', opacity: 0.35 }];
+  ghost.classList.toggle('on-top', !push);
+  main.classList.toggle('on-top', push);
+  (push ? main : ghost).animate(push ? across : [...across].reverse(), { ...timing, fill: push ? 'none' : 'forwards' });
+  (push ? ghost : main).animate(push ? behind : [...behind].reverse(), { ...timing, fill: push ? 'forwards' : 'none' });
+  // Cleared on a timer, not when the animation reports back: a phone locked mid-move must not leave it behind.
+  window.setTimeout(() => {
+    ghost.remove();
+    main.classList.remove('on-top');
+  }, timing.duration + 60);
+}
+
 /** `push` marks a move the Back button should undo (a new screen), as opposed to a refinement of this one. */
 function apply(patch: Partial<Filters>, refetch = false, push = false): void {
-  Object.assign(F, patch);
-  writeHash(push);
-  shown = PAGE;
-  if (refetch) void load();
-  else render();
+  const to = screenOf({ ...F, ...patch });
+  const moving = push && screenOf(F) !== to;
+  const change = (): void => {
+    Object.assign(F, patch);
+    writeHash(push);
+    shown = PAGE;
+    if (refetch) void load();
+    // A list that is still being fetched shows its placeholders straight away, so there is a screen to slide in.
+    if (!refetch || (moving && loading)) render();
+  };
+  // Going back to the start reads as going back, whichever button did it.
+  if (moving) slide(to === 'home' ? 'pop' : 'push', change);
+  else change();
   if (sheetOpen()) void openSheet();
 }
 
@@ -2190,7 +2348,7 @@ document.addEventListener('click', (ev) => {
     case 'cover-close':
       // Closing is the same step as the phone's Back button, so there is one path to keep right.
       if (history.state?.ui) history.back();
-      else $<HTMLDialogElement>('#cover').close();
+      else dismiss($<HTMLDialogElement>('#cover'));
       break;
     case 'cover-part':
       coverTo(v);
@@ -2277,7 +2435,7 @@ document.addEventListener('keydown', (ev) => {
 
 // Tapping the backdrop closes the sheet.
 $('#sheet').addEventListener('click', (ev) => {
-  if (ev.target === ev.currentTarget) (ev.currentTarget as HTMLDialogElement).close();
+  if (ev.target === ev.currentTarget) dismiss(ev.currentTarget as HTMLDialogElement);
 });
 
 // Stock moves while the phone is in a pocket: on return, anything over a minute old is fetched again.
@@ -2289,10 +2447,20 @@ document.addEventListener('visibilitychange', () => {
   void load(true);
 });
 
+// Back and forward. Leaving the start screen is a push; everything else is a step back.
 window.addEventListener('hashchange', () => {
-  readHash();
-  $<HTMLInputElement>('#q').value = F.q;
-  void load();
+  const from = screenOf(F);
+  const change = (): void => {
+    readHash();
+    $<HTMLInputElement>('#q').value = F.q;
+    void load();
+    if (loading) render();
+  };
+  const p = new URLSearchParams(location.hash.slice(1));
+  const toHome = !p.get('m') && !p.get('q') && !p.get('p');
+  if (from === 'home' && toHome) change();
+  else slide(from === 'home' ? 'push' : 'pop', change);
+  swiped = false;
 });
 
 // ------------------------------------------------------------------ boot

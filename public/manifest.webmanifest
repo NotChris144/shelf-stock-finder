@@ -1,6 +1,6 @@
 {
-  "name": "Shelf — store stock finder",
-  "short_name": "Shelf",
+  "name": "Stock",
+  "short_name": "Stock",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#0c0d10",

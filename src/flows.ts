@@ -109,8 +109,8 @@ export function homeHtml(host: FlowHost): string {
       <p>Options around their price, side by side.</p>
       <div class="chips wrap">${BUDGETS.map((b) => host.chip('bud', b, `£${b}`, false)).join('')}${host.chip('bud', 0, 'Other', false, ' ghost')}</div>
     </div>
-    <h3>Browse stock</h3>
-    <div class="chips wrap browse">${host.categories().map(([id, label]) => host.chip('preset', id, label, false)).join('')}</div>
+    <h3>Browse</h3>
+    <div class="tiles">${host.categories().map(([id, label]) => `<button type="button" class="tile" data-act="preset" data-v="${id}"><span>${label}</span>${ICON_NEXT}</button>`).join('')}</div>
     ${recent.length ? `<h3>Recent searches</h3><div class="chips wrap browse">${recent.map((r) => host.chip('recent', r, host.esc(r), false)).join('')}</div>` : ''}
     <p class="hint">Or search above for anything in stock at ${host.esc(host.branch())}. Spelling mistakes are fine.</p>
   </section>`;

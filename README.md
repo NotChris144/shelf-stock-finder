@@ -1,4 +1,4 @@
-# Shelf — store stock finder
+# Store stock finder
 
 Mobile-first lookup for what is in stock at one CeX branch (Eastbourne by default), with
 update-support and speed ratings for phones, tablets, laptops and desktops.

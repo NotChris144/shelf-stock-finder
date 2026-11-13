@@ -1,5 +1,5 @@
 ---
-name: Shelf
+name: Stock finder
 description: Store stock finder for one branch, read one-handed on the shop floor and turned towards the customer.
 colors:
   bg: "#0c0d10"
@@ -194,7 +194,7 @@ components:
     width: "560px"
 ---
 
-# Design System: Shelf
+# Design System
 
 ## Overview
 

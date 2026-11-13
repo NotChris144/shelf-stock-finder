@@ -14,7 +14,7 @@ Customers are mostly price-led: they want a cheap phone, or a phone that does th
 
 ## Product Purpose
 
-Shelf answers "what do we have in stock right now that suits this customer?" faster than the till system or the public website can. Success is a staff member getting from a customer's opening sentence to a specific in-stock item, with a reason to buy it, in a few seconds.
+The app answers "what do we have in stock right now that suits this customer?" faster than the till system or the public website can. Success is a staff member getting from a customer's opening sentence to a specific in-stock item, with a reason to buy it, in a few seconds.
 
 It also helps the staff member offer a step up on every sale: a slightly better item for a little more money, with factual reasons the customer can see.
 
@@ -42,7 +42,8 @@ Every result is physically in stock at one branch, and every phone, tablet and c
 
 ## Brand Commitments
 
-- Name: Shelf.
+- No name, logo or wordmark. Each screen is titled by where it is (the store), as a phone app is.
+- It behaves like an installed phone app, following iPhone conventions: a large title that scrolls away, a floating bar at the foot, sheets that slide up and can be pulled down, screens that push and pop. Nothing zooms and text cannot be selected (search and number fields excepted).
 - Voice: plain, factual, short. Recommendation screens are customer-safe: no sales notes, no put-downs, only facts that are true of the item.
 
 ## Evidence on Hand

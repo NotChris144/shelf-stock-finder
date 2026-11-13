@@ -123,41 +123,6 @@ main {
   min-height: 36px;
 }
 
-.logo {
-  font-weight: 800;
-  font-size: 18px;
-  letter-spacing: -0.02em;
-  padding: 6px 0;
-}
-
-.logo::after {
-  content: '';
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  margin-left: 3px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-
-.store {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 32px;
-  padding: 0 10px 0 7px;
-  border-radius: 999px;
-  background: var(--surface-2);
-  font-size: 13.5px;
-  font-weight: 600;
-}
-
-.store svg {
-  width: 16px;
-  height: 16px;
-  color: var(--accent);
-}
-
 .status {
   margin-left: auto;
   font-size: 13px;
@@ -291,7 +256,7 @@ main {
   background: var(--surface);
   border: 1px solid var(--line);
   font-size: 14.5px;
-  font-weight: 550;
+  font-weight: 500;
   white-space: nowrap;
   transition: background 0.12s, border-color 0.12s, transform 0.08s;
 }
@@ -334,7 +299,7 @@ main {
 .flabel {
   flex: none;
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
@@ -354,7 +319,7 @@ main {
   border: 1px solid var(--line);
   background: var(--surface);
   font-size: 14.5px;
-  font-weight: 550;
+  font-weight: 500;
 }
 
 .select select {
@@ -513,7 +478,7 @@ main {
   padding: 0 9px;
   border-radius: 999px;
   font-size: 12.5px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--c, var(--text));
   background: color-mix(in srgb, var(--c, var(--muted)) 15%, transparent);
 }
@@ -538,7 +503,7 @@ main {
   display: grid;
   justify-items: end;
   font-size: 20px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -621,12 +586,12 @@ main {
 
 .buy {
   font-size: 12px;
-  font-weight: 450;
+  font-weight: 400;
   color: var(--muted);
 }
 
 .v-price {
-  font-weight: 750;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
@@ -637,7 +602,7 @@ main {
   height: 24px;
   border-radius: 7px;
   font-size: 12.5px;
-  font-weight: 800;
+  font-weight: 700;
   background: color-mix(in srgb, var(--c, var(--muted)) 20%, transparent);
   color: var(--c, var(--text));
 }
@@ -709,7 +674,7 @@ main > h3,
 
 .quick b {
   font-size: 15.5px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .quick span {
@@ -918,7 +883,7 @@ main > h3,
   background: #3ddc97;
   color: #04130c;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
   box-shadow: 0 2px 10px rgb(0 0 0 / 0.5);
 }
 
@@ -1057,7 +1022,7 @@ input {
 .door h2 {
   margin: 0;
   font-size: 23px;
-  font-weight: 760;
+  font-weight: 700;
   letter-spacing: -0.025em;
   line-height: 1.15;
   text-wrap: balance;
@@ -1128,7 +1093,7 @@ input {
   min-width: 0;
   margin: 0;
   font-size: 20px;
-  font-weight: 760;
+  font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.2;
   text-wrap: balance;
@@ -1200,7 +1165,7 @@ input {
 
 .pick-name {
   grid-area: name;
-  font-weight: 650;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
@@ -1216,7 +1181,7 @@ input {
   display: grid;
   justify-items: end;
   font-size: 18px;
-  font-weight: 800;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1290,7 +1255,7 @@ input {
 
 .step-head b {
   font-size: 18px;
-  font-weight: 780;
+  font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--text);
   font-variant-numeric: tabular-nums;
@@ -1350,7 +1315,7 @@ input {
 .sbs thead th {
   vertical-align: bottom;
   font-size: 13.5px;
-  font-weight: 650;
+  font-weight: 600;
   min-width: 92px;
 }
 
@@ -1375,7 +1340,7 @@ input {
 
 .sbs td.best {
   color: var(--text);
-  font-weight: 720;
+  font-weight: 600;
 }
 
 #flowBody > .fine {
@@ -1441,7 +1406,7 @@ input {
 .home h3 {
   margin-top: 22px;
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--muted);
 }
 
@@ -1620,7 +1585,7 @@ body {
   padding: 6px 2px;
   border-radius: 18px;
   font-size: 11.5px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--muted);
   -webkit-user-select: none;
   user-select: none;
@@ -1790,7 +1755,7 @@ body:has(main input:focus) .dock {
 }
 
 .hold-row[aria-pressed='true'] .hold-label {
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .hold-n {
@@ -1953,7 +1918,7 @@ body:has(main input:focus) .dock {
   background: var(--text);
   color: var(--bg);
   font-size: 16px;
-  font-weight: 750;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1980,7 +1945,7 @@ body:has(main input:focus) .dock {
   padding: 0 12px;
   border-radius: 12px;
   font-size: 15.5px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--muted);
   white-space: nowrap;
   transition: color 0.15s, background 0.15s;
@@ -2105,7 +2070,7 @@ body:has(main input:focus) .dock {
   margin: 0;
   padding: 8px 10px 6px;
   font-size: 12.5px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--muted);
 }
 
@@ -2135,7 +2100,7 @@ body:has(main input:focus) .dock {
 }
 
 .menu-item[aria-checked='true'] .menu-label {
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .menu-tick {
@@ -2158,7 +2123,7 @@ body:has(main input:focus) .dock {
 
 .menu-meta {
   font-size: 13px;
-  font-weight: 550;
+  font-weight: 500;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -2303,7 +2268,7 @@ body:has(main input:focus) .dock {
   border: 1px solid var(--line);
   background: var(--surface-2);
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
   transition: border-color 0.12s, transform 0.08s;
 }
 
@@ -2354,7 +2319,7 @@ body:has(main input:focus) .dock {
 .cover-top h2 {
   margin: 4px 0 0;
   font-size: 19px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: -0.01em;
   overflow-wrap: anywhere;
 }
@@ -2446,7 +2411,7 @@ body:has(main input:focus) .dock {
   padding: 0 14px;
   border-radius: 999px;
   font-size: 14.5px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--muted);
   transition: background 0.12s, color 0.12s;
 }
@@ -2531,4 +2496,771 @@ body:has(main input:focus) .dock {
 
 .focus .flabel {
   width: 100%;
+}
+
+/* ================================================================ app shell
+   The same ground, cards and single coral, put together the way a phone app is: the system
+   typeface at its own sizes and weights, filled surfaces told apart by tone and hairlines rather
+   than outlines, bars that frost over when content passes beneath them, and movement that
+   starts fast and settles. */
+
+:root {
+  /* Quick off the mark, a long settle: sheets, pushes and anything that travels. */
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --hair: color-mix(in srgb, var(--text) 14%, transparent);
+  /* The quiet fill behind controls, and the stronger one for a control being pressed or chosen. */
+  --fill: color-mix(in srgb, var(--text) 10%, transparent);
+  --fill-2: color-mix(in srgb, var(--text) 17%, transparent);
+  --radius: 18px;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* An app, not a page: no pinch or double-tap zoom, no text selection, no long-press menus. */
+html {
+  touch-action: pan-x pan-y;
+  overflow-x: clip;
+  overscroll-behavior-y: contain;
+}
+
+body {
+  overflow-x: clip;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+img,
+a {
+  -webkit-user-drag: none;
+}
+
+button,
+a,
+[data-act] {
+  cursor: pointer;
+}
+
+/* ---- large title, and the bar that stays */
+
+.lead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  max-width: 760px;
+  margin-inline: auto;
+  padding: calc(10px + env(safe-area-inset-top)) var(--gutter) 2px;
+}
+
+.place {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: 34px;
+  line-height: 41px;
+  font-weight: 700;
+  letter-spacing: -0.022em;
+  text-align: left;
+  transition: opacity 0.25s;
+}
+
+.place span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place svg {
+  width: 20px;
+  height: 20px;
+  margin-top: 5px;
+  stroke-width: 2.8;
+  color: var(--muted);
+}
+
+.place:active {
+  opacity: 0.5;
+  transition-duration: 0s;
+}
+
+.status {
+  margin: 0 0 9px;
+}
+
+.top {
+  top: env(safe-area-inset-top);
+  padding: 6px 0 8px;
+  background: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  transition: transform 0.35s var(--ease);
+}
+
+/* The frosted backing reaches up behind the status bar and only shows once content is under it. */
+.top::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: calc(-1 * env(safe-area-inset-top)) 0 0;
+  background: color-mix(in srgb, var(--bg) 76%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  backdrop-filter: blur(24px) saturate(1.8);
+  box-shadow: 0 0.5px 0 var(--hair);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.stuck .top::before {
+  opacity: 1;
+}
+
+.tuck .top {
+  transform: translateY(calc(-100% - env(safe-area-inset-top)));
+}
+
+.search {
+  height: 44px;
+  margin: 0 var(--gutter);
+  border: 0;
+  border-radius: 12px;
+  background: var(--fill);
+  transition: background 0.2s;
+}
+
+.search:focus-within {
+  background: var(--fill-2);
+}
+
+.search > svg {
+  width: 18px;
+  height: 18px;
+  margin-left: 11px;
+}
+
+.search input {
+  padding: 0 8px;
+}
+
+.search::after {
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+}
+
+.scan-open,
+#clear {
+  width: 40px;
+  height: 40px;
+  margin-right: 2px;
+  transition: opacity 0.25s;
+}
+
+.scan-open:active,
+#clear:active {
+  opacity: 0.45;
+  transition-duration: 0s;
+}
+
+.scan-open svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* Clear is the small filled circle a search field has. */
+#clear svg {
+  width: 18px;
+  height: 18px;
+  padding: 4px;
+  border-radius: 50%;
+  background: var(--muted);
+  color: var(--bg);
+  stroke-width: 3.2;
+}
+
+/* ---- categories: one segmented strip, with a thumb that slides to the choice */
+
+.presets {
+  position: relative;
+  gap: 0;
+  margin: 8px var(--gutter) 0;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--fill);
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.seg-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 24%, var(--surface));
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.3);
+  transform-origin: 0 50%;
+  pointer-events: none;
+}
+
+.tab {
+  z-index: 1;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  transition: opacity 0.25s;
+}
+
+.tab::after {
+  content: none;
+}
+
+.tab[aria-pressed='true'] {
+  font-weight: 600;
+}
+
+.tab:active {
+  background: none;
+  opacity: 0.5;
+  transition-duration: 0s;
+}
+
+@media (prefers-color-scheme: light) {
+  .seg-thumb {
+    background: #fff;
+    box-shadow: 0 1px 4px rgb(20 20 30 / 0.16);
+  }
+}
+
+/* ---- controls: filled capsules, no outlines */
+
+.chip {
+  border: 0;
+  background: var(--fill);
+  font-size: 15px;
+  font-weight: 500;
+  transition: background 0.2s, color 0.2s, opacity 0.25s, transform 0.3s var(--ease);
+}
+
+.chip:active {
+  transform: scale(0.95);
+  opacity: 0.7;
+  transition-duration: 0s;
+}
+
+.chip.ghost {
+  border-style: none;
+  box-shadow: inset 0 0 0 1px var(--hair);
+}
+
+.chip.pick[aria-expanded='true'] {
+  background: var(--fill-2);
+}
+
+.chip.pick[aria-pressed='true'][aria-expanded='true'] {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.frow.bar .chip {
+  font-size: 14.5px;
+}
+
+.sep {
+  background: var(--hair);
+}
+
+/* 16px and up, so a phone has no reason to zoom in on a field. */
+.select select,
+.num,
+.text {
+  border: 0;
+  border-radius: 12px;
+  background: var(--fill);
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.link {
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: opacity 0.25s;
+}
+
+.link:active {
+  opacity: 0.45;
+  transition-duration: 0s;
+}
+
+.icon-btn {
+  border: 0;
+  border-radius: 14px;
+  background: var(--fill);
+  transition: opacity 0.25s;
+}
+
+.icon-btn:active {
+  opacity: 0.55;
+  transition-duration: 0s;
+}
+
+/* ---- lists and cards: tone and hairlines, and a highlight the moment a finger lands */
+
+.card {
+  border: 0;
+}
+
+.card.open {
+  border-color: transparent;
+}
+
+.card-main {
+  padding: 14px;
+  transition: background 0.4s;
+}
+
+.card-main:active,
+.pick-row:active,
+.variants a:active {
+  background: var(--fill);
+  transition-duration: 0s;
+}
+
+.thumb {
+  border-radius: 14px;
+}
+
+.title {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.sub,
+.meta {
+  font-size: 14px;
+}
+
+.spine-btn {
+  top: 46px;
+  right: 14px;
+  border: 0;
+  background: var(--fill);
+}
+
+.why,
+.specs,
+.variants {
+  border-radius: 14px;
+}
+
+.variants li + li,
+.picks li + li {
+  border-top: 0.5px solid var(--hair);
+}
+
+.variants a,
+.pick-row {
+  transition: background 0.4s;
+}
+
+.picks {
+  border: 0;
+}
+
+.pick-name {
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.sbs th,
+.sbs td {
+  border-bottom: 0.5px solid var(--hair);
+}
+
+.frow.limit {
+  border-top: 0.5px solid var(--hair);
+}
+
+/* ---- start screen: two grouped panels, then places to go */
+
+.door {
+  margin: 0 0 12px;
+  padding: 18px 16px 16px;
+  border: 0;
+  border-radius: 22px;
+  background: var(--surface);
+}
+
+.door:first-of-type {
+  margin-top: 6px;
+  padding-top: 18px;
+}
+
+.door h2 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.door p {
+  margin: 4px 0 14px;
+}
+
+.door .chips {
+  gap: 6px;
+}
+
+.door-go {
+  height: 50px;
+  border-radius: 14px;
+  font-weight: 600;
+  transition: opacity 0.25s, transform 0.3s var(--ease);
+}
+
+.door-go:active {
+  transform: scale(0.97);
+  opacity: 0.8;
+  transition-duration: 0s;
+}
+
+.door .icon-btn {
+  width: 50px;
+  height: 50px;
+}
+
+.home h3 {
+  margin: 26px 4px 10px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--text);
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.tile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 12px 0 16px;
+  border-radius: 14px;
+  background: var(--surface);
+  font-size: 16px;
+  font-weight: 600;
+  text-align: left;
+  transition: background 0.4s;
+}
+
+.tile svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.4;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.tile:active {
+  background: var(--fill-2);
+  transition-duration: 0s;
+}
+
+.hint {
+  margin: 18px 4px 0;
+}
+
+/* ---- inside a flow: back, then the screen's own title */
+
+.flow-head {
+  margin: 2px 0 12px -8px;
+}
+
+.flow-head h2 {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.back {
+  transition: opacity 0.25s;
+}
+
+.back svg {
+  width: 26px;
+  height: 26px;
+  stroke-width: 2.4;
+}
+
+.back:active {
+  opacity: 0.45;
+  transition-duration: 0s;
+}
+
+/* The old screen, held for the length of a push or a pop (see `slide` in main.ts). */
+.old-screen {
+  position: fixed;
+  z-index: 1;
+  margin: 0;
+  max-width: none;
+  min-height: 100dvh;
+  background: var(--bg);
+  pointer-events: none;
+}
+
+/* Whichever screen is in front during the move is solid, and casts a little shade on the one behind. */
+main.on-top,
+.old-screen.on-top {
+  z-index: 3;
+  min-height: 100dvh;
+  background: var(--bg);
+  box-shadow: -12px 0 32px rgb(0 0 0 / 0.3);
+}
+
+main.on-top {
+  position: relative;
+}
+
+/* ---- the bar at the foot: a floating capsule, frosted, with the current place filled in */
+
+.dock {
+  gap: 0;
+  width: min(330px, calc(100% - 32px));
+  padding: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+  -webkit-backdrop-filter: blur(28px) saturate(1.9);
+  backdrop-filter: blur(28px) saturate(1.9);
+  box-shadow: 0 10px 34px rgb(0 0 0 / 0.42), inset 0 0 0 0.5px var(--hair);
+}
+
+.dock-btn {
+  gap: 2px;
+  min-height: 54px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: background 0.3s, color 0.2s, transform 0.3s var(--ease);
+}
+
+.dock-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+.dock-btn:active {
+  transform: scale(0.92);
+  background: none;
+  transition-duration: 0s;
+}
+
+.dock-btn.on {
+  background: var(--fill);
+}
+
+@media (prefers-color-scheme: light) {
+  .dock {
+    background: color-mix(in srgb, var(--surface) 74%, transparent);
+    box-shadow: 0 10px 34px rgb(20 20 30 / 0.16), inset 0 0 0 0.5px var(--hair);
+  }
+}
+
+/* ---- sheets and full-screen layers: up from the foot of the screen, and back down again */
+
+.sheet {
+  max-height: 90dvh;
+  border-radius: 28px 28px 0 0;
+  background: var(--surface);
+  transition: transform 0.4s var(--ease);
+}
+
+.sheet[open] {
+  animation: layer-in 0.5s var(--ease);
+}
+
+.sheet::backdrop {
+  background: rgb(0 0 0 / 0.5);
+  opacity: calc(1 - var(--pull, 0));
+  animation: fade 0.3s ease-out;
+}
+
+.scanner[open],
+.cover[open] {
+  animation: layer-in 0.45s var(--ease);
+}
+
+.scanner::backdrop,
+.cover::backdrop {
+  background: rgb(0 0 0 / 0.5);
+  animation: fade 0.3s ease-out;
+}
+
+dialog[open][data-leaving] {
+  animation: layer-out 0.3s var(--ease) forwards;
+}
+
+dialog[open][data-leaving]::backdrop {
+  animation: fade-out 0.3s ease-out forwards;
+}
+
+@keyframes layer-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes layer-out {
+  from {
+    transform: translateY(var(--from, 0px));
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+.sheet-in {
+  padding-top: 8px;
+}
+
+/* The grabber: it can be pulled, and it says so. */
+.sheet-in::before {
+  content: '';
+  justify-self: center;
+  width: 36px;
+  height: 5px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--text) 28%, transparent);
+}
+
+.sheet-bar {
+  min-height: 44px;
+  margin-top: -6px;
+  touch-action: none;
+}
+
+.sheet-in h2 {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.done {
+  min-height: 44px;
+  padding: 0 0 0 16px;
+  font-size: 17px;
+  font-weight: 600;
+  transition: opacity 0.25s;
+}
+
+.done:active {
+  opacity: 0.45;
+  transition-duration: 0s;
+}
+
+.sheet-in h3 {
+  border-top: 0.5px solid var(--hair);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.sheet-foot {
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+  border-top: 0.5px solid var(--hair);
+}
+
+.sheet-go {
+  border-radius: 14px;
+  font-size: 17px;
+  font-weight: 600;
+  transition: opacity 0.25s, transform 0.3s var(--ease);
+}
+
+.sheet-go:active {
+  transform: scale(0.97);
+  opacity: 0.8;
+  transition-duration: 0s;
+}
+
+@media (min-width: 620px) {
+  .sheet {
+    border-radius: 28px;
+  }
+}
+
+/* ---- menus and the hold panel: frosted, growing out of what was pressed */
+
+.menu {
+  border: 0;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+  -webkit-backdrop-filter: blur(30px) saturate(1.8);
+  backdrop-filter: blur(30px) saturate(1.8);
+  box-shadow: 0 14px 44px rgb(0 0 0 / 0.5), inset 0 0 0 0.5px var(--hair);
+  animation-duration: 0.3s;
+  animation-timing-function: var(--ease);
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}
+
+@keyframes menu-up {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}
+
+.menu-item {
+  font-size: 16px;
+  font-weight: 500;
+  transition: background 0.3s;
+}
+
+.menu-item:active {
+  background: var(--fill-2);
+  transition-duration: 0s;
+}
+
+.hold-panel {
+  border: 0;
+  background: color-mix(in srgb, var(--surface-2) 82%, transparent);
+  -webkit-backdrop-filter: blur(30px) saturate(1.8);
+  backdrop-filter: blur(30px) saturate(1.8);
+  box-shadow: 0 14px 44px rgb(0 0 0 / 0.5), inset 0 0 0 0.5px var(--hair);
+}
+
+@media (prefers-color-scheme: light) {
+  .menu,
+  .hold-panel {
+    background: color-mix(in srgb, var(--surface) 82%, transparent);
+    box-shadow: 0 14px 44px rgb(20 20 30 / 0.2), inset 0 0 0 0.5px var(--hair);
+  }
 }
