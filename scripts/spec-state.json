@@ -5,7 +5,9 @@
   "day": 20
  },
  "fresh": [
-  "motorola|motoe3rdgen"
+  "motorola|motoe3rdgen",
+  "amazon|firehd8",
+  "samsung|taba"
  ],
  "missed": {},
  "read": {
@@ -64,6 +66,7 @@
  "stocked": [
   "amazon|alexatablet8",
   "amazon|fire7",
+  "amazon|firehd8",
   "amazon|kindlefirehd10",
   "amazon|kindlefirehdx",
   "amazon|tablet82026",
@@ -188,6 +191,7 @@
   "samsung|galaxyzfold7",
   "samsung|galaxyzfold8ultra",
   "samsung|galazys26fe",
+  "samsung|taba",
   "tcl|k70"
  ]
 }
