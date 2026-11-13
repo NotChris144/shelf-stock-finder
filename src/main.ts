@@ -886,9 +886,11 @@ function showCover(it: Item, c: Cover): void {
   const d = $<HTMLDialogElement>('#cover');
   const s = spineOf(c);
   const pct = (n: number): string => `${(n * 100).toFixed(2)}%`;
-  d.innerHTML = `<header class="cover-top">
-      <div><h2>${esc(it.title)}</h2><p>${esc(editionNote(c, it))}</p></div>
-      <button type="button" class="icon-btn" data-act="cover-close" aria-label="Close">${ICON_X}</button>
+  // A sheet: pulled down, or Done at the foot of it, puts it away; nothing to reach for at the top.
+  d.innerHTML = `<span class="grabber" aria-hidden="true"></span>
+    <header class="cover-top">
+      <h2>${esc(it.title)}</h2>
+      <p>${esc(editionNote(c, it))} <a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">Scan from dvdcover.com</a></p>
     </header>
     <div class="cover-stage" id="coverStage">
       <div class="cover-flat" style="aspect-ratio:${c.w}/${c.h}">
@@ -902,7 +904,7 @@ function showCover(it: Item, c: Cover): void {
         <button type="button" data-act="cover-part" data-v="spine" aria-pressed="true">Spine</button>
         <button type="button" data-act="cover-part" data-v="front" aria-pressed="false">Front</button>
       </div>
-      <a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">Scan from dvdcover.com</a>
+      <button type="button" class="cover-done" data-act="cover-close">Done</button>
     </footer>`;
   const stage = $('#coverStage');
   const img = stage.querySelector('img')!;
@@ -1918,46 +1920,85 @@ $('#scanner').addEventListener(
   true,
 );
 
-// A sheet can be pulled down by its top edge to put it away. Past a third of the way, or with a
-// flick, it goes; otherwise it springs back.
-{
-  const sheet = $<HTMLDialogElement>('#sheet');
+/**
+ * Let a sheet be pulled down to put it away, as a phone's sheets are. `from` says where on it a
+ * pull may begin. Only a mostly downward move counts, so a sideways one is left to whatever
+ * scrolls sideways inside. A flick down sends it, as does letting go past a quarter of its height
+ * unless the finger was heading back up; otherwise it springs back. Pushed up, it gives a little
+ * and no more.
+ */
+function pullToClose(d: HTMLDialogElement, from: (target: HTMLElement, fromTop: number) => boolean): void {
   let finger = -1;
-  let from = 0;
+  let x0 = 0;
+  let y0 = 0;
   let pulled = 0;
-  let since = 0;
-  sheet.addEventListener('pointerdown', (ev) => {
+  let pulling = false;
+  /** The last tenth of a second of the pull, for how fast it was moving when let go. */
+  let recent: { y: number; t: number }[] = [];
+  d.addEventListener('pointerdown', (ev) => {
     const t = ev.target as HTMLElement;
-    const onEdge = t.closest('.sheet-bar') || (t.classList.contains('sheet-in') && ev.clientY - sheet.getBoundingClientRect().top < 30);
-    if (!onEdge || t.closest('button, input') || sheet.dataset.leaving) return;
+    if (finger !== -1 || d.dataset.leaving || t.closest('button, a, input, select') || !from(t, ev.clientY - d.getBoundingClientRect().top)) return;
     finger = ev.pointerId;
-    from = ev.clientY;
+    x0 = ev.clientX;
+    y0 = ev.clientY;
     pulled = 0;
-    since = performance.now();
-    sheet.setPointerCapture(finger);
+    pulling = false;
   });
-  sheet.addEventListener('pointermove', (ev) => {
+  d.addEventListener('pointermove', (ev) => {
     if (ev.pointerId !== finger) return;
-    pulled = Math.max(0, ev.clientY - from);
-    sheet.style.transition = 'none';
-    sheet.style.transform = `translateY(${pulled}px)`;
-    sheet.style.setProperty('--pull', String(Math.min(1, pulled / sheet.offsetHeight)));
+    const dx = ev.clientX - x0;
+    const dy = ev.clientY - y0;
+    if (!pulling) {
+      if (Math.hypot(dx, dy) < 8) return;
+      if (dy <= 0 || Math.abs(dx) > dy) {
+        finger = -1;
+        return;
+      }
+      pulling = true;
+      recent = [];
+      try {
+        d.setPointerCapture(finger);
+      } catch {
+        /* the finger has already lifted */
+      }
+      d.style.transition = 'none';
+    }
+    pulled = dy >= 0 ? dy : Math.max(-14, dy * 0.2);
+    const now = performance.now();
+    recent.push({ y: ev.clientY, t: now });
+    while (recent.length > 2 && now - recent[0].t > 100) recent.shift();
+    d.style.transform = `translateY(${pulled}px)`;
+    d.style.setProperty('--pull', String(Math.max(0, Math.min(1, pulled / d.offsetHeight))));
   });
   const letGo = (ev: PointerEvent): void => {
     if (ev.pointerId !== finger) return;
     finger = -1;
-    const speed = pulled / Math.max(1, performance.now() - since);
-    sheet.style.transition = '';
-    sheet.style.transform = '';
-    if (pulled > Math.min(140, sheet.offsetHeight / 3) || (pulled > 24 && speed > 0.5)) {
+    if (!pulling) return;
+    pulling = false;
+    // Pixels a millisecond, downward, over the last moment before letting go.
+    const a = recent[0];
+    const b = recent[recent.length - 1];
+    const speed = a && b && b.t > a.t ? (b.y - a.y) / (b.t - a.t) : 0;
+    d.style.transition = '';
+    d.style.transform = '';
+    if ((pulled > 30 && speed > 0.5) || (pulled > Math.min(160, d.offsetHeight / 4) && speed > -0.2)) {
       // It carries on down from where the finger left it.
-      sheet.style.setProperty('--from', `${pulled}px`);
-      dismiss(sheet);
-    } else sheet.style.removeProperty('--pull');
+      d.style.setProperty('--from', `${pulled}px`);
+      if (history.state?.ui) history.back();
+      else dismiss(d);
+    } else d.style.removeProperty('--pull');
   };
-  sheet.addEventListener('pointerup', letGo);
-  sheet.addEventListener('pointercancel', letGo);
+  d.addEventListener('pointerup', letGo);
+  d.addEventListener('pointercancel', letGo);
 }
+// The filter sheet scrolls, so only its top edge pulls; the cover has nothing to scroll up and
+// down, so it pulls from anywhere.
+pullToClose($<HTMLDialogElement>('#sheet'), (t, fromTop) => Boolean(t.closest('.sheet-bar')) || fromTop < 30);
+pullToClose($<HTMLDialogElement>('#cover'), () => true);
+// Tapping the dimmed page above the cover puts it away too.
+$('#cover').addEventListener('click', (ev) => {
+  if (ev.target === ev.currentTarget && ev.clientY < (ev.currentTarget as HTMLElement).getBoundingClientRect().top) dismiss(ev.currentTarget as HTMLDialogElement);
+});
 
 // ---- an app, not a page: nothing zooms, nothing selects, and a long press brings up no browser menu
 for (const type of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(type, (ev) => ev.preventDefault());

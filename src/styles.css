@@ -2290,17 +2290,38 @@ body:has(main input:focus) .dock {
 }
 
 /* The sleeve laid flat, as tall as the screen allows: the spine is the thing to read, so it
-   opens in the middle with the back and front running off either side. */
+   opens in the middle with the back and front running off either side. It is a sheet over the
+   page, which shows dimmed at the very top: pulled down, it goes away. */
 .cover {
   width: 100%;
   max-width: 100%;
-  height: 100dvh;
-  max-height: 100dvh;
-  margin: 0;
+  height: calc(100dvh - env(safe-area-inset-top) - 12px);
+  max-height: none;
+  margin: auto 0 0;
   padding: 0;
   border: 0;
-  background: var(--bg);
+  border-radius: 28px 28px 0 0;
+  background: var(--surface);
   color: var(--text);
+  overflow: hidden;
+  overscroll-behavior: none;
+  /* Nothing on it scrolls up and down, so a vertical move is always a pull (see pullToClose). */
+  touch-action: none;
+  transition: transform 0.4s var(--ease, ease);
+}
+
+.cover::backdrop {
+  opacity: calc(1 - var(--pull, 0));
+}
+
+.grabber {
+  flex: none;
+  align-self: center;
+  width: 36px;
+  height: 5px;
+  margin-top: 8px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--text) 28%, transparent);
 }
 
 .cover[open] {
@@ -2309,11 +2330,7 @@ body:has(main input:focus) .dock {
 }
 
 .cover-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: calc(12px + env(safe-area-inset-top)) var(--gutter) 6px;
+  padding: 8px var(--gutter) 4px;
 }
 
 .cover-top h2 {
@@ -2326,14 +2343,17 @@ body:has(main input:focus) .dock {
 
 .cover-top p {
   margin: 3px 0 0;
-  max-width: 46ch;
-  font-size: 13.5px;
+  max-width: 52ch;
+  font-size: 14px;
   color: var(--muted);
 }
 
-.cover-top .icon-btn {
-  width: 44px;
-  height: 44px;
+.cover-top a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--muted) 50%, transparent);
+  text-underline-offset: 3px;
+  white-space: nowrap;
 }
 
 .cover-stage {
@@ -2345,6 +2365,8 @@ body:has(main input:focus) .dock {
   overflow-y: hidden;
   overscroll-behavior-x: contain;
   scrollbar-width: none;
+  /* Sideways moves along the sleeve; anything else is left to the pull. */
+  touch-action: pan-x;
 }
 
 .cover-stage::-webkit-scrollbar {
@@ -2377,48 +2399,77 @@ body:has(main input:focus) .dock {
   pointer-events: none;
 }
 
+/* Everything to do sits under the thumb: which part of the sleeve, and Done. */
 .cover-foot {
-  display: grid;
-  justify-items: center;
-  gap: 6px;
-  padding: 4px var(--gutter) calc(10px + env(safe-area-inset-bottom));
-}
-
-.cover-foot a {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  min-height: 36px;
-  font-size: 13px;
-  color: var(--muted);
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  gap: 10px;
+  padding: 6px var(--gutter) calc(12px + env(safe-area-inset-bottom));
 }
 
 .seg {
-  display: inline-grid;
+  flex: 1;
+  display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
   gap: 2px;
-  padding: 4px;
+  padding: 3px;
   border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  background: var(--fill, var(--surface-2));
 }
 
 .seg button {
-  min-width: 86px;
-  min-height: 40px;
-  padding: 0 14px;
+  min-height: 44px;
+  padding: 0 10px;
   border-radius: 999px;
-  font-size: 14.5px;
-  font-weight: 600;
-  color: var(--muted);
-  transition: background 0.12s, color 0.12s;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  transition: background 0.25s, box-shadow 0.25s, opacity 0.25s;
 }
 
 .seg button[aria-pressed='true'] {
+  font-weight: 600;
+  background: color-mix(in srgb, var(--text) 22%, var(--surface));
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.3);
+}
+
+.seg button:active {
+  opacity: 0.55;
+  transition-duration: 0s;
+}
+
+.cover-done {
+  flex: none;
+  min-height: 50px;
+  margin-left: auto;
+  padding: 0 24px;
+  border-radius: 999px;
   background: var(--text);
   color: var(--bg);
+  font-size: 17px;
+  font-weight: 600;
+  transition: opacity 0.25s, transform 0.3s var(--ease, ease);
+}
+
+.cover-done:active {
+  transform: scale(0.96);
+  opacity: 0.8;
+  transition-duration: 0s;
+}
+
+@media (prefers-color-scheme: light) {
+  .seg button[aria-pressed='true'] {
+    background: #fff;
+    box-shadow: 0 1px 4px rgb(20 20 30 / 0.16);
+  }
+}
+
+@media (min-width: 620px) {
+  .cover {
+    max-width: 900px;
+    margin: auto auto 0;
+  }
 }
 
 /* Wide enough to see the whole sleeve at once: nothing to move between. */
@@ -3406,4 +3457,16 @@ dialog[open][data-leaving]::backdrop {
 
 #flowBody > .fine {
   margin-top: 18px;
+}
+
+/* ================================================================ layers hold the page still */
+
+/* While a sheet or full-screen layer is open the page behind it does not scroll, however a swipe
+   on the layer ends up. */
+html:has(dialog[open]) {
+  overflow: hidden;
+}
+
+dialog {
+  overscroll-behavior: contain;
 }
