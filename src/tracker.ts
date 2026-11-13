@@ -126,8 +126,16 @@ interface Result {
   facets?: Record<string, Record<string, number>>;
 }
 
+/** CeX's search allows each address only so many queries an hour, and said so. */
+export class Busy extends Error {}
+
+/** Queries sent this run: each entry in a batch counts, not each request. */
+export let queries = 0;
+
 async function post(requests: unknown[]): Promise<Result[]> {
+  queries += requests.length;
   const res = await fetch(`${CONFIG.endpoint}?x-algolia-application-id=${CONFIG.appId}&x-algolia-api-key=${CONFIG.apiKey}`, { method: 'POST', body: JSON.stringify({ requests }) });
+  if (res.status === 429) throw new Busy('CeX search: too many requests from this address');
   if (!res.ok) throw new Error(`CeX search: HTTP ${res.status}`);
   return (await res.json()).results as Result[];
 }
@@ -145,45 +153,64 @@ const ask = (facetFilters: string[][], extra: Record<string, unknown> = {}): unk
   ...extra,
 });
 
+/** Put counted things into as few groups of at most `PAGE` as their order allows. */
+function bands<T>(list: [T, number][]): T[][] {
+  const out: T[][] = [];
+  let cur: T[] = [];
+  let sum = 0;
+  for (const [x, n] of list) {
+    if (cur.length && sum + n > PAGE) {
+      out.push(cur);
+      cur = [];
+      sum = 0;
+    }
+    cur.push(x);
+    sum += n;
+  }
+  if (cur.length) out.push(cur);
+  return out;
+}
+
 /**
- * Everything the branch has in stock now. One request returns at most 1,000 products, so the
- * branch is listed a category at a time, and a category bigger than that in price bands.
+ * Everything the branch has in stock now. One request lists at most 1,000 products, and CeX
+ * allows each address only so many queries an hour, so the branch is cut into as few pieces as
+ * will each fit in one request: bands of price, and where a single price holds more than 1,000
+ * products (£1.50 discs), groups of categories at that price. About a dozen queries in all.
  */
 export async function fetchStock(store: string): Promise<{ total: number; recs: Rec[] }> {
+  queries = 0;
   const here = [`stores:${store}`];
-  const [head] = await post([ask([here], { hitsPerPage: 0, facets: ['categoryFriendlyName'], maxValuesPerFacet: 1000, attributesToRetrieve: [] })]);
+  const count = { hitsPerPage: 0, maxValuesPerFacet: 1000, attributesToRetrieve: [] };
+  const [head] = await post([ask([here], { ...count, facets: ['sellPrice'] })]);
   const total = Number(head.nbHits) || 0;
-  const cats = Object.entries(head.facets?.categoryFriendlyName ?? {});
+  const prices = Object.entries(head.facets?.sellPrice ?? {})
+    .map(([p, n]): [number, number] => [Number(p), n])
+    .sort((x, y) => x[0] - y[0]);
+  // Every product has a price, so the prices must account for all of them; if not, the list was cut short.
+  if (prices.reduce((n, [, c]) => n + c, 0) !== total) throw new Error(`prices account for ${prices.reduce((n, [, c]) => n + c, 0)} of ${total} products`);
   const requests: unknown[] = [];
-  const big = cats.filter(([, n]) => n > PAGE);
-  for (const [cat, n] of cats) if (n <= PAGE) requests.push(ask([here, [`categoryFriendlyName:${cat}`]]));
-  if (big.length) {
-    const prices = await post(big.map(([cat]) => ask([here, [`categoryFriendlyName:${cat}`]], { hitsPerPage: 0, facets: ['sellPrice'], maxValuesPerFacet: 1000, attributesToRetrieve: [] })));
-    big.forEach(([cat], i) => {
-      const counts = Object.entries(prices[i].facets?.sellPrice ?? {})
-        .map(([p, n]) => [Number(p), n] as const)
-        .sort((x, y) => x[0] - y[0]);
-      let lo = -1;
-      let hi = -1;
-      let sum = 0;
-      const band = (): void => void (lo >= 0 && requests.push(ask([here, [`categoryFriendlyName:${cat}`]], { numericFilters: [`sellPrice>=${lo}`, `sellPrice<=${hi}`] })));
-      for (const [p, n] of counts) {
-        if (n > PAGE) throw new Error(`${n} products in ${cat} at £${p}: more than one request can list`);
-        if (sum + n > PAGE) {
-          band();
-          lo = -1;
-          sum = 0;
-        }
-        if (lo < 0) lo = p;
-        hi = p;
-        sum += n;
-      }
-      band();
+  const crowded = prices.filter(([, n]) => n > PAGE).map(([p]) => p);
+  // Runs of prices between the crowded ones, each run in as few bands as fit.
+  let run: [number, number][] = [];
+  const flush = (): void => {
+    for (const b of bands(run)) requests.push(ask([here], { numericFilters: [`sellPrice>=${b[0]}`, `sellPrice<=${b[b.length - 1]}`] }));
+    run = [];
+  };
+  for (const [p, n] of prices) {
+    if (n > PAGE) flush();
+    else run.push([p, n]);
+  }
+  flush();
+  if (crowded.length) {
+    const split = await post(crowded.map((p) => ask([here], { ...count, facets: ['categoryFriendlyName'], numericFilters: [`sellPrice=${p}`] })));
+    crowded.forEach((p, i) => {
+      const cats = Object.entries(split[i].facets?.categoryFriendlyName ?? {});
+      for (const b of bands(cats)) requests.push(ask([here, b.map((c) => `categoryFriendlyName:${c}`)], { numericFilters: [`sellPrice=${p}`] }));
     });
   }
   const recs = new Map<string, Rec>();
-  for (let i = 0; i < requests.length; i += 40) {
-    for (const r of await post(requests.slice(i, i + 40))) for (const h of r.hits ?? []) recs.set(String(h.boxId), toRec(h));
+  for (let i = 0; i < requests.length; i += 20) {
+    for (const r of await post(requests.slice(i, i + 20))) for (const h of r.hits ?? []) recs.set(String(h.boxId), toRec(h));
   }
   return { total, recs: [...recs.values()] };
 }

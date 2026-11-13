@@ -6,7 +6,7 @@
 // folder on the repository's `stock-data` branch.
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { compare, fetchStock, record, type Log, type State } from '../src/tracker.ts';
+import { Busy, compare, fetchStock, queries, record, type Log, type State } from '../src/tracker.ts';
 
 const STORE = 'Eastbourne';
 const dir = process.argv[2] ?? 'stock-data';
@@ -16,7 +16,18 @@ const read = <T>(name: string): T | null => (existsSync(`${dir}/${name}`) ? (JSO
 const now = Date.now();
 const prev = read<State>('state.json');
 const log = read<Log>('log.json');
-const { total, recs } = await fetchStock(STORE);
+let listing: Awaited<ReturnType<typeof fetchStock>>;
+try {
+  listing = await fetchStock(STORE);
+} catch (e) {
+  // Told to slow down: this look is skipped and the next one compares with the last good list,
+  // so nothing is lost but precision. Not an error, or every busy spell would send an email.
+  if (!(e instanceof Busy)) throw e;
+  console.log(`Nothing recorded: ${e.message}. The next look carries on from the last good one.`);
+  process.exit(0);
+}
+const { total, recs } = listing;
+console.log(`Listed ${recs.length} of ${total} products in ${queries} queries.`);
 const out = compare(prev, recs, total, now, STORE);
 if (out.skipped) {
   console.log(`Nothing recorded: ${out.skipped}.`);
