@@ -36,8 +36,10 @@ export const PRESETS: Preset[] = [
   { id: 'tablets', label: 'Tablets', ff: ['categoryFriendlyName:Apple iPad', 'categoryFriendlyName:Tablets - Android', 'categoryFriendlyName:Tablets - Windows'] },
   { id: 'laptops', label: 'Laptops', ff: ['categoryFriendlyName:Laptops - Windows', 'categoryFriendlyName:Laptops - Apple Mac', 'categoryFriendlyName:Chromebooks'] },
   { id: 'desktops', label: 'Desktops', ff: ['categoryFriendlyName:Desktops - Windows', 'categoryFriendlyName:Desktops - Apple Mac'] },
-  { id: 'consoles', label: 'Consoles', ff: ['superCatFriendlyName:Gaming'], q: 'consoles', keep: /consoles?$/i },
-  { id: 'gaming', label: 'Games', ff: ['superCatFriendlyName:Gaming'] },
+  // CeX files every game under the "Gaming Software" product line and every console under
+  // "Gaming Consoles"; the Gaming department as a whole also holds controllers and accessories.
+  { id: 'consoles', label: 'Consoles', ff: ['productLineName:Gaming Consoles'] },
+  { id: 'gaming', label: 'Games', ff: ['productLineName:Gaming Software'] },
   { id: 'electronics', label: 'Electronics', ff: ['superCatFriendlyName:Electronics'] },
   { id: 'film', label: 'Film & TV', ff: ['superCatFriendlyName:Film & TV'] },
 ];
@@ -67,13 +69,15 @@ export function clearCache(): void {
   cache.clear();
 }
 
-export function search(q: string, store: string, preset: Preset | undefined, signal?: AbortSignal, fresh = false): Promise<SearchResult> {
-  const key = `${store}|${preset?.id ?? ''}|${q.trim().toLowerCase()}`;
+/** `extra` narrows on the server (each entry is one more required facet), for sets too big to filter after fetching. */
+export function search(q: string, store: string, preset: Preset | undefined, signal?: AbortSignal, fresh = false, extra: string[] = []): Promise<SearchResult> {
+  const key = `${store}|${preset?.id ?? ''}|${extra.join('+')}|${q.trim().toLowerCase()}`;
   const hit = cache.get(key);
   if (hit && !fresh && Date.now() - hit.at < TTL) return hit.p;
   const t0 = performance.now();
   const facetFilters: string[][] = [[`stores:${store}`]];
   if (preset) facetFilters.push(preset.ff);
+  for (const f of extra) facetFilters.push([f]);
   const p = post(
     [
       {

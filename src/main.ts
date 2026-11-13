@@ -102,12 +102,14 @@ let matched = 0;
 // ------------------------------------------------------------------ category filters
 
 /** What the current results mostly are, which decides the filters worth offering. */
-type Shelf = 'phone' | 'tablet' | 'laptop' | 'desktop' | 'console' | '';
+type Shelf = 'phone' | 'tablet' | 'laptop' | 'desktop' | 'console' | 'game' | '';
 
 interface Facet {
   id: string;
   label: string;
   test(it: Item): boolean;
+  /** Applied by the search service instead of here, because the unfiltered set is too big to fetch whole. */
+  server?: string;
 }
 interface FacetGroup {
   name: string;
@@ -119,6 +121,8 @@ interface FacetGroup {
 const atLeast = (key: 'storageGb' | 'ramGb', id: string, n: number, label: string): Facet => ({ id, label, test: (it) => it[key] >= n });
 const system = (id: string, label: string, os: string): Facet => ({ id, label, test: (it) => it.os === os });
 const made = (id: string, label: string, re: RegExp): Facet => ({ id, label, test: (it) => re.test(it.category) });
+/** A games platform: the branch holds thousands of games, so the service does this filtering. */
+const platform = (id: string, label: string, line: string): Facet => ({ id, label, test: () => true, server: `productLineName:${line}` });
 const STORAGE_MOBILE: FacetGroup = {
   name: 'Storage',
   quick: ['st128'],
@@ -185,6 +189,28 @@ const FACETS: Record<Exclude<Shelf, ''>, FacetGroup[]> = {
     GRAPHICS,
     { name: 'Type', options: [{ id: 'aio', label: 'All-in-one (has a screen)', test: (it) => it.screen > 0 }] },
   ],
+  game: [
+    {
+      name: 'Platform',
+      quick: ['gps5', 'gps4', 'gsw', 'gxs', 'gxo'],
+      options: [
+        platform('gps5', 'PS5', 'PlayStation 5'),
+        platform('gps4', 'PS4', 'PlayStation 4'),
+        platform('gsw', 'Switch', 'Switch'),
+        platform('gsw2', 'Switch 2', 'Switch 2'),
+        platform('gxs', 'Xbox Series', 'Xbox Series'),
+        platform('gxo', 'Xbox One', 'Xbox One'),
+        platform('gpc', 'PC', 'PC Gaming'),
+        platform('gps3', 'PS3', 'PlayStation 3'),
+        platform('gx360', 'Xbox 360', 'Xbox 360'),
+        platform('gwii', 'Wii', 'Wii'),
+        platform('gds', 'DS', 'DS'),
+        platform('g3ds', '3DS', '3DS'),
+        platform('gps2', 'PS2', 'PlayStation 2'),
+        platform('gretro', 'Retro', 'Retro Gaming'),
+      ],
+    },
+  ],
   console: [
     {
       name: 'Make',
@@ -207,11 +233,19 @@ const FACETS: Record<Exclude<Shelf, ''>, FacetGroup[]> = {
   ],
 };
 
-const shelfOf = (it: Item): Shelf => (it.kind !== 'other' ? it.kind : /consoles?$/i.test(it.category) ? 'console' : '');
+const shelfOf = (it: Item): Shelf => (it.kind !== 'other' ? it.kind : /consoles?$/i.test(it.category) ? 'console' : /(games|software)$/i.test(it.category) ? 'game' : '');
+
+/** Facet filters the search service must apply for the current selection. */
+const serverFacets = (): string[] =>
+  Object.values(FACETS)
+    .flat()
+    .flatMap((g) => g.options)
+    .filter((o) => o.server && F.fx.includes(o.id))
+    .map((o) => o.server!);
 
 /** A category chip decides it outright; a free-text search adapts when most results are one kind. */
 function shelf(): Shelf {
-  const byPreset: Record<string, Shelf> = { phones: 'phone', tablets: 'tablet', laptops: 'laptop', desktops: 'desktop', consoles: 'console' };
+  const byPreset: Record<string, Shelf> = { phones: 'phone', tablets: 'tablet', laptops: 'laptop', desktops: 'desktop', consoles: 'console', gaming: 'game' };
   if (F.preset) return byPreset[F.preset] ?? '';
   if (!items.length) return '';
   const counts = new Map<Shelf, number>();
@@ -308,7 +342,7 @@ async function load(fresh = false): Promise<void> {
       ms = 0;
     } else {
       aborter = new AbortController();
-      const r = await search(F.q, branch, PRESETS.find((p) => p.id === F.preset), aborter.signal, fresh);
+      const r = await search(F.q, branch, PRESETS.find((p) => p.id === F.preset), aborter.signal, fresh, serverFacets());
       if (mine !== seq) return;
       hits = r.hits;
       total = r.total;
@@ -578,7 +612,7 @@ function renderResults(): void {
     grouped && groups.length !== matched ? `${groups.length} models · ${matched} items` : `${matched} item${matched === 1 ? '' : 's'}`,
   ];
   if (hiddenUnknown) parts.push(`${hiddenUnknown} hidden (update status unknown)`);
-  if (total > hits.length) parts.push(`first ${hits.length} of ${total.toLocaleString('en-GB')} — search to narrow`);
+  if (total > hits.length) parts.push(`first ${hits.length} of ${total.toLocaleString('en-GB')} — ${shelf() === 'game' ? 'pick a platform or search' : 'search'} to narrow`);
   main.innerHTML = `<p class="summary">${parts.join(' · ')}${activeCount() ? ' <button type="button" class="link" data-act="reset">Clear filters</button>' : ''}</p>
     <ul class="list" id="list">${groups.slice(0, shown).map((g) => cardHtml(g)).join('')}</ul>
     <div id="sentinel"></div>`;
@@ -799,7 +833,8 @@ document.addEventListener('click', (ev) => {
       // One choice per group: picking 128GB+ replaces 64GB+.
       const group = facetGroups().find((g) => g.options.some((o) => o.id === v));
       const others = F.fx.filter((id) => !group?.options.some((o) => o.id === id));
-      apply({ fx: F.fx.includes(v) ? others : [...others, v] });
+      // A platform choice changes what the service returns, so it needs a fresh search.
+      apply({ fx: F.fx.includes(v) ? others : [...others, v] }, Boolean(group?.options.some((o) => o.server)));
       break;
     }
     case 'brand':
@@ -814,7 +849,7 @@ document.addEventListener('click', (ev) => {
       apply({});
       break;
     case 'reset':
-      apply({ max: 0, up: 0, perf: 0, sort: 'rel', brands: [], grades: [], fx: [] });
+      apply({ max: 0, up: 0, perf: 0, sort: 'rel', brands: [], grades: [], fx: [] }, serverFacets().length > 0);
       break;
     case 'clear':
       apply({ q: '' }, true);

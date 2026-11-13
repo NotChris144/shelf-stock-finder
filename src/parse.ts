@@ -148,7 +148,8 @@ export function toItem(h: Hit, idx: number, ctx: SupportCtx): Item {
   const perf = perfFor({ kind, brand: brandKey, models, cpu: p?.cpu ?? '', cpuAttr: isPc ? '' : first(h['CPU Model']), text });
 
   let title = name;
-  let gkey = 'x|' + name.replace(/[,/]\s*(?:unlocked\s*)?[ABC]$/i, '');
+  // The category is part of the key: the PS4 and PS5 editions of a game share a name but are different products.
+  let gkey = 'x|' + category + '|' + name.replace(/[,/]\s*(?:unlocked\s*)?[ABC]$/i, '');
   if (p && !isPc && model) {
     // Bare model numbers ("12", "Phone (2a)") read better with the brand in front.
     const hasBrand =
