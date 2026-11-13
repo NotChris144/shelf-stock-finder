@@ -683,14 +683,22 @@ function renderChrome(): void {
   $('#dockFiltersLabel').textContent = plain ? 'Settings' : n ? `Filters · ${n}` : 'Filters';
   $('#dockFilters').classList.toggle('has', n > 0);
   $('#dockHome').classList.toggle('on', isHome());
-  // Mention the shortcut a few times, until it has been used.
+  // Mention a shortcut a few times, until it has been used. One tip per visit: the scanner first,
+  // as it moved off the bar and is the one most likely to be missed.
   const tip = $('#holdTip');
-  const seen = store.get('holdTipSeen', 0);
-  if (!plain && tip.hidden && !tipShown && seen < 4 && !store.get('holdUsed', false)) {
-    tipShown = true;
-    tip.hidden = false;
-    store.set('holdTipSeen', seen + 1);
-    window.setTimeout(() => (tip.hidden = true), 6000);
+  if (tip.hidden && !tipShown) {
+    const findSeen = store.get('findTipSeen', 0);
+    const seen = store.get('holdTipSeen', 0);
+    const showTip = (text: string, mid: boolean, key: string, n: number): void => {
+      tipShown = true;
+      tip.textContent = text;
+      tip.classList.toggle('mid', mid);
+      tip.hidden = false;
+      store.set(key, n + 1);
+      window.setTimeout(() => (tip.hidden = true), 6000);
+    };
+    if (findSeen < 3 && !store.get('findHoldUsed', false)) showTip('Tip: hold Search to scan a barcode.', true, 'findTipSeen', findSeen);
+    else if (!plain && seen < 4 && !store.get('holdUsed', false)) showTip('Tip: hold Filters and slide up. Slide left for more.', false, 'holdTipSeen', seen);
   }
 }
 
@@ -1089,6 +1097,8 @@ interface HoldEntry {
   sub?: string;
   quiet?: boolean;
   disabled?: boolean;
+  /** Shown in place of the tick, for rows that are actions rather than choices. */
+  icon?: string;
 }
 
 /** Do exactly what tapping the matching chip would. */
@@ -1141,6 +1151,9 @@ function holdEntries(): HoldEntry[] {
 
 const holdEl = $('#hold');
 const filtersBtn = $<HTMLButtonElement>('#dockFilters');
+const searchBtn = $<HTMLButtonElement>('#dockSearch');
+/** The dock button the current hold started on: Filters (quick filters) or Search (find). */
+let holdBtn: HTMLButtonElement = filtersBtn;
 let holdTimer = 0;
 let dwellTimer = 0;
 let holding = false;
@@ -1163,14 +1176,52 @@ const ICON_MORE = '<svg class="more" viewBox="0 0 24 24" aria-hidden="true"><pat
 
 const rowHtml = (e: HoldEntry, i: number): string =>
   `<button type="button" class="hold-row${e.quiet ? ' quiet' : ''}" data-i="${i}" role="menuitem"${e.disabled ? ' disabled' : ''} aria-pressed="${e.on}"${e.sub ? ' aria-haspopup="menu"' : ''}>` +
-  `<span class="hold-tick">${e.quiet ? ICON_X : e.on ? ICON_TICK : ''}</span><span class="hold-label">${esc(e.label)}</span>` +
+  `<span class="hold-tick">${e.icon ?? (e.quiet ? ICON_X : e.on ? ICON_TICK : '')}</span><span class="hold-label">${esc(e.label)}</span>` +
   `${e.meta ? `<span class="hold-n">${esc(e.meta)}</span>` : ''}${e.sub ? ICON_MORE : ''}</button>`;
 
 function bindRows(panel: HTMLElement, list: HoldEntry[]): void {
   for (const el of panel.querySelectorAll<HTMLElement>('.hold-row')) entries.set(el, list[Number(el.dataset.i)]);
 }
 
+const ICON_SEARCH = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>';
+const ICON_SCAN =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M8 8.5v7M11 8.5v7M13.5 8.5v7M16 8.5v7"/></svg>';
+
+function focusSearch(): void {
+  document.body.classList.remove('tuck');
+  const box = $<HTMLInputElement>('#q');
+  box.focus();
+  box.select();
+}
+
+/**
+ * Holding Search: the ways to find something. Search sits nearest the thumb, Scan one row up,
+ * so a hold and a short slide up opens the camera.
+ */
+function openFind(): void {
+  const list: HoldEntry[] = [
+    { label: 'Search stock', on: false, icon: ICON_SEARCH, run: focusSearch },
+    { label: 'Scan a barcode', on: false, icon: ICON_SCAN, run: () => void openScan() },
+  ].reverse();
+  // Centred over the Search button, kept on screen.
+  const b = searchBtn.getBoundingClientRect();
+  const dock = $('.dock').getBoundingClientRect();
+  const width = Math.min(250, window.innerWidth - 24);
+  const left = Math.max(12, Math.min(b.left + b.width / 2 - width / 2, window.innerWidth - 12 - width));
+  holdEl.innerHTML = `<div class="hold-panel hold-main hold-find" role="menu" aria-label="Find" style="left:${Math.round(left)}px;width:${Math.round(width)}px;bottom:${Math.round(window.innerHeight - dock.top + 10)}px">
+    <p class="hold-head"><span>Find</span></p>
+    ${list.map(rowHtml).join('')}
+  </div>`;
+  mainPanel = holdEl.querySelector<HTMLElement>('.hold-main');
+  if (mainPanel) bindRows(mainPanel, list);
+  holdEl.hidden = false;
+  document.body.classList.add('holding');
+  store.set('findHoldUsed', true);
+  $('#holdTip').hidden = true;
+}
+
 function openHold(): void {
+  if (holdBtn === searchBtn) return openFind();
   const list = holdEntries().reverse();
   const reset: HoldEntry | null = activeCount() ? { label: 'Clear all filters', on: false, quiet: true, run: () => act('reset', '') } : null;
   const all = reset ? [reset, ...list] : list;
@@ -1241,6 +1292,7 @@ function closeHold(): void {
   holdEl.hidden = true;
   holdEl.innerHTML = '';
   document.body.classList.remove('holding');
+  holdBtn.classList.remove('anchor');
   mainPanel = null;
   hot = null;
 }
@@ -1282,23 +1334,32 @@ function startHold(pointerId: number): void {
   if (holding) return;
   holding = true;
   openHold();
+  holdBtn.classList.add('anchor');
   try {
-    filtersBtn.setPointerCapture(pointerId);
+    holdBtn.setPointerCapture(pointerId);
   } catch {
     /* the finger has already lifted */
   }
   if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.(15);
 }
 
-filtersBtn.addEventListener('pointerdown', (ev) => {
-  if (isHome() || F.mode) return;
-  if (holding) return;
+function beginPress(btn: HTMLButtonElement, ev: PointerEvent): void {
+  if (holding || !holdEl.hidden) return;
+  holdBtn = btn;
   holdPointer = ev.pointerId;
   holdStart = { x: ev.clientX, y: ev.clientY };
   holdMoved = false;
   window.clearTimeout(holdTimer);
   holdTimer = window.setTimeout(() => startHold(ev.pointerId), 200);
+}
+
+filtersBtn.addEventListener('pointerdown', (ev) => {
+  // On the start screen and in the sales flows this button is Settings, with nothing to hold.
+  if (isHome() || F.mode) return;
+  beginPress(filtersBtn, ev);
 });
+// Search works everywhere, so holding it for the scanner does too.
+searchBtn.addEventListener('pointerdown', (ev) => beginPress(searchBtn, ev));
 
 // ---- reading intent, not just position
 //
@@ -1372,7 +1433,7 @@ function cancelSwitch(): void {
   pendingRow = null;
 }
 
-filtersBtn.addEventListener('pointermove', (ev) => {
+function onHoldMove(ev: PointerEvent): void {
   if (ev.pointerId !== holdPointer) return;
   const x = ev.clientX;
   const y = ev.clientY;
@@ -1434,9 +1495,9 @@ filtersBtn.addEventListener('pointermove', (ev) => {
     if (x < box.left + 24) openSub(fromRow);
     return;
   }
-  if (x < box.left - 40 || y < box.top - 20) return setHot(null);
+  if (x < box.left - 40 || x > box.right + 40 || y < box.top - 20) return setHot(null);
   setHot(stickyRow(mainPanel, y, hot && mainPanel.contains(hot) ? hot : null));
-});
+}
 
 const endHold = (cancelled: boolean): void => {
   window.clearTimeout(holdTimer);
@@ -1463,9 +1524,12 @@ const endHold = (cancelled: boolean): void => {
   if (holdMoved) closeHold();
   // Held without sliding: the panel stays up to be tapped.
 };
-filtersBtn.addEventListener('pointerup', (ev) => ev.pointerId === holdPointer && endHold(false));
-filtersBtn.addEventListener('pointercancel', (ev) => ev.pointerId === holdPointer && endHold(true));
-filtersBtn.addEventListener('contextmenu', (ev) => ev.preventDefault());
+for (const btn of [filtersBtn, searchBtn]) {
+  btn.addEventListener('pointermove', onHoldMove);
+  btn.addEventListener('pointerup', (ev) => ev.pointerId === holdPointer && endHold(false));
+  btn.addEventListener('pointercancel', (ev) => ev.pointerId === holdPointer && endHold(true));
+  btn.addEventListener('contextmenu', (ev) => ev.preventDefault());
+}
 
 // Tapping, once the panel is up: rows with more open their column, everything else applies.
 holdEl.addEventListener('click', (ev) => {
@@ -1855,15 +1919,15 @@ document.addEventListener('click', (ev) => {
       break;
     case 'more':
       if (swallowTap) break;
-      void openSheet();
+      // Tapping the button its panel came from puts the panel away.
+      if (!holdEl.hidden) closeHold();
+      else void openSheet();
       break;
-    case 'dock-search': {
-      document.body.classList.remove('tuck');
-      const box = $<HTMLInputElement>('#q');
-      box.focus();
-      box.select();
+    case 'dock-search':
+      if (swallowTap) break;
+      if (!holdEl.hidden) closeHold();
+      else focusSearch();
       break;
-    }
     case 'toggle': {
       const li = el.closest<HTMLElement>('.card')!;
       const g = groups.find((x) => x.key === li.dataset.key) ?? scanGroups.get(li.dataset.key ?? '');

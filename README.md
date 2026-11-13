@@ -31,7 +31,8 @@ their own (`FACETS` in `src/main.ts`).
 
 ## Scanning labels
 
-The barcode button in the search box opens the scanner (`src/scan.ts`). A CeX shelf label's barcode
+The barcode button in the search box opens the scanner (`src/scan.ts`), and so does holding Search
+in the bottom bar and sliding up to "Scan a barcode". A CeX shelf label's barcode
 is the product ID printed beneath it, so a scan returns the item with its current system price.
 
 - **Live** — every barcode in view is outlined; tap the picture to zoom in on one label.
