@@ -2335,23 +2335,39 @@ body:has(main input:focus) .dock {
 
 .cover-top h2 {
   margin: 4px 0 0;
-  font-size: 19px;
+  font-size: 21px;
   font-weight: 700;
   letter-spacing: -0.01em;
   overflow-wrap: anywhere;
 }
 
+/* The edition as a tag, then the caveat, then where the scan came from, quietest last. */
 .cover-top p {
-  margin: 3px 0 0;
-  max-width: 52ch;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 6px 0 0;
   font-size: 14px;
   color: var(--muted);
 }
 
+.ed {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--fill, var(--surface-2));
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
 .cover-top a {
+  margin-left: auto;
   color: inherit;
+  font-size: 13px;
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--muted) 50%, transparent);
+  text-decoration-color: color-mix(in srgb, var(--muted) 45%, transparent);
   text-underline-offset: 3px;
   white-space: nowrap;
 }
@@ -2379,24 +2395,59 @@ body:has(main input:focus) .dock {
   height: 100%;
   max-height: 720px;
   margin: auto;
+  overflow: hidden;
+  border-radius: 4px;
 }
 
 .cover-flat img {
   display: block;
   width: auto;
   height: 100%;
-  border-radius: 3px;
   background: var(--surface-2);
 }
 
-/* Two short bars, above and below, bracket the spine. */
+/* The spine is the thing to find on a shelf, so on it the rest of the sleeve steps back into the
+   dark and the strip is ringed in the one accent. On the back or front, nothing is dimmed. */
 .cover-mark {
   position: absolute;
-  top: -8px;
-  bottom: -8px;
-  border-block: 3px solid var(--accent);
-  border-radius: 2px;
+  top: 0;
+  bottom: 0;
   pointer-events: none;
+  outline: 2px solid transparent;
+  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0);
+  transition: box-shadow 0.45s var(--ease, ease), outline-color 0.45s var(--ease, ease);
+}
+
+.cover[data-part='spine'] .cover-mark {
+  outline-color: var(--accent);
+  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.58);
+}
+
+/* Where a sideways swipe comes to rest. */
+.cover-stage {
+  scroll-snap-type: x mandatory;
+}
+
+.snap {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.snap[data-at='back'] {
+  left: 0;
+  scroll-snap-align: start;
+}
+
+.snap[data-at='spine'] {
+  scroll-snap-align: center;
+}
+
+.snap[data-at='front'] {
+  right: 0;
+  scroll-snap-align: end;
 }
 
 /* Everything to do sits under the thumb: which part of the sleeve, and Done. */
@@ -2408,14 +2459,34 @@ body:has(main input:focus) .dock {
 }
 
 .seg {
+  --at: 1;
+  position: relative;
   flex: 1;
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
-  gap: 2px;
   padding: 3px;
   border-radius: 999px;
   background: var(--fill, var(--surface-2));
+}
+
+/* One thumb behind the three labels, sliding to the part in view. */
+.seg::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / 3);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 22%, var(--surface));
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.3);
+  transform: translateX(calc(var(--at) * 100%));
+  transition: transform 0.4s var(--ease, ease);
+}
+
+.seg button {
+  position: relative;
 }
 
 .seg button {
@@ -2430,8 +2501,6 @@ body:has(main input:focus) .dock {
 
 .seg button[aria-pressed='true'] {
   font-weight: 600;
-  background: color-mix(in srgb, var(--text) 22%, var(--surface));
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.3);
 }
 
 .seg button:active {
@@ -2459,9 +2528,16 @@ body:has(main input:focus) .dock {
 }
 
 @media (prefers-color-scheme: light) {
-  .seg button[aria-pressed='true'] {
+  .seg::before {
     background: #fff;
     box-shadow: 0 1px 4px rgb(20 20 30 / 0.16);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seg::before,
+  .cover-mark {
+    transition: none;
   }
 }
 

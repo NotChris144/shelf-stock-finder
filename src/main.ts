@@ -850,11 +850,11 @@ function findItem(id: string): Item | null {
 const isBluray = (it: Item): boolean => /blu-?ray|4k|uhd/i.test(it.category);
 
 /** One line on which edition the scan is, and how far to trust its spine. */
-function editionNote(c: Cover, it: Item): string {
-  const fmt = c.bluray ? 'Blu-ray' : 'DVD';
-  const name = [c.region, fmt, 'edition'].filter(Boolean).join(' ');
-  if (c.bluray !== isBluray(it)) return `${name}. Only this format has a scan, so the ${isBluray(it) ? 'Blu-ray' : 'DVD'} spine will look different.`;
-  return c.region === 'UK' ? `${name}.` : `${name}. The UK spine can differ a little.`;
+/** Which edition the scan is ("US DVD"), and how far to trust its spine, in a few words. */
+function edition(c: Cover, it: Item): { tag: string; note: string } {
+  const tag = [c.region, c.bluray ? 'Blu-ray' : 'DVD'].filter(Boolean).join(' ');
+  if (c.bluray !== isBluray(it)) return { tag, note: `No ${isBluray(it) ? 'Blu-ray' : 'DVD'} scan, so the spine will look different` };
+  return { tag, note: c.region === 'UK' ? '' : 'The UK spine can differ a little' };
 }
 
 let toastTimer = 0;
@@ -886,16 +886,18 @@ function showCover(it: Item, c: Cover): void {
   const d = $<HTMLDialogElement>('#cover');
   const s = spineOf(c);
   const pct = (n: number): string => `${(n * 100).toFixed(2)}%`;
+  const ed = edition(c, it);
   // A sheet: pulled down, or Done at the foot of it, puts it away; nothing to reach for at the top.
   d.innerHTML = `<span class="grabber" aria-hidden="true"></span>
     <header class="cover-top">
       <h2>${esc(it.title)}</h2>
-      <p>${esc(editionNote(c, it))} <a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">Scan from dvdcover.com</a></p>
+      <p><span class="ed">${esc(ed.tag)}</span>${ed.note ? `<span>${esc(ed.note)}</span>` : ''}<a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer" aria-label="Scan from dvdcover.com, opens in a new tab">dvdcover.com</a></p>
     </header>
     <div class="cover-stage" id="coverStage">
       <div class="cover-flat" style="aspect-ratio:${c.w}/${c.h}">
         <img src="${esc(c.src)}" width="${c.w}" height="${c.h}" referrerpolicy="no-referrer" alt="Back, spine and front of the ${esc(it.title)} sleeve">
         <span class="cover-mark" style="left:${pct(s.left)};width:${pct(s.width)}"></span>
+        <i class="snap" data-at="back"></i><i class="snap" data-at="spine" style="left:${pct(0.5)}"></i><i class="snap" data-at="front"></i>
       </div>
     </div>
     <footer class="cover-foot">
@@ -916,14 +918,12 @@ function showCover(it: Item, c: Cover): void {
     else d.close();
     toast("That scan wouldn't load.");
   });
-  const parts = [...d.querySelectorAll<HTMLElement>('[data-act="cover-part"]')];
   const mark = (): void => {
     const max = stage.scrollWidth - stage.clientWidth;
     // Wide enough to show the whole sleeve at once: nothing to move between.
     d.classList.toggle('fits', max <= 4);
     if (stage.dataset.gliding) return;
-    const at = max <= 4 ? 'spine' : stage.scrollLeft < max * 0.25 ? 'back' : stage.scrollLeft > max * 0.75 ? 'front' : 'spine';
-    for (const b of parts) b.setAttribute('aria-pressed', String(b.dataset.v === at));
+    showPart(max <= 4 ? 'spine' : stage.scrollLeft < max * 0.25 ? 'back' : stage.scrollLeft > max * 0.75 ? 'front' : 'spine');
   };
   stage.addEventListener('scroll', mark, { passive: true });
   coverTo('spine', false);
@@ -932,6 +932,19 @@ function showCover(it: Item, c: Cover): void {
 
 let coverGlide = 0;
 
+const PARTS = ['back', 'spine', 'front'];
+
+/**
+ * Mark which part of the sleeve is in view: the selector's thumb slides to it, and on the spine
+ * the back and front dim, so the strip to look for on the shelf is the one thing lit.
+ */
+function showPart(part: string): void {
+  const d = $<HTMLDialogElement>('#cover');
+  d.dataset.part = part;
+  d.querySelector<HTMLElement>('.seg')?.style.setProperty('--at', String(Math.max(0, PARTS.indexOf(part))));
+  for (const b of d.querySelectorAll<HTMLElement>('[data-act="cover-part"]')) b.setAttribute('aria-pressed', String(b.dataset.v === part));
+}
+
 /** Bring one part of the sleeve to the middle of the screen. */
 function coverTo(part: string, smooth = true): void {
   const stage = document.querySelector<HTMLElement>('#coverStage');
@@ -939,7 +952,7 @@ function coverTo(part: string, smooth = true): void {
   const max = stage.scrollWidth - stage.clientWidth;
   const left = part === 'back' ? 0 : part === 'front' ? max : max / 2;
   // Answer the tap at once; the scroll listener keeps it right when the sleeve is dragged instead.
-  for (const b of document.querySelectorAll<HTMLElement>('#cover [data-act="cover-part"]')) b.setAttribute('aria-pressed', String(b.dataset.v === part));
+  showPart(part);
   // While it glides there, the parts it passes on the way must not light up.
   window.clearTimeout(coverGlide);
   stage.dataset.gliding = '1';
