@@ -2,12 +2,9 @@
  "day": "2026-11-13",
  "used": {
   "evening": 6,
-  "day": 10
+  "day": 20
  },
  "fresh": [
-  "apple|iphone15",
-  "apple|iphone14",
-  "apple|iphone11",
   "apple|iphone13",
   "apple|iphonese2ndgen",
   "apple|iphonese3rdgen",
@@ -16,24 +13,17 @@
   "apple|iphonexr",
   "apple|iphone16e",
   "apple|iphone14promax",
-  "apple|iphone16pro",
   "apple|iphone15promax",
   "apple|iphone16",
   "apple|iphone17",
   "google|pixel7",
-  "apple|iphone17pro",
-  "apple|iphone8",
-  "apple|iphone13promax",
-  "apple|iphone14pro",
   "apple|iphone12promax",
   "google|pixel9a",
   "apple|iphone13pro",
   "apple|iphone15pro",
   "google|pixel6",
-  "apple|iphone14plus",
   "google|pixel9proxl",
   "apple|iphone15plus",
-  "apple|iphone12mini",
   "apple|iphone11pro",
   "google|pixel6a",
   "apple|iphonex",
@@ -89,7 +79,8 @@
   "amazon|kindlefirehdx",
   "amazon|tablet82026",
   "amazon|alexatablet8",
-  "samsung|galaxytabs7"
+  "samsung|galaxytabs7",
+  "oppo|a17"
  ],
  "missed": {},
  "read": {
@@ -133,6 +124,16 @@
   "samsung|galaxyzfold5": "2026-11-13",
   "samsung|galaxyzfold8ultra": "2026-11-13",
   "samsung|galazys26fe": "2026-11-13",
-  "apple|iphone12": "2026-11-13"
+  "apple|iphone12": "2026-11-13",
+  "apple|iphone14plus": "2026-11-13",
+  "apple|iphone12mini": "2026-11-13",
+  "apple|iphone16pro": "2026-11-13",
+  "apple|iphone13promax": "2026-11-13",
+  "apple|iphone14": "2026-11-13",
+  "apple|iphone14pro": "2026-11-13",
+  "apple|iphone15": "2026-11-13",
+  "apple|iphone17pro": "2026-11-13",
+  "apple|iphone8": "2026-11-13",
+  "apple|iphone11": "2026-11-13"
  }
 }
