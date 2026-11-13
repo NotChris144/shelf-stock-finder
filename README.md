@@ -94,7 +94,7 @@ electronics).
 
 CeX's search says what a branch has now, not when it arrived or left, and not how many of each. So
 a GitHub job (`.github/workflows/stock.yml`) lists everything Eastbourne has in stock every 15
-minutes from 8am to 9pm UK time (about 8,000 products, in about a second) and compares it with the
+minutes from 8am to 9pm UK time, just off the round minutes (about 8,000 products, in 13 queries) and compares it with the
 last list (`src/tracker.ts`):
 
 - A product that was not there before has come in. Another copy of something already on the shelf
@@ -102,8 +102,16 @@ last list (`src/tracker.ts`):
 - A product that has gone, and is still gone at the next look, has left: the last one sold, or now
   and then moved to another store. Waiting for a second look keeps a hiccup in the search from
   showing as a sale.
-- The first look only sets the starting point. Changes after a long gap (overnight) are shown as
-  "before 9:07" rather than with a time they did not happen at.
+- The first look only sets the starting point.
+- Times come from CeX itself. Its search is updated in batches every 10 minutes and each product
+  carries the time of its last update, so an arrival or sale is timed by that (kept within the gap
+  between two looks), however late GitHub runs the job. Only where no such time fits is it shown as
+  "before 9:04".
+- Just in does not wait for the job for tech. While it is open it asks CeX directly which tech the
+  branch has (about 1,400 products by ID, a fraction of a second), every two minutes, and shows
+  anything the job's last look had not seen. So a phone appears within CeX's own 10-minute update
+  of being taken into stock. The job's record includes that last look's tech list (`seen`) for
+  this.
 
 The record is kept on the `stock-data` branch as one commit that is replaced each time, so it builds
 up no history, and the app reads `log.json` straight from there, so the site does not need

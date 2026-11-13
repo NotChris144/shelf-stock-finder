@@ -9,8 +9,10 @@ name: Stock activity
 
 on:
   schedule:
-    # 08:00 to 20:45 UTC: 9am to 6pm UK in winter and summer, with an hour or two either side.
-    - cron: '*/15 8-20 * * *'
+    # 08:04 to 20:49 UTC: 9am to 6pm UK in winter and summer, with an hour or two either side.
+    # Off the round minutes, which GitHub is busiest on and runs latest, and just after CeX's own
+    # 10-minute updates.
+    - cron: '4,19,34,49 8-20 * * *'
   workflow_dispatch:
 
 permissions:

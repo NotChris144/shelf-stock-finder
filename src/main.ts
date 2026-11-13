@@ -1078,7 +1078,7 @@ function renderResults(): void {
   delete main.dataset.shell;
   if (home) {
     main.innerHTML = homeHtml(flowHost);
-    void fillActivity(main);
+    void fillActivity(flowHost, main);
     return;
   }
   if (error) {
@@ -2475,7 +2475,7 @@ $('#sheet').addEventListener('click', (ev) => {
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   forgetLog();
-  if (isHome()) void fillActivity($('#results'));
+  if (isHome()) void fillActivity(flowHost, $('#results'));
   else if (F.mode === 'in' || F.mode === 'sold') render();
 });
 document.addEventListener('visibilitychange', () => {

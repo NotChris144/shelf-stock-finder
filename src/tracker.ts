@@ -8,7 +8,13 @@
 //   - a product that has gone, and is still gone at the next look, has left: the last one sold,
 //     or now and then moved to another store.
 // Waiting for a second look before calling something gone keeps a hiccup in the search from
-// showing as a sale. The job keeps the record on the repository's `stock-data` branch, and the
+// showing as a sale.
+//
+// When is taken from CeX itself: its search is updated in batches every 10 minutes, and each
+// product carries the time of its last update. Arriving at the branch is such an update, so that
+// time (kept within the gap between two looks) says when it came in, however late a look runs.
+// The app also asks CeX directly for the branch's tech when Just in is open, against the list
+// of tech at the last look (`seen`), so a phone shows as soon as CeX lists it. The job keeps the record on the repository's `stock-data` branch, and the
 // app reads `log.json` from there.
 
 import { CONFIG } from './api.ts';
@@ -33,6 +39,8 @@ export interface Rec {
   mn?: string;
   cpu?: string;
   gen?: string;
+  /** When CeX last updated the product, as epoch ms. */
+  u?: number;
 }
 
 /** Something that happened between two looks: after `a` (the look before) and by `t`. */
@@ -40,6 +48,8 @@ export interface Ev {
   t: number;
   a: number;
   r: Rec;
+  /** `t` is CeX's own time for the change, not just the look that found it. */
+  e?: 1;
 }
 
 export interface Log {
@@ -51,6 +61,8 @@ export interface Log {
   arrivals: Ev[];
   /** Tech only, newest first. */
   sold: Ev[];
+  /** Tech at the branch at the latest look, including any waiting to be confirmed gone. */
+  seen?: string[];
 }
 
 /** What the job carries from one look to the next. */
@@ -62,16 +74,27 @@ export interface State {
   /** Full records of tech in stock, so a sale can still be described after it has gone. */
   tech: Record<string, Rec>;
   /** Gone at the last look but not yet confirmed: when that was noticed (`s`) and last seen (`l`). */
-  missing: Record<string, { s: number; l: number; r?: Rec }>;
+  missing: Record<string, { s: number; l: number; r?: Rec; e?: 1 }>;
 }
 
 const FILTER = 'boxVisibilityOnWeb=1 AND boxSaleAllowed=1 AND sellPrice > 0';
-const FIELDS = ['boxId', 'boxName', 'sellPrice', 'categoryFriendlyName', 'superCatFriendlyName', 'productLineName', 'imageUrls', 'Grade', 'Manufacturer', 'Phone Model', 'Model Name', 'CPU Model', 'Generation'];
+const FIELDS = ['boxId', 'boxName', 'sellPrice', 'categoryFriendlyName', 'superCatFriendlyName', 'productLineName', 'imageUrls', 'Grade', 'Manufacturer', 'Phone Model', 'Model Name', 'CPU Model', 'Generation', 'timestamp'];
 /** The most one request returns. */
 const PAGE = 1000;
 
 const first = (v: unknown): string => (Array.isArray(v) ? String(v[0] ?? '') : v == null ? '' : String(v)).trim();
 const all = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : v == null ? [] : [String(v)]);
+
+/** CeX writes its update times as "2026-11-13 04:00:33", in UTC. */
+function stamp(v: unknown): number | undefined {
+  const m = String(v ?? '').match(/^(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)$/);
+  return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : undefined;
+}
+
+/** CeX's time for a change, if it falls between the two looks; otherwise the later look is all that is known. */
+function when(u: number | undefined, after: number, by: number): { t: number; e?: 1 } {
+  return u !== undefined && u > after && u <= by ? { t: u, e: 1 } : { t: by };
+}
 
 const TECH = new Set(['Phones', 'Computing', 'Electronics']);
 /** Devices, not discs: games, board games and figures are not tech. */
@@ -87,6 +110,8 @@ function toRec(h: Hit): Rec {
   if (img) r.i = img;
   const g = first(h.Grade);
   if (g) r.g = g;
+  const u = stamp(h.timestamp);
+  if (u) r.u = u;
   if (isTech(h)) {
     r.t = 1;
     const put = (k: 'm' | 'pm' | 'mn' | 'cpu' | 'gen', v: unknown): void => {
@@ -224,7 +249,7 @@ export interface Outcome {
 }
 
 /** Compare what is in stock now with the last look. */
-export function compare(prev: State | null, recs: Rec[], total: number, now: number, store: string): Outcome {
+export function compare(prev: State | null, recs: Rec[], total: number, now: number, store: string, goneAt: Record<string, number> = {}): Outcome {
   const tech = Object.fromEntries(recs.filter((r) => r.t).map((r) => [r.id, r]));
   const fresh: State = { store, at: now, count: recs.length, ids: recs.map((r) => r.id), tech, missing: {} };
   // A list that came back short is the search having a moment, not half the shop selling out.
@@ -242,15 +267,17 @@ export function compare(prev: State | null, recs: Rec[], total: number, now: num
     if (before.has(r.id)) continue;
     // Gone at the last look and back now: a hiccup, not a sale and a purchase.
     if (missing[r.id]) delete missing[r.id];
-    else arrivals.push({ t: now, a: prev.at, r });
+    else arrivals.push({ ...when(r.u, prev.at, now), a: prev.at, r });
   }
   for (const [id, m] of Object.entries(prev.missing)) {
     if (now_.has(id)) continue;
     delete missing[id];
-    if (m.r) sold.push({ t: m.s, a: m.l, r: m.r });
+    if (m.r) sold.push({ t: m.s, a: m.l, r: m.r, ...(m.e ? { e: 1 as const } : {}) });
   }
   for (const id of prev.ids) {
-    if (!now_.has(id)) missing[id] = prev.tech[id] ? { s: now, l: prev.at, r: prev.tech[id] } : { s: now, l: prev.at };
+    if (now_.has(id)) continue;
+    const w = when(goneAt[id], prev.at, now);
+    missing[id] = { s: w.t, l: prev.at, ...(w.e ? { e: 1 as const } : {}), ...(prev.tech[id] ? { r: prev.tech[id] } : {}) };
   }
   fresh.missing = missing;
   return { state: fresh, arrivals, sold };
@@ -267,5 +294,44 @@ export function record(log: Log | null, out: Outcome, store: string, now: number
     at: now,
     arrivals: keep([...out.arrivals, ...base.arrivals], 7, 800),
     sold: keep([...out.sold, ...base.sold], 14, 400),
+    seen: [...Object.keys(out.state.tech), ...Object.keys(out.state.missing).filter((id) => out.state.missing[id].r)],
   };
+}
+
+// ------------------------------------------------------------------ asking CeX directly
+
+/** The tech a branch has now, by ID only: small enough to ask for every couple of minutes. */
+export async function techNow(store: string): Promise<string[]> {
+  const here = [`stores:${store}`];
+  const slim = { attributesToRetrieve: ['boxId'] };
+  const games = `${FILTER} AND NOT productLineName:"Gaming Software" AND NOT productLineName:"Board Games" AND NOT productLineName:"Miniature Wargaming"`;
+  const r = await post([
+    ask([here, ['superCatFriendlyName:Phones', 'superCatFriendlyName:Computing']], slim),
+    ask([here, ['superCatFriendlyName:Electronics']], slim),
+    ask([here, ['superCatFriendlyName:Gaming']], { ...slim, filters: games }),
+  ]);
+  return r.flatMap((x) => (x.hits ?? []).map((h) => String(h.boxId)));
+}
+
+const byId = (ids: string[]): string => ids.map((id) => `objectID:"${id.replace(/[^\w.-]/g, '')}"`).join(' OR ');
+
+/** Full records of the given products, wherever they are in stock. */
+export async function recsOf(ids: string[]): Promise<Rec[]> {
+  if (!ids.length) return [];
+  const [r] = await post([{ indexName: CONFIG.index, query: '', hitsPerPage: ids.length, filters: byId(ids), attributesToRetrieve: FIELDS, attributesToHighlight: [], analytics: false }]);
+  return (r.hits ?? []).map(toRec);
+}
+
+/** When CeX last updated each of the given products: for one that has just left, that is when it went. */
+export async function updatedAt(ids: string[]): Promise<Record<string, number>> {
+  const out: Record<string, number> = {};
+  for (let i = 0; i < ids.length; i += 100) {
+    const part = ids.slice(i, i + 100);
+    const [r] = await post([{ indexName: CONFIG.index, query: '', hitsPerPage: part.length, filters: byId(part), attributesToRetrieve: ['boxId', 'timestamp'], attributesToHighlight: [], analytics: false }]);
+    for (const h of r.hits ?? []) {
+      const u = stamp(h.timestamp);
+      if (u) out[String(h.boxId)] = u;
+    }
+  }
+  return out;
 }

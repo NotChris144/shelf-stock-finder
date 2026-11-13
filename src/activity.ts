@@ -4,9 +4,14 @@
 // and read from there. Until it holds its first change, the screens show sample data: real
 // products from the shelf with made-up times, clearly marked, so the layout can be seen and
 // used. The first real change replaces it, with nothing to switch.
+//
+// Just in does not wait for the job for tech. While it is open it asks CeX itself which tech the
+// branch has, every couple of minutes, and anything the job's last look had not seen is shown
+// straight away, timed by CeX's own update time. So a phone shows within CeX's 10-minute update
+// cycle of being taken into stock; the job then records it for good.
 
 import type { FlowHost } from './flows.ts';
-import { toHit, type Log } from './tracker.ts';
+import { recsOf, techNow, toHit, type Log } from './tracker.ts';
 import type { Group, Item } from './types.ts';
 
 const LOG_URL = 'https://raw.githubusercontent.com/NotChris144/shelf-stock-finder/stock-data/log.json';
@@ -19,6 +24,8 @@ interface Entry {
   /** By when it happened, and the look before (it happened in between). */
   t: number;
   a: number;
+  /** `t` is CeX's own time for the change, so it stands without the gap before it. */
+  e?: boolean;
   it: Item;
 }
 
@@ -48,6 +55,34 @@ export function forgetLog(): void {
 
 /** The record counts from its first change: before that there is nothing real to show. */
 const isLive = (log: Log | null): log is Log => Boolean(log && log.arrivals.length + log.sold.length > 0);
+
+// ------------------------------------------------------------------ asking CeX directly
+
+let fresh_: { at: number; key: number; entries: Entry[]; ok: boolean } | null = null;
+
+/**
+ * Tech CeX lists at the branch now that the job's last look had not seen: come in, not yet
+ * recorded. `ok` is false when CeX could not be asked, and then nothing is added.
+ */
+async function arrivingNow(host: FlowHost, log: Log | null, again = false): Promise<{ at: number; entries: Entry[]; ok: boolean }> {
+  if (!log?.seen) return { at: 0, entries: [], ok: false };
+  if (fresh_ && !again && fresh_.key === log.at && Date.now() - fresh_.at < MIN) return fresh_;
+  const now = Date.now();
+  try {
+    const seen = new Set(log.seen);
+    const ids = (await techNow(log.store)).filter((id) => !seen.has(id));
+    const recs = (await recsOf(ids.slice(0, 60))).filter((r) => r.t);
+    const entries = recs.map((r): Entry => {
+      const exact = r.u !== undefined && r.u > log.at && r.u <= now;
+      return { t: exact ? r.u! : now, a: log.at, e: exact, it: host.toItem(toHit(r)) };
+    });
+    fresh_ = { at: now, key: log.at, entries, ok: true };
+  } catch {
+    // CeX busy or no signal: keep what was found last time against the same look, if anything.
+    fresh_ = { at: fresh_?.at ?? 0, key: log.at, entries: fresh_?.key === log.at ? fresh_.entries : [], ok: false };
+  }
+  return fresh_;
+}
 
 // ------------------------------------------------------------------ sample data
 
@@ -95,9 +130,10 @@ function dayName(t: number, now: number): string {
 }
 
 /** How long ago, as a phone puts it: "12 min ago" today, the time of day further back. */
-export function ago(t: number, a: number, now: number): string {
-  // After a long gap between looks (overnight), all that is known is that it happened before this look.
-  if (t - a > 45 * MIN) return `before ${clock(t)}`;
+export function ago(t: number, a: number, now: number, exact = false): string {
+  // After a long gap between looks (overnight), all that is known is that it happened before this
+  // look, unless CeX's own time says exactly when.
+  if (!exact && t - a > 45 * MIN) return `before ${clock(t)}`;
   if (dayOf(t) !== dayOf(now)) return clock(t);
   const min = Math.round((now - t) / MIN);
   if (min < 1) return 'just now';
@@ -157,9 +193,13 @@ export async function drawActivity(host: FlowHost, kind: ActivityKind, filter: s
     offline = true;
   }
   let entries: Entry[];
-  const live = isLive(log);
+  const now0 = Date.now();
+  const direct = await arrivingNow(host, log, fresh);
+  // Real from the first change, whether the job recorded it or CeX was asked directly.
+  const live = isLive(log) || direct.entries.length > 0;
   if (live) {
-    entries = (kind === 'in' ? log!.arrivals : log!.sold).map((e) => ({ t: e.t, a: e.a, it: host.toItem(toHit(e.r)) }));
+    const recorded = (kind === 'in' ? log!.arrivals : log!.sold).map((e): Entry => ({ t: e.t, a: e.a, e: Boolean(e.e), it: host.toItem(toHit(e.r)) }));
+    entries = kind === 'in' ? [...direct.entries, ...recorded].sort((x, y) => y.t - x.t) : recorded;
   } else {
     try {
       entries = (await sampleData(host))[kind];
@@ -170,12 +210,13 @@ export async function drawActivity(host: FlowHost, kind: ActivityKind, filter: s
     }
   }
   if (token !== drawn || !body.isConnected) return;
-  const now = Date.now();
-  const stamp = `${live}|${log?.at ?? 0}|${entries.length}`;
+  const now = Math.max(now0, Date.now());
+  const asked = kind === 'in' && direct.ok ? direct.at : 0;
+  const stamp = `${live}|${log?.at ?? 0}|${entries.map((e) => e.it.id).join(',')}`;
   // Only the "checked" line changes when nothing new has come through: open cards stay open.
   if (fresh && stamp === shownAt) {
     const sub = body.querySelector('.act-sub');
-    if (sub && log) sub.textContent = checkedText(log, now, host.branch());
+    if (sub && log) sub.textContent = checkedText(log, now, host.branch(), asked);
     schedule(host, kind, filter, body);
     return;
   }
@@ -187,7 +228,7 @@ export async function drawActivity(host: FlowHost, kind: ActivityKind, filter: s
   const shown = filter ? entries.filter((e) => sectionOf(e.it) === filter) : entries;
 
   let html = '';
-  if (live) html += `<p class="act-sub">${host.esc(checkedText(log!, now, host.branch()))}</p>`;
+  if (live) html += `<p class="act-sub">${host.esc(checkedText(log!, now, host.branch(), asked))}</p>`;
   else
     html += `<p class="note sample"><b>Sample data.</b> Real items from the shelf with made-up times, to show how this will look. ${
       offline ? 'The record could not be reached just now.' : 'The real record replaces it as soon as the first stock changes come through.'
@@ -214,23 +255,26 @@ export async function drawActivity(host: FlowHost, kind: ActivityKind, filter: s
     }
     const g: Group = { key: `act:${kind}:${e.it.id}:${e.t}`, items: [e.it], head: e.it, min: e.it.price, max: e.it.price };
     host.register(g);
-    html += host.cardHtml(g, '', { cls: ' feed', when: ago(e.t, e.a, now), plain: true });
+    html += host.cardHtml(g, '', { cls: ' feed', when: ago(e.t, e.a, now, e.e), plain: true });
   }
   if (day) html += '</ul>';
   html += `<p class="fine">${
     kind === 'in'
-      ? `Checked every 15 minutes while the shop is open. An item shows the first time it appears in ${host.esc(log?.store ?? 'the branch')}’s stock online; another copy of something already on the shelf doesn’t show, because CeX lists one entry per product.`
+      ? `Tech is checked with CeX every two minutes while this screen is open, and shows within CeX’s own 10-minute update of being taken into stock. Everything else is checked every 15 minutes while the shop is open. An item shows the first time it appears in ${host.esc(log?.store ?? 'the branch')}’s stock online; another copy of something already on the shelf doesn’t show, because CeX lists one entry per product.`
       : `Phones, tablets, computers, consoles and electronics. An item shows here when the last one leaves ${host.esc(log?.store ?? 'the branch')}’s stock online, which is nearly always a sale and now and then a move to another store.`
   }</p>`;
   body.innerHTML = html;
   schedule(host, kind, filter, body);
 }
 
-function checkedText(log: Log, now: number, branch: string): string {
-  const min = Math.round((now - log.at) / MIN);
-  const checked = min < 1 ? 'Checked just now' : min < 60 ? `Checked ${min} min ago` : dayOf(log.at) === dayOf(now) ? `Checked at ${clock(log.at)}` : `Last checked ${dayName(log.at, now).toLowerCase()} at ${clock(log.at)}`;
+/** "Eastbourne · Checked 4 min ago", or with tech asked directly: "Eastbourne · Tech checked just now, the rest 4 min ago". */
+function checkedText(log: Log, now: number, branch: string, asked = 0): string {
+  const since = (t: number): string => {
+    const min = Math.round((now - t) / MIN);
+    return min < 1 ? 'just now' : min < 60 ? `${min} min ago` : dayOf(t) === dayOf(now) ? `at ${clock(t)}` : `${dayName(t, now).toLowerCase()} at ${clock(t)}`;
+  };
   const where = log.store === branch ? log.store : `${log.store} only`;
-  return `${where} · ${checked}`;
+  return asked ? `${where} · Tech checked ${since(asked)}, the rest ${since(log.at)}` : `${where} · Checked ${since(log.at)}`;
 }
 
 /** While a screen is open, look again every two minutes. */
@@ -254,22 +298,24 @@ export function activityRows(): string {
   return `<h3>Activity</h3><div class="group">${row('in', ICON_IN, 'Bought in, newest first')}${row('sold', ICON_SOLD, 'Tech that has left the shelf')}</div>`;
 }
 
-export async function fillActivity(root: HTMLElement): Promise<void> {
+export async function fillActivity(host: FlowHost, root: HTMLElement): Promise<void> {
   let log: Log | null = null;
   try {
     log = await loadLog();
   } catch {
     /* the rows still work; they just show no count */
   }
+  const direct = await arrivingNow(host, log);
   const now = Date.now();
   const today = (list: { t: number }[]): number => list.filter((e) => dayOf(e.t) === dayOf(now)).length;
+  const live = isLive(log) || direct.entries.length > 0;
   for (const el of root.querySelectorAll<HTMLElement>('[data-count]')) {
-    if (!isLive(log)) {
+    if (!live || !log) {
       el.textContent = 'Sample';
       el.classList.add('is-sample');
       continue;
     }
-    const n = today(el.dataset.count === 'in' ? log.arrivals : log.sold);
+    const n = el.dataset.count === 'in' ? today(log.arrivals) + today(direct.entries) : today(log.sold);
     el.textContent = n ? `${n} today` : 'None today';
     el.classList.remove('is-sample');
   }

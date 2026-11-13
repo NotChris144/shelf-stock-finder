@@ -6,7 +6,7 @@
 // folder on the repository's `stock-data` branch.
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { Busy, compare, fetchStock, queries, record, type Log, type State } from '../src/tracker.ts';
+import { Busy, compare, fetchStock, queries, record, updatedAt, type Log, type State } from '../src/tracker.ts';
 
 const STORE = 'Eastbourne';
 const dir = process.argv[2] ?? 'stock-data';
@@ -28,7 +28,16 @@ try {
 }
 const { total, recs } = listing;
 console.log(`Listed ${recs.length} of ${total} products in ${queries} queries.`);
-const out = compare(prev, recs, total, now, STORE);
+// For tech that has just gone, CeX's own update time says when it went.
+const here = new Set(recs.map((r) => r.id));
+const gone = prev ? prev.ids.filter((id) => !here.has(id) && prev.tech[id]) : [];
+let goneAt: Record<string, number> = {};
+try {
+  goneAt = await updatedAt(gone);
+} catch {
+  /* the look's own time will do */
+}
+const out = compare(prev, recs, total, now, STORE, goneAt);
 if (out.skipped) {
   console.log(`Nothing recorded: ${out.skipped}.`);
   process.exit(0);
