@@ -60,7 +60,12 @@ async function post(requests: unknown[], signal?: AbortSignal): Promise<any[]> {
 }
 
 const cache = new Map<string, { at: number; p: Promise<SearchResult> }>();
-const TTL = 90_000;
+/** Results are reused for this long so flicking between filters is instant; after that the server is asked again. */
+const TTL = 60_000;
+
+export function clearCache(): void {
+  cache.clear();
+}
 
 export function search(q: string, store: string, preset: Preset | undefined, signal?: AbortSignal, fresh = false): Promise<SearchResult> {
   const key = `${store}|${preset?.id ?? ''}|${q.trim().toLowerCase()}`;

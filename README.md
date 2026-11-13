@@ -13,6 +13,22 @@ npm run build    # static site in dist/, deployable to any static host
 
 Add `?demo` to the address to use built-in sample listings instead of live stock.
 
+## Sales flows
+
+The home screen opens two flows for phones and tablets (`src/flows.ts`, logic in `src/sell.ts`):
+
+- **Step up** — pick the item the customer has chosen; it lists what a little more money buys.
+- **Match a budget** — choose a budget and needs; it shows a cheaper option, the best match and
+  one a little over, with a side-by-side table.
+
+Every reason shown is a fact about both items (updates, speed, storage, camera, battery,
+condition). Camera and battery facts come from the hand-compiled table in `src/specs.ts`; models
+missing from it get no camera or battery comparison. The step-up limit (default £60) is set under
+Filters and settings. `npm run sellcheck` prints sample recommendations.
+
+Search filters adapt to the category: phones, tablets, laptops, desktops and consoles each get
+their own (`FACETS` in `src/main.ts`).
+
 ## Scanning labels
 
 The barcode button in the search box opens the scanner (`src/scan.ts`). A CeX shelf label's barcode

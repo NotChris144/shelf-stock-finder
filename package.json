@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
     "update-support": "node scripts/update-support.ts",
-    "selftest": "node scripts/selftest.ts"
+    "selftest": "node scripts/selftest.ts",
+    "sellcheck": "node scripts/sellcheck.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

@@ -152,7 +152,7 @@ function android(e: EolEntry, ctx: SupportCtx): Support {
     // "No end date on record" is weak evidence for an old model: most Android phones get about four years.
     const rel = Date.parse(e[1]);
     if (rel && ctx.now - rel > 4 * YEAR) {
-      return { status: 'warn', label: 'Updates may have ended', detail: `No end date published, but it was released in ${fmt(rel)} and most models get about four years of security updates. Check before promising updates.` + osNote };
+      return { status: 'warn', stale: true, label: 'Updates may have ended', detail: `No end date published, but it was released in ${fmt(rel)} and most models get about four years of security updates. Check before promising updates.` + osNote };
     }
     return { status: 'ok', label: 'Still updated', detail: 'Still receiving security updates; no end date published.' + osNote };
   }
@@ -210,12 +210,12 @@ function computer(p: SupportInput, ctx: SupportCtx): Support {
   const canRun11 = !c || c.gen === 0 ? undefined : c.vendor === 'intel' ? c.gen >= 8 : c.vendor === 'amd' ? c.gen >= 2 : true;
   if (ver === 10) {
     if (canRun11) {
-      return { status: 'warn', label: 'W10 · can run 11', detail: 'Windows 10 support ended Oct 2025, but this processor is on the Windows 11 list — it can be upgraded for free.' };
+      return { status: 'warn', stale: true, label: 'W10 · can run 11', detail: 'Windows 10 support ended Oct 2025, but this processor is on the Windows 11 list — it can be upgraded for free.' };
     }
     if (canRun11 === false) {
       return { status: 'ended', label: 'No updates', detail: 'Windows 10 support ended Oct 2025 and this processor is too old for Windows 11.' };
     }
-    return { status: 'warn', label: 'Windows 10', detail: 'Windows 10 support ended Oct 2025. Check whether this processor can run Windows 11.' };
+    return { status: 'warn', stale: true, label: 'Windows 10', detail: 'Windows 10 support ended Oct 2025. Check whether this processor can run Windows 11.' };
   }
   if (ver > 0) return { status: 'ended', label: 'No updates', detail: `Windows ${ver} is no longer supported by Microsoft.` };
   return UNKNOWN;

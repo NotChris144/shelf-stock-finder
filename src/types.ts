@@ -1,4 +1,6 @@
-export type Kind = 'phone' | 'tablet' | 'laptop' | 'desktop' | 'other';
+import type { Specs } from './specs.ts';
+
+export type Kind ='phone' | 'tablet' | 'laptop' | 'desktop' | 'other';
 export type SupportStatus = 'ok' | 'warn' | 'ended' | 'unknown' | 'na';
 
 /** A raw record from CeX's search index (only the fields we ask for). */
@@ -26,6 +28,8 @@ export interface Support {
   until?: number;
   /** True when `until` is our estimate rather than a manufacturer date. */
   est?: boolean;
+  /** Amber status where updates have probably or actually stopped, so it must not be sold as "still updated". */
+  stale?: boolean;
 }
 
 export interface Perf {
@@ -36,6 +40,16 @@ export interface Perf {
   tier: 1 | 2 | 3 | 4 | 5;
   label: string;
   chip: string;
+}
+
+/** Items that are the same product in different colours or grades, shown as one card. */
+export interface Group {
+  key: string;
+  items: Item[];
+  /** Cheapest variant. */
+  head: Item;
+  min: number;
+  max: number;
 }
 
 export interface Item {
@@ -67,4 +81,18 @@ export interface Item {
   perf: Perf | null;
   /** Position in the search engine's relevance order. */
   idx: number;
+  /** Numeric facts for filters and comparisons; 0, '' or false when not known. */
+  storageGb: number;
+  ramGb: number;
+  /** Screen size in inches. */
+  screen: number;
+  /** 'iOS' | 'Android' | 'iPadOS' | 'Windows' | 'macOS' | 'ChromeOS' | '' */
+  os: string;
+  /** Has a dedicated graphics card (computers). */
+  gpu: boolean;
+  /** Tablet with a SIM slot rather than Wi-Fi only. */
+  cellular: boolean;
+  /** Console packaging: 'Boxed' | 'Unboxed' | 'Discounted' | '' */
+  condition: string;
+  specs: Specs | null;
 }

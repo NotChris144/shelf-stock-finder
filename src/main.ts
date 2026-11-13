@@ -1,12 +1,14 @@
 import './styles.css';
 import snapshot from './data/eol-snapshot.json';
-import { PRESETS, fetchStores, lookupIds, search } from './api.ts';
+import { PRESETS, clearCache, fetchStores, lookupIds, search } from './api.ts';
 import { DEMO_HITS } from './demo.ts';
 import { fetchEolDb, type EolDb } from './eol.ts';
+import { clearStock, homeHtml, renderFlow, resetPickQuery, setPickQuery, type FlowHost } from './flows.ts';
+import { getsUpdates, type FitType } from './sell.ts';
 import { toItem } from './parse.ts';
 import type { ScanHost, Scanner } from './scan.ts';
 import { makeCtx } from './support.ts';
-import type { Hit, Item } from './types.ts';
+import type { Group, Hit, Item } from './types.ts';
 
 // ------------------------------------------------------------------ helpers
 
@@ -49,9 +51,18 @@ interface Filters {
   sort: Sort;
   brands: string[];
   grades: string[];
+  /** Category-specific filters, as option ids (see FACETS). */
+  fx: string[];
+  /** Sales flow: '' (search), 'up' (step up from a pick) or 'fit' (match a budget). */
+  mode: '' | 'up' | 'fit';
+  pick: string;
+  bud: number;
+  ft: FitType;
+  need: string;
 }
 
-const DEFAULTS: Filters = { q: '', preset: '', max: 0, up: 0, perf: 0, sort: 'rel', brands: [], grades: [] };
+const DEFAULTS: Filters = { q: '', preset: '', max: 0, up: 0, perf: 0, sort: 'rel', brands: [], grades: [], fx: [], mode: '', pick: '', bud: 0, ft: 'phone', need: 'u' };
+const FIT_TYPES: FitType[] = ['phone', 'iphone', 'android', 'ipad', 'androidtab'];
 const SORTS: [Sort, string][] = [
   ['rel', 'Best match'],
   ['price', 'Price: low to high'],
@@ -81,17 +92,139 @@ let error = '';
 let seq = 0;
 let aborter: AbortController | null = null;
 let shown = PAGE;
+/** When stock was last fetched, so a phone coming back out of a pocket shows current stock. */
+let loadedAt = Date.now();
 
-interface Group {
-  key: string;
-  items: Item[];
-  head: Item;
-  min: number;
-  max: number;
-}
 let groups: Group[] = [];
 let hiddenUnknown = 0;
 let matched = 0;
+
+// ------------------------------------------------------------------ category filters
+
+/** What the current results mostly are, which decides the filters worth offering. */
+type Shelf = 'phone' | 'tablet' | 'laptop' | 'desktop' | 'console' | '';
+
+interface Facet {
+  id: string;
+  label: string;
+  test(it: Item): boolean;
+}
+interface FacetGroup {
+  name: string;
+  /** Options also shown in the quick row above results. */
+  quick?: string[];
+  options: Facet[];
+}
+
+const atLeast = (key: 'storageGb' | 'ramGb', id: string, n: number, label: string): Facet => ({ id, label, test: (it) => it[key] >= n });
+const system = (id: string, label: string, os: string): Facet => ({ id, label, test: (it) => it.os === os });
+const made = (id: string, label: string, re: RegExp): Facet => ({ id, label, test: (it) => re.test(it.category) });
+const STORAGE_MOBILE: FacetGroup = {
+  name: 'Storage',
+  quick: ['st128'],
+  options: [atLeast('storageGb', 'st64', 64, '64GB+'), atLeast('storageGb', 'st128', 128, '128GB+'), atLeast('storageGb', 'st256', 256, '256GB+')],
+};
+const MEMORY: FacetGroup = { name: 'Memory', quick: ['ram8', 'ram16'], options: [atLeast('ramGb', 'ram8', 8, '8GB RAM+'), atLeast('ramGb', 'ram16', 16, '16GB RAM+')] };
+const STORAGE_PC: FacetGroup = {
+  name: 'Storage',
+  quick: ['ss256'],
+  options: [atLeast('storageGb', 'ss256', 256, '256GB+'), atLeast('storageGb', 'ss512', 512, '512GB+'), atLeast('storageGb', 'ss1000', 1000, '1TB+')],
+};
+const GRAPHICS: FacetGroup = { name: 'Graphics', quick: ['gpu'], options: [{ id: 'gpu', label: 'Graphics card', test: (it) => it.gpu }] };
+
+const FACETS: Record<Exclude<Shelf, ''>, FacetGroup[]> = {
+  phone: [
+    { name: 'System', quick: ['ios', 'and'], options: [system('ios', 'iPhone', 'iOS'), system('and', 'Android', 'Android')] },
+    STORAGE_MOBILE,
+    { name: 'Battery', quick: ['bat'], options: [{ id: 'bat', label: 'Big battery', test: (it) => (it.specs?.mah ?? 0) >= 4500 }] },
+    {
+      name: 'Camera',
+      options: [
+        { id: 'uw', label: 'Ultra-wide camera', test: (it) => Boolean(it.specs?.ultrawide) },
+        { id: 'zoom', label: 'Zoom camera', test: (it) => Boolean(it.specs?.zoom) },
+      ],
+    },
+  ],
+  tablet: [
+    { name: 'System', quick: ['ipad', 'andt'], options: [system('ipad', 'iPad', 'iPadOS'), system('andt', 'Android', 'Android'), system('wint', 'Windows', 'Windows')] },
+    STORAGE_MOBILE,
+    {
+      name: 'Screen',
+      quick: ['scl'],
+      options: [
+        { id: 'scs', label: 'Under 9″', test: (it) => it.screen > 0 && it.screen < 9 },
+        { id: 'scm', label: '9″ to 12″', test: (it) => it.screen >= 9 && it.screen < 12 },
+        { id: 'scl', label: '12″ and up', test: (it) => it.screen >= 12 },
+      ],
+    },
+    {
+      name: 'Connection',
+      options: [
+        { id: 'wifi', label: 'Wi-Fi only', test: (it) => !it.cellular },
+        { id: 'sim', label: 'Takes a SIM', test: (it) => it.cellular },
+      ],
+    },
+  ],
+  laptop: [
+    { name: 'System', quick: ['win', 'mac'], options: [system('win', 'Windows', 'Windows'), system('mac', 'Mac', 'macOS'), system('cros', 'Chromebook', 'ChromeOS')] },
+    MEMORY,
+    STORAGE_PC,
+    {
+      name: 'Screen',
+      options: [
+        { id: 'lsm', label: 'Up to 14″', test: (it) => it.screen > 0 && it.screen <= 14 },
+        { id: 'llg', label: '15″ and up', test: (it) => it.screen >= 15 },
+      ],
+    },
+    GRAPHICS,
+  ],
+  desktop: [
+    { name: 'System', quick: ['win', 'mac'], options: [system('win', 'Windows', 'Windows'), system('mac', 'Mac', 'macOS')] },
+    MEMORY,
+    STORAGE_PC,
+    GRAPHICS,
+    { name: 'Type', options: [{ id: 'aio', label: 'All-in-one (has a screen)', test: (it) => it.screen > 0 }] },
+  ],
+  console: [
+    {
+      name: 'Make',
+      quick: ['ps', 'xbox', 'nin'],
+      options: [
+        made('ps', 'PlayStation', /playstation|^ps/i),
+        made('xbox', 'Xbox', /xbox/i),
+        made('nin', 'Nintendo', /switch|wii|3ds|nintendo|game ?boy|gamecube|nes/i),
+      ],
+    },
+    {
+      name: 'Packaging',
+      quick: ['boxed'],
+      options: [
+        { id: 'boxed', label: 'Boxed', test: (it) => it.condition === 'Boxed' },
+        { id: 'unboxed', label: 'Unboxed', test: (it) => it.condition === 'Unboxed' },
+        { id: 'disc', label: 'Discounted', test: (it) => it.condition === 'Discounted' },
+      ],
+    },
+  ],
+};
+
+const shelfOf = (it: Item): Shelf => (it.kind !== 'other' ? it.kind : /consoles?$/i.test(it.category) ? 'console' : '');
+
+/** A category chip decides it outright; a free-text search adapts when most results are one kind. */
+function shelf(): Shelf {
+  const byPreset: Record<string, Shelf> = { phones: 'phone', tablets: 'tablet', laptops: 'laptop', desktops: 'desktop', consoles: 'console' };
+  if (F.preset) return byPreset[F.preset] ?? '';
+  if (!items.length) return '';
+  const counts = new Map<Shelf, number>();
+  for (const it of items) counts.set(shelfOf(it), (counts.get(shelfOf(it)) ?? 0) + 1);
+  const [top, n] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+  return n >= items.length * 0.6 ? top : '';
+}
+
+const isDevice = (s: Shelf): boolean => s === 'phone' || s === 'tablet' || s === 'laptop' || s === 'desktop';
+const facetGroups = (): FacetGroup[] => {
+  const s = shelf();
+  return s ? FACETS[s] : [];
+};
 
 // ------------------------------------------------------------------ URL state
 
@@ -106,6 +239,12 @@ function readHash(): void {
     sort: SORTS.some(([s]) => s === p.get('sort')) ? (p.get('sort') as Sort) : 'rel',
     brands: p.get('b')?.split('~').filter(Boolean) ?? [],
     grades: p.get('g')?.split('~').filter(Boolean) ?? [],
+    fx: p.get('x')?.split('~').filter(Boolean) ?? [],
+    mode: p.get('m') === 'up' || p.get('m') === 'fit' ? p.get('m') : '',
+    pick: p.get('id') ?? '',
+    bud: Number(p.get('bud')) || 0,
+    ft: FIT_TYPES.includes(p.get('ft') as FitType) ? p.get('ft') : 'phone',
+    need: p.has('need') ? (p.get('need') ?? '') : 'u',
   });
 }
 
@@ -119,6 +258,14 @@ function writeHash(): void {
   if (F.sort !== 'rel') p.set('sort', F.sort);
   if (F.brands.length) p.set('b', F.brands.join('~'));
   if (F.grades.length) p.set('g', F.grades.join('~'));
+  if (F.fx.length) p.set('x', F.fx.join('~'));
+  if (F.mode) {
+    p.set('m', F.mode);
+    if (F.pick) p.set('id', F.pick);
+    if (F.bud) p.set('bud', String(F.bud));
+    if (F.ft !== 'phone') p.set('ft', F.ft);
+    if (F.need !== 'u') p.set('need', F.need);
+  }
   const h = p.toString();
   history.replaceState(null, '', location.pathname + location.search + (h ? '#' + h : ''));
 }
@@ -144,7 +291,7 @@ async function load(fresh = false): Promise<void> {
   aborter?.abort();
   const mine = ++seq;
   error = '';
-  if (!F.q.trim() && !F.preset) {
+  if (F.mode || (!F.q.trim() && !F.preset)) {
     hits = [];
     items = [];
     total = 0;
@@ -175,6 +322,7 @@ async function load(fresh = false): Promise<void> {
     error = e instanceof TypeError ? 'offline' : e instanceof Error ? e.message : 'Search failed';
   }
   loading = false;
+  loadedAt = Date.now();
   shown = PAGE;
   render();
 }
@@ -183,15 +331,17 @@ function compute(): void {
   const now = Date.now();
   hiddenUnknown = 0;
   const kept: Item[] = [];
+  const active = facetGroups().flatMap((g) => g.options).filter((o) => F.fx.includes(o.id));
   for (const it of items) {
     if (F.max && it.price > F.max) continue;
+    if (active.some((o) => !o.test(it))) continue;
     if (F.up) {
       const s = it.support;
       if (s.status === 'unknown') {
         hiddenUnknown++;
         continue;
       }
-      if (s.status !== 'ok' && s.status !== 'warn') continue;
+      if (!getsUpdates(s)) continue;
       if (F.up === 2 && (s.status !== 'ok' || (s.until !== undefined && s.until - now < 2 * YEAR))) continue;
     }
     if (F.perf && (!it.perf || it.perf.tier < F.perf)) continue;
@@ -261,25 +411,32 @@ function filterControls(inSheet: boolean): string {
   ]
     .map(([t, l]) => chip('perf', t, `${bars(t as number)}${l}`, F.perf === t))
     .join('');
-  const sort = `<label class="select"><span class="sr">Sort by</span><select data-act="sort">${SORTS.map(
+  const sorts = isDevice(shelf()) ? SORTS : SORTS.filter(([v]) => v === 'rel' || v === 'price' || v === 'priceDesc');
+  const sort = `<label class="select"><span class="sr">Sort by</span><select data-act="sort">${sorts.map(
     ([v, l]) => `<option value="${v}"${F.sort === v ? ' selected' : ''}>${l}</option>`,
   ).join('')}</select></label>`;
   const updates = chip('up', 1, 'Still gets updates', F.up === 1) + chip('up', 2, '2+ years left', F.up === 2);
+  const device = isDevice(shelf());
+  const groups = facetGroups();
+  const fx = (o: Facet): string => chip('fx', o.id, o.label, F.fx.includes(o.id));
   if (!inSheet) {
     // Two swipeable rows keep results high on a phone screen; the sheet has the labelled version.
+    const quick = groups.map((g) => g.options.filter((o) => g.quick?.includes(o.id)).map(fx).join('')).filter(Boolean);
+    const first = [device ? updates : '', device ? speed : '', ...quick].filter(Boolean).join('<span class="sep"></span>');
     return `
-      <div class="frow">${updates}<span class="sep"></span>${speed}</div>
+      ${first ? `<div class="frow">${first}</div>` : ''}
       <div class="frow"><span class="flabel">Under</span>${budget}${custom}<span class="sep"></span>${sort}<button type="button" class="chip ghost" data-act="more">More</button></div>`;
   }
   return `
     <div class="frow wrap"><span class="flabel">Budget — under</span>${budget}${custom}</div>
-    <div class="frow wrap"><span class="flabel">Updates</span>${updates}</div>
-    <div class="frow wrap"><span class="flabel">Speed</span>${speed}</div>
+    ${device ? `<div class="frow wrap"><span class="flabel">Updates</span>${updates}</div>
+    <div class="frow wrap"><span class="flabel">Speed</span>${speed}</div>` : ''}
+    ${groups.map((g) => `<div class="frow wrap"><span class="flabel">${g.name}</span>${g.options.map(fx).join('')}</div>`).join('')}
     <div class="frow wrap"><span class="flabel">Sort</span>${sort}</div>`;
 }
 
 function activeCount(): number {
-  return (F.max ? 1 : 0) + (F.up ? 1 : 0) + (F.perf ? 1 : 0) + (F.sort !== 'rel' ? 1 : 0) + F.brands.length + F.grades.length;
+  return (F.max ? 1 : 0) + (F.up ? 1 : 0) + (F.perf ? 1 : 0) + (F.sort !== 'rel' ? 1 : 0) + F.brands.length + F.grades.length + F.fx.length;
 }
 
 function renderChrome(): void {
@@ -301,7 +458,7 @@ function renderStatus(): void {
   const el = $('#status');
   if (loading) el.textContent = 'Searching…';
   else if (error) el.textContent = 'Offline';
-  else if (!F.q.trim() && !F.preset) el.textContent = demo ? 'Demo data' : 'In-stock only';
+  else if (F.mode || isHome()) el.textContent = demo ? 'Demo data' : 'In-stock only';
   else el.textContent = `${total.toLocaleString('en-GB')} in stock${demo ? ' · demo' : ms ? ` · ${ms} ms` : ''}`;
   document.body.classList.toggle('loading', loading);
 }
@@ -316,7 +473,7 @@ function perfBadge(it: Item): string {
   return it.perf ? `<span class="badge speed">${bars(it.perf.tier)}${it.perf.label}</span>` : '';
 }
 
-function cardHtml(g: Group, note = ''): string {
+function cardHtml(g: Group, note = '', opts: { cls?: string; tag?: string; vt?: string } = {}): string {
   const it = g.head;
   const n = g.items.length;
   const grades = [...new Set(g.items.map((i) => i.grade).filter(Boolean))].sort();
@@ -325,7 +482,8 @@ function cardHtml(g: Group, note = ''): string {
   const icon = it.kind === 'phone' || it.kind === 'tablet' ? ICON_PHONE : it.kind === 'other' ? ICON_BOX : ICON_LAPTOP;
   const img = it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" decoding="async" width="64" height="64" onerror="this.remove()">` : '';
   const price = g.max > g.min ? `<small>from</small>${money(g.min)}` : money(g.min);
-  return `<li class="card" data-key="${esc(g.key)}">
+  const tag = opts.tag ? `<span class="badge tag">${esc(opts.tag)}</span>` : '';
+  return `<li class="card${opts.cls ?? ''}" data-key="${esc(g.key)}"${opts.vt ? ` style="view-transition-name:${opts.vt}"` : ''}>
     <button type="button" class="card-main" data-act="toggle" aria-expanded="false">
       <span class="thumb">${icon}${img}</span>
       <span class="body">
@@ -333,7 +491,7 @@ function cardHtml(g: Group, note = ''): string {
         <span class="sub">${esc(it.sub)}</span>
         ${meta ? `<span class="meta">${esc(meta)}</span>` : ''}
         ${note ? `<span class="meta">${esc(note)}</span>` : ''}
-        <span class="badges">${supportBadge(it)}${perfBadge(it)}</span>
+        <span class="badges">${tag}${supportBadge(it)}${perfBadge(it)}</span>
       </span>
       <span class="price">${price}</span>
     </button>
@@ -367,38 +525,31 @@ function detailHtml(g: Group): string {
     const ago = days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
     priced = `<p class="why${days <= 7 ? ' st-warn' : ''}"><b>Price</b>${money(it.price)} on the system, last changed ${when} (${ago}).${scanned ? ' If the label shows a different price, it needs reprinting.' : ''}</p>`;
   }
-  const similar = scanned && (it.model || it.title) ? `<button type="button" class="chip" data-act="similar" data-v="${esc(it.model || it.title)}">Find similar in stock</button>` : '';
+  const sellable = it.kind === 'phone' || it.kind === 'tablet';
+  const similar =
+    scanned && (it.model || it.title)
+      ? `<div class="detail-acts">${sellable ? `<button type="button" class="chip" aria-pressed="true" data-act="stepup" data-v="${esc(it.id)}">Find a step up</button>` : ''}<button type="button" class="chip" data-act="similar" data-v="${esc(it.model || it.title)}">Find similar in stock</button></div>`
+      : '';
   return `<div class="detail">${priced}${why}${speed}<ul class="variants">${rows}</ul>${similar}</div>`;
 }
 
-const QUICK: { title: string; note: string; patch: Partial<Filters> }[] = [
-  { title: 'Phones that still get updates', note: 'Cheapest first', patch: { preset: 'phones', up: 1, sort: 'price' } },
-  { title: 'Under £100 and still updated', note: 'Phones, fastest first', patch: { preset: 'phones', up: 1, max: 100, sort: 'perf' } },
-  { title: 'Best-value phones', note: 'Most speed per pound, updates included', patch: { preset: 'phones', up: 1, sort: 'value' } },
-  { title: 'Phones that will last longest', note: 'Under £200, longest support first', patch: { preset: 'phones', up: 1, max: 200, sort: 'life' } },
-  { title: 'Laptops on Windows 11 or current macOS', note: 'Cheapest first', patch: { preset: 'laptops', up: 1, sort: 'price' } },
-  { title: 'Fastest laptops under £300', note: 'Ranked by processor', patch: { preset: 'laptops', max: 300, sort: 'perf' } },
-  { title: 'iPads on the latest iPadOS', note: 'Cheapest first', patch: { preset: 'tablets', q: 'ipad', up: 1, sort: 'price' } },
-];
-
-function homeHtml(): string {
-  const recent = store.get<string[]>('recent', []);
-  return `<section class="home">
-    ${demo ? '<p class="note">Demo mode — sample listings, not live stock. Remove <code>?demo</code> from the address for live data.</p>' : ''}
-    <h2>Quick answers</h2>
-    <div class="quick">${QUICK.map((q, i) => `<button type="button" data-act="quick" data-v="${i}"><b>${q.title}</b><span>${q.note}</span></button>`).join('')}</div>
-    ${recent.length ? `<h2>Recent searches</h2><div class="chips wrap">${recent.map((r) => chip('recent', r, esc(r), false)).join('')}</div>` : ''}
-    <p class="hint">Type any product above — spelling mistakes are fine. Everything shown is in stock at ${esc(branch)}.</p>
-  </section>`;
-}
+const isHome = (): boolean => !F.mode && !F.q.trim() && !F.preset;
 
 function renderResults(): void {
   const main = $('#results');
-  const home = !F.q.trim() && !F.preset;
-  $('#filters').hidden = home;
-  $('#fab').hidden = home || !filtersOffscreen;
+  const home = isHome();
+  const plain = home || Boolean(F.mode);
+  $('#filters').hidden = plain;
+  // On the home screen the categories sit under the two sales options instead.
+  $('#presets').hidden = plain;
+  $('#fab').hidden = plain || !filtersOffscreen;
+  if (F.mode) {
+    renderFlow(flowHost, F, main);
+    return;
+  }
+  delete main.dataset.shell;
   if (home) {
-    main.innerHTML = homeHtml();
+    main.innerHTML = homeHtml(flowHost);
     return;
   }
   if (error) {
@@ -453,7 +604,7 @@ const pager = new IntersectionObserver(
 let filtersOffscreen = false;
 new IntersectionObserver(([e]) => {
   filtersOffscreen = !e.isIntersecting;
-  $('#fab').hidden = !filtersOffscreen || (!F.q.trim() && !F.preset);
+  $('#fab').hidden = !filtersOffscreen || isHome() || Boolean(F.mode);
 }).observe($('#filters'));
 
 // ------------------------------------------------------------------ sheet
@@ -466,11 +617,12 @@ async function openSheet(): Promise<void> {
     const brands = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 16);
     const grades = ['A', 'B', 'C'].filter((g) => items.some((i) => i.grade === g));
     sheet.innerHTML = `<form method="dialog" class="sheet-in">
-      <header><h2>Filters</h2><button class="chip" aria-pressed="true" value="close">Done</button></header>
+      <header><h2>Filters and settings</h2><button class="chip" aria-pressed="true" value="close">Done</button></header>
       ${filterControls(true)}
       <div class="frow wrap"><span class="flabel">Max £</span><input class="num" type="number" inputmode="numeric" min="0" step="5" placeholder="Any" value="${F.max || ''}" data-act="maxInput" aria-label="Maximum price in pounds"></div>
       ${brands.length > 1 ? `<div class="frow wrap"><span class="flabel">Brand</span>${brands.map(([b, n]) => chip('brand', b, `${esc(b)} <em>${n}</em>`, F.brands.includes(b))).join('')}</div>` : ''}
       ${grades.length > 1 ? `<div class="frow wrap"><span class="flabel">Grade</span>${grades.map((g) => chip('grade', g, g, F.grades.includes(g))).join('')}</div>` : ''}
+      <div class="frow wrap"><span class="flabel">Step-up limit — how far over their price to suggest</span>${[30, 60, 100, 150].map((l) => chip('limit', l, `£${l}`, stepLimit === l)).join('')}<input class="num" type="number" inputmode="numeric" min="5" step="5" placeholder="Other £" value="${[30, 60, 100, 150].includes(stepLimit) ? '' : stepLimit}" data-act="limitInput" aria-label="Step-up limit in pounds"></div>
       <div class="frow wrap"><span class="flabel">View</span>${chip('group', 1, 'Group colours & grades', grouped)}</div>
       <div class="frow wrap"><span class="flabel">Store</span><input class="text" list="stores" value="${esc(branch)}" data-act="store" aria-label="Store" autocomplete="off"><datalist id="stores">${stores.map((s) => `<option value="${esc(s)}">`).join('')}</datalist></div>
       <p class="fine">Update dates come from endoflife.date (refreshed ${esc(db.at)}); Apple dates are estimates. Speed ratings are approximate chip benchmarks.</p>
@@ -491,6 +643,35 @@ async function openSheet(): Promise<void> {
 }
 let storeList: string[] = [];
 const sheetOpen = (): boolean => $<HTMLDialogElement>('#sheet').open;
+
+// ------------------------------------------------------------------ sales flows
+
+/** How many pounds above the customer's price a suggestion may go. */
+let stepLimit = store.get('limit', 60);
+
+const flowHost: FlowHost = {
+  esc,
+  money,
+  chip,
+  cardHtml,
+  register: (g) => void scanGroups.set(g.key, g),
+  async loadKind(kind) {
+    const preset = PRESETS.find((p) => p.id === (kind === 'phone' ? 'phones' : 'tablets'))!;
+    const found = demo ? DEMO_HITS.filter((h) => (kind === 'phone' ? /iphone|android phones/i : /ipad|^tablets -/i).test(h.categoryFriendlyName ?? '')) : (await search('', branch, preset)).hits;
+    return found.map((h, i) => toItem(h, i, ctx)).filter((it) => it.kind === kind);
+  },
+  scanned: (id) => scanResults.get(id)?.item,
+  branch: () => branch,
+  limit: () => stepLimit,
+  recent: () => store.get<string[]>('recent', []),
+  categories: () => PRESETS.map((p) => [p.id, p.label]),
+  demo,
+};
+
+$('#results').addEventListener('input', (ev) => {
+  const el = ev.target as HTMLInputElement;
+  if (el.id === 'pickq') setPickQuery(flowHost, F, $('#results'), el.value);
+});
 
 // ------------------------------------------------------------------ barcode scanner
 
@@ -532,7 +713,8 @@ async function flushScans(): Promise<void> {
       scanResults.set(id, { item, here: r.here.has(id) });
       scanGroups.set('scan:' + id, { key: 'scan:' + id, items: [item], head: item, min: item.price, max: item.price });
       scanOrder.unshift(id);
-      navigator.vibrate?.(40);
+      // Browsers ignore (and log) vibration before the first tap.
+      if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.(40);
     }
   } catch {
     /* offline: leave the codes unresolved so the next sighting retries */
@@ -601,7 +783,7 @@ document.addEventListener('click', (ev) => {
   const v = el.dataset.v ?? '';
   switch (el.dataset.act) {
     case 'preset':
-      apply({ preset: F.preset === v ? '' : v, brands: [], grades: [] }, true);
+      apply({ preset: F.preset === v ? '' : v, brands: [], grades: [], fx: [], mode: '' }, true);
       window.scrollTo({ top: 0 });
       break;
     case 'max':
@@ -613,6 +795,13 @@ document.addEventListener('click', (ev) => {
     case 'perf':
       apply({ perf: F.perf === Number(v) ? 0 : Number(v) });
       break;
+    case 'fx': {
+      // One choice per group: picking 128GB+ replaces 64GB+.
+      const group = facetGroups().find((g) => g.options.some((o) => o.id === v));
+      const others = F.fx.filter((id) => !group?.options.some((o) => o.id === id));
+      apply({ fx: F.fx.includes(v) ? others : [...others, v] });
+      break;
+    }
     case 'brand':
       apply({ brands: toggleIn(F.brands, v) });
       break;
@@ -625,15 +814,50 @@ document.addEventListener('click', (ev) => {
       apply({});
       break;
     case 'reset':
-      apply({ max: 0, up: 0, perf: 0, sort: 'rel', brands: [], grades: [] });
+      apply({ max: 0, up: 0, perf: 0, sort: 'rel', brands: [], grades: [], fx: [] });
       break;
     case 'clear':
       apply({ q: '' }, true);
       $<HTMLInputElement>('#q').value = '';
       $<HTMLInputElement>('#q').focus();
       break;
-    case 'quick':
-      apply({ ...DEFAULTS, ...QUICK[Number(v)].patch }, true);
+    case 'door-up':
+      resetPickQuery();
+      apply({ ...DEFAULTS, mode: 'up' }, true);
+      // Same tap, so phones open the keyboard straight away.
+      document.getElementById('pickq')?.focus();
+      break;
+    case 'flow-home':
+      apply({ ...DEFAULTS }, true);
+      window.scrollTo({ top: 0 });
+      break;
+    case 'pick':
+      apply({ ...DEFAULTS, mode: 'up', pick: v }, true);
+      window.scrollTo({ top: 0 });
+      break;
+    case 'pick-clear':
+      resetPickQuery();
+      apply({ pick: '' }, true);
+      document.getElementById('pickq')?.focus();
+      break;
+    case 'stepup':
+      $<HTMLDialogElement>('#scanner').close();
+      apply({ ...DEFAULTS, mode: 'up', pick: v }, true);
+      window.scrollTo({ top: 0 });
+      break;
+    case 'bud':
+      apply({ ...(F.mode === 'fit' ? {} : DEFAULTS), mode: 'fit', bud: F.mode === 'fit' && F.bud === Number(v) ? 0 : Number(v) }, true);
+      break;
+    case 'ftype':
+      apply({ ft: v as FitType }, true);
+      break;
+    case 'need':
+      apply({ need: F.need.includes(v) ? F.need.replace(v, '') : F.need + v }, true);
+      break;
+    case 'limit':
+      stepLimit = Number(v) || 60;
+      store.set('limit', stepLimit);
+      apply({}, Boolean(F.mode));
       break;
     case 'recent':
       apply({ ...DEFAULTS, q: v }, true);
@@ -675,6 +899,12 @@ document.addEventListener('change', (ev) => {
   const el = ev.target as HTMLInputElement | HTMLSelectElement;
   if (el.dataset.act === 'sort') apply({ sort: el.value as Sort });
   if (el.dataset.act === 'maxInput') apply({ max: Math.max(0, Number(el.value) || 0) });
+  if (el.dataset.act === 'budInput') apply({ bud: Math.max(0, Number(el.value) || 0) }, true);
+  if (el.dataset.act === 'limitInput') {
+    stepLimit = Math.max(5, Number(el.value) || 60);
+    store.set('limit', stepLimit);
+    apply({}, Boolean(F.mode));
+  }
   if (el.dataset.act === 'store') {
     const name = el.value.trim();
     if (name && name !== branch) {
@@ -690,7 +920,7 @@ $('#q').addEventListener('input', (ev) => {
   const q = (ev.target as HTMLInputElement).value;
   $('#clear').hidden = !q;
   clearTimeout(typing);
-  typing = window.setTimeout(() => apply({ q, brands: [], grades: [] }, true), 160);
+  typing = window.setTimeout(() => apply({ q, brands: [], grades: [], fx: [], mode: '' }, true), 160);
 });
 
 $('#form').addEventListener('submit', (ev) => {
@@ -698,7 +928,7 @@ $('#form').addEventListener('submit', (ev) => {
   const input = $<HTMLInputElement>('#q');
   clearTimeout(typing);
   remember(input.value);
-  if (input.value !== F.q) apply({ q: input.value }, true);
+  if (input.value !== F.q) apply({ q: input.value, mode: '' }, true);
   input.blur();
 });
 
@@ -714,6 +944,15 @@ $('#sheet').addEventListener('click', (ev) => {
   if (ev.target === ev.currentTarget) (ev.currentTarget as HTMLDialogElement).close();
 });
 
+// Stock moves while the phone is in a pocket: on return, anything over a minute old is fetched again.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || Date.now() - loadedAt < 60_000 || isHome()) return;
+  clearCache();
+  clearStock();
+  loadedAt = Date.now();
+  void load(true);
+});
+
 window.addEventListener('hashchange', () => {
   readHash();
   $<HTMLInputElement>('#q').value = F.q;
@@ -727,7 +966,7 @@ $<HTMLInputElement>('#q').value = F.q;
 void load();
 // Handy when checking parsing against live data from the dev console.
 if (import.meta.env.DEV) Object.assign(window, { shelf: { items: () => items, hits: () => hits, openScan } });
-if (matchMedia('(hover: hover) and (pointer: fine)').matches) $<HTMLInputElement>('#q').focus();
+if (!F.mode && matchMedia('(hover: hover) and (pointer: fine)').matches) $<HTMLInputElement>('#q').focus();
 
 // Keep lifecycle data current without anyone having to redeploy.
 if (Date.now() - Date.parse(db.at) > 7 * 864e5) {

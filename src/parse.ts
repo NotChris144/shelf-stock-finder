@@ -5,6 +5,7 @@
 //   computers       "Lenovo ThinkPad T480/i5-8250U/8GB Ram/256GB SSD/14"/W11/B"
 
 import { perfFor } from './perf.ts';
+import { specsFor } from './specs.ts';
 import { supportFor, type SupportCtx } from './support.ts';
 import type { Hit, Item, Kind } from './types.ts';
 
@@ -16,6 +17,12 @@ const BRANDS = [
 ];
 const BRAND_RE = new RegExp(`^(${BRANDS.join('|')})\\b\\s*`, 'i');
 const CPU_RE = /\b(i[3579]-?\s?\d{3,5}|ryzen|celeron|cel|pentium|pent|atom|athlon|xeon|ultra\s*[579]|m[357]-\d|m[1-5]\b|a\d{1,2}-\d{4}|n\d{2,4}\b|j\d{4}|snapdragon|sd x|x1[ep]?-\d|sq[123]|e[12]-\d{4})|^\d{4}[uy]?$/i;
+
+/** "128GB" → 128, "1TB SSD" → 1024, "" → 0 */
+const toGb = (s: string): number => {
+  const m = s.match(/(\d+(?:\.\d+)?)\s*(GB|TB)/i);
+  return m ? Number(m[1]) * (m[2].toUpperCase() === 'TB' ? 1024 : 1) : 0;
+};
 
 const first = (v: unknown): string => (Array.isArray(v) ? String(v[0] ?? '') : v == null ? '' : String(v));
 
@@ -156,6 +163,7 @@ export function toItem(h: Hit, idx: number, ctx: SupportCtx): Item {
     title = model;
   }
 
+  const specs = kind === 'phone' ? specsFor(brandKey, models) : null;
   const img = h.imageUrls?.medium ?? h.imageUrls?.small ?? h.imageUrls?.large ?? '';
   return {
     id: String(h.boxId),
@@ -182,5 +190,15 @@ export function toItem(h: Hit, idx: number, ctx: SupportCtx): Item {
     support,
     perf,
     idx,
+    storageGb: toGb(p?.storage ?? ''),
+    ramGb: toGb(p?.ram ?? ''),
+    screen: specs?.screen || Number(name.match(/(\d{1,2}(?:\.\d)?)\s*(?:"|''|”)/)?.[1] ?? 0),
+    os: isPc
+      ? /^w/i.test(p?.os ?? '') ? 'Windows' : /chrome/i.test((p?.os ?? '') + category) ? 'ChromeOS' : brandKey === 'apple' || /^(macbook|imac|mac )/i.test(name) ? 'macOS' : ''
+      : kind === 'other' ? '' : brandKey === 'apple' ? (kind === 'tablet' ? 'iPadOS' : 'iOS') : /windows/i.test(category) || brandKey === 'microsoft' ? 'Windows' : 'Android',
+    gpu: /\b(rtx|gtx|rx)\s?\d{3,4}/i.test(name),
+    cellular: kind === 'tablet' && !/wi-?fi/i.test(name.slice(name.lastIndexOf(',') + 1)),
+    condition: name.match(/,\s*(Boxed|Unboxed|Discounted)\s*$/i)?.[1] ?? '',
+    specs,
   };
 }

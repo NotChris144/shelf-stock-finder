@@ -179,7 +179,7 @@ main {
 }
 
 .search:focus-within {
-  border-color: var(--accent);
+  border-color: var(--text);
 }
 
 .search > svg {
@@ -673,13 +673,13 @@ main {
 
 /* ---------------------------------------------------------------- home */
 
-.home h2 {
-  margin: 22px 2px 10px;
-  font-size: 12px;
-  font-weight: 650;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
+.home h3,
+main > h3,
+#flowBody > h3 {
+  margin: 28px 2px 10px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
 }
 
 .home .chips {
@@ -1004,4 +1004,578 @@ main {
 
 .scanner:has(.scan-tray .card.open) .scan-view {
   min-height: 26dvh;
+}
+
+
+/* ---------------------------------------------------------------- browser surfaces */
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 38%, transparent);
+}
+
+html {
+  scrollbar-color: var(--line) transparent;
+}
+
+input {
+  caret-color: var(--accent);
+}
+
+@media (hover: hover) {
+  .chip:hover {
+    border-color: var(--muted);
+  }
+
+  .chip[aria-pressed='true']:hover {
+    border-color: var(--accent);
+    filter: brightness(1.08);
+  }
+
+  .card-main:hover,
+  .pick-row:hover,
+  .variants a:hover {
+    background: color-mix(in srgb, var(--text) 4%, transparent);
+  }
+
+  .fake-field:hover,
+  .icon-btn:hover {
+    border-color: var(--muted);
+  }
+}
+
+/* ---------------------------------------------------------------- home: two ways in */
+
+.door {
+  padding: 22px 2px 26px;
+  border-bottom: 1px solid var(--line);
+}
+
+.door:first-of-type {
+  padding-top: 12px;
+}
+
+.door h2 {
+  margin: 0;
+  font-size: 23px;
+  font-weight: 760;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.door p {
+  margin: 5px 0 14px;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.door-field {
+  display: flex;
+  gap: 8px;
+}
+
+.fake-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  padding: 0 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 17px;
+  text-align: left;
+  transition: border-color 0.15s;
+}
+
+.fake-field span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  transition: border-color 0.15s;
+}
+
+.icon-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* ---------------------------------------------------------------- sales flows */
+
+.flow-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 6px 0 12px -10px;
+}
+
+.flow-head h2 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 760;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.back {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+}
+
+.back svg {
+  width: 24px;
+  height: 24px;
+}
+
+.search.flow-field {
+  margin: 0 0 14px;
+}
+
+.fit-form {
+  display: grid;
+  gap: 8px;
+  margin: 0 calc(-1 * var(--gutter)) 18px;
+}
+
+.fit-form .flabel {
+  width: 52px;
+}
+
+.fit-form .num {
+  flex: none;
+  width: 104px;
+}
+
+.frow.limit {
+  margin: 20px calc(-1 * var(--gutter)) 0;
+}
+
+.limit .flabel {
+  width: 100%;
+}
+
+.picks {
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.picks li + li {
+  border-top: 1px solid var(--line);
+}
+
+.pick-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'name price' 'meta price';
+  gap: 2px 12px;
+  width: 100%;
+  min-height: 60px;
+  padding: 11px 14px;
+  text-align: left;
+}
+
+.pick-name {
+  grid-area: name;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.pick-meta {
+  grid-area: meta;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pick-price {
+  grid-area: price;
+  align-self: center;
+  display: grid;
+  justify-items: end;
+  font-size: 18px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.pick-price small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  line-height: 1;
+}
+
+/* The ladder: each rung is an item, and the space between rungs says what the extra money buys. */
+
+.ladder {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rung {
+  content-visibility: visible;
+}
+
+.rung.is-pick {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.badge.tag {
+  --c: var(--text);
+  background: var(--surface-2);
+}
+
+.is-pick .badge.tag {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.step {
+  position: relative;
+  padding: 14px 6px 16px 34px;
+}
+
+.step::before {
+  content: '';
+  position: absolute;
+  left: 15px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--line);
+}
+
+.step-head {
+  position: relative;
+  margin: 0 0 8px;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.step-head::before {
+  content: '';
+  position: absolute;
+  left: -25px;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid var(--muted);
+}
+
+.step-head b {
+  font-size: 18px;
+  font-weight: 780;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.gains {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 15px;
+}
+
+.gains li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.gains svg {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  color: var(--ok);
+  stroke-width: 2.4;
+}
+
+.gives {
+  margin: 9px 0 0;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.sbs-wrap {
+  overflow-x: auto;
+  margin: 0 calc(-1 * var(--gutter));
+  padding: 0 var(--gutter);
+  scrollbar-width: none;
+}
+
+.sbs {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sbs th,
+.sbs td {
+  padding: 9px 10px 9px 0;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+
+.sbs thead th {
+  vertical-align: bottom;
+  font-size: 13.5px;
+  font-weight: 650;
+  min-width: 92px;
+}
+
+.sbs thead th span {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.sbs tbody th {
+  width: 1%;
+  padding-right: 14px;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.sbs td {
+  color: var(--muted);
+}
+
+.sbs td.best {
+  color: var(--text);
+  font-weight: 720;
+}
+
+#flowBody > .fine {
+  margin: 10px 2px 0;
+}
+
+#flowBody > .hint {
+  margin: 14px 2px 0;
+}
+
+.detail-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+::view-transition-group(*) {
+  animation-duration: 0.3s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.gains .none {
+  grid-template-columns: minmax(0, 1fr);
+  color: var(--muted);
+}
+
+
+/* ---------------------------------------------------------------- review fixes */
+
+/* Door 1 is a button, so it cannot be mistaken for the search field above it. */
+.door-go {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 52px;
+  padding: 0 14px 0 18px;
+  border-radius: var(--radius);
+  background: var(--text);
+  color: var(--bg);
+  font-size: 17px;
+  font-weight: 700;
+  transition: transform 0.08s;
+}
+
+.door-go:active {
+  transform: scale(0.985);
+}
+
+.door-go svg {
+  width: 22px;
+  height: 22px;
+}
+
+.home .browse .chip {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 13.5px;
+}
+
+.home h3 {
+  margin-top: 22px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--muted);
+}
+
+/* In the flows the recommended rung owns the coral; selected inputs are neutral. */
+.fit-form .chip[aria-pressed='true'],
+.limit .chip[aria-pressed='true'] {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
+}
+
+.flow-head .link {
+  color: var(--text);
+}
+
+.rung .price {
+  font-size: 24px;
+}
+
+.rung.is-pick {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  box-shadow: inset 0 0 0 1px var(--accent), 0 10px 28px -12px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.rung.is-pick .price {
+  font-size: 27px;
+}
+
+/* The rail and the step price carry the idea, so they read before the fine print. */
+.step::before {
+  background: color-mix(in srgb, var(--text) 30%, transparent);
+}
+
+.step-head {
+  line-height: 1.3;
+}
+
+.step-head b {
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.step-head::before {
+  top: 8px;
+  border-color: var(--text);
+}
+
+/* Step up: each option is compared with the pick, so its rail starts at its own marker
+   rather than running on from the option above. */
+.options .step {
+  margin-top: 18px;
+}
+
+.options .step::before {
+  top: 14px;
+}
+
+.gains .lose svg {
+  color: var(--warn);
+}
+
+.sbs {
+  font-size: 15px;
+}
+
+.sbs thead th span {
+  font-size: 13px;
+}
+
+.sbs .col-pick {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.sbs thead .col-pick {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.sbs th,
+.sbs td {
+  padding-left: 8px;
+}
+
+.frow.limit {
+  margin-top: 26px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.step-head {
+  text-wrap: balance;
+}
+
+/* A sentence, so it is set as one: not the one-word tracked-caps label style. */
+.limit .flabel {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.35;
+}
+
+
+/* ---------------------------------------------------------------- ladder runs dearest to cheapest */
+
+/* A step now sits under the dearer card it explains, so its gap comes after it. */
+.options .step {
+  margin-top: 0;
+  margin-bottom: 18px;
+}
+
+.options .step::before {
+  top: 0;
+  bottom: 12px;
+}
+
+.from-pick {
+  margin: -4px 2px 14px;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.rung-note {
+  position: relative;
+  padding: 12px 6px 12px 34px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.rung-note::before {
+  content: '';
+  position: absolute;
+  left: 15px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: color-mix(in srgb, var(--text) 30%, transparent);
 }
