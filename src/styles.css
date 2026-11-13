@@ -2512,7 +2512,6 @@ body:has(main input:focus) .dock {
   --fill: color-mix(in srgb, var(--text) 10%, transparent);
   --fill-2: color-mix(in srgb, var(--text) 17%, transparent);
   --radius: 18px;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* An app, not a page: no pinch or double-tap zoom, no text selection, no long-press menus. */
