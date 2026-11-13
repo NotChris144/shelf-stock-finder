@@ -88,8 +88,6 @@ export const DEMO_HITS: Hit[] = ROWS.map(([boxName, sellPrice, categoryFriendlyN
   boxId: `DEMO${i}`,
   boxName,
   sellPrice,
-  cashPriceCalculated: Math.round(sellPrice * 0.44),
-  exchangePriceCalculated: Math.round(sellPrice * 0.57),
   categoryFriendlyName,
   superCatFriendlyName: /phone/i.test(categoryFriendlyName) ? 'Phones' : 'Computing',
 }));

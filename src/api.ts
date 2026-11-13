@@ -15,7 +15,7 @@ export const CONFIG = {
 
 const BASE_FILTER = 'boxVisibilityOnWeb=1 AND boxSaleAllowed=1 AND sellPrice > 0';
 const ATTRS = [
-  'boxId', 'boxName', 'sellPrice', 'cashPriceCalculated', 'exchangePriceCalculated', 'categoryFriendlyName',
+  'boxId', 'boxName', 'sellPrice', 'categoryFriendlyName',
   'superCatFriendlyName', 'imageUrls', 'Grade', 'rating', 'Manufacturer', 'Phone Model', 'Model Name', 'CPU Model',
   'Generation', 'priceLastChanged', 'Year',
 ];

@@ -1058,7 +1058,7 @@ const DOT = '<i class="dot" aria-hidden="true"></i>';
  *  - the price only when it has just changed, so the label may need reprinting, or for a scanned
  *    label, what it should read;
  *  - the spec sheet, naming the chip once; how fast it is is the badge's job;
- *  - what CeX pays for it, and a list of copies only when there is more than one to choose from;
+ *  - a list of copies only when there is more than one to choose from;
  *  - what to do next: add-ons, and CeX's own page.
  */
 function detailHtml(g: Group): string {
@@ -1076,11 +1076,6 @@ function detailHtml(g: Group): string {
   if (scanned) fact('Label', `${fresh ? DOT : ''}Should read ${money(it.price)}${fresh ? `. Changed ${daysAgo(it.priceChanged)}` : ''}`, fresh ? 'st-warn' : '');
   else if (fresh) fact('Price', `${DOT}Changed ${daysAgo(it.priceChanged)}. Check the label matches.`, 'st-warn');
   for (const [k, v] of specRows(it)) fact(k, esc(v));
-  // What CeX pays depends on the grade, not the colour, so it is said once per grade.
-  const pays = new Map<string, string>();
-  for (const v of g.items) if ((v.cash || v.voucher) && !pays.has(v.grade)) pays.set(v.grade, `${money(v.cash)} cash · ${money(v.voucher)} voucher`);
-  if (pays.size === 1 || new Set(pays.values()).size === 1) fact('We pay', [...pays.values()][0]);
-  else if (pays.size) fact('We pay', [...pays].sort(([a], [b]) => a.localeCompare(b)).map(([gr, p]) => `<span class="pay">${gr ? `Grade ${gr}: ` : ''}${p}</span>`).join(''));
 
   const sh = it.specs?.sheet;
   // Naming the sheet's own device makes a wrong match visible at a glance.

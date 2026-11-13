@@ -2586,10 +2586,6 @@ body:has(main input:focus) .dock {
   vertical-align: 1px;
 }
 
-.specs .pay {
-  display: block;
-}
-
 .specs dd[class*='st-'] {
   font-weight: 500;
 }
@@ -2951,6 +2947,28 @@ a,
 .pick-row:active,
 .variants a:active {
   background: var(--fill);
+  transition-duration: 0s;
+}
+
+/* An open card is one piece, and its header closes all of it: pointing at or pressing the header
+   tints the whole card rather than a strip that stops in a hard line above the details. */
+.card {
+  transition: background 0.4s;
+}
+
+.card.open > .card-main:hover,
+.card.open > .card-main:active {
+  background: none;
+}
+
+@media (hover: hover) {
+  .card.open:has(> .card-main:hover) {
+    background: color-mix(in srgb, var(--text) 4%, var(--surface));
+  }
+}
+
+.card.open:has(> .card-main:active) {
+  background: color-mix(in srgb, var(--text) 9%, var(--surface));
   transition-duration: 0s;
 }
 

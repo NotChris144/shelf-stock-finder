@@ -8,8 +8,6 @@ export interface Hit {
   boxId: string;
   boxName: string;
   sellPrice: number;
-  cashPriceCalculated?: number;
-  exchangePriceCalculated?: number;
   categoryFriendlyName?: string;
   superCatFriendlyName?: string;
   imageUrls?: { small?: string | null; medium?: string | null; large?: string | null } | null;
@@ -56,8 +54,6 @@ export interface Item {
   id: string;
   name: string;
   price: number;
-  cash: number;
-  voucher: number;
   category: string;
   superCat: string;
   img: string;

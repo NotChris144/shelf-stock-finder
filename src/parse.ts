@@ -170,8 +170,6 @@ export function toItem(h: Hit, idx: number, ctx: SupportCtx): Item {
     id: String(h.boxId),
     name,
     price: Number(h.sellPrice) || 0,
-    cash: Number(h.cashPriceCalculated) || 0,
-    voucher: Number(h.exchangePriceCalculated) || 0,
     category,
     superCat: String(h.superCatFriendlyName ?? ''),
     img: img ? encodeURI(img) : '',
