@@ -160,6 +160,29 @@ export async function sampleStock(store: string): Promise<Hit[]> {
   return r.flatMap((x) => (x.hits ?? []) as Hit[]);
 }
 
+/**
+ * What a branch has in the given categories, most popular on CeX first, for suggesting add-ons:
+ * every item in `cats`, and the top few of each list in `ranked` (games, where only the best
+ * sellers are wanted). One round trip; each list comes back in its own popularity order.
+ */
+export async function addonStock(store: string, cats: string[], ranked: string[][], signal?: AbortSignal): Promise<Hit[][]> {
+  const ask = (list: string[], n: number) => ({
+    indexName: CONFIG.index + ORDERED.pop,
+    query: '',
+    hitsPerPage: n,
+    facetFilters: [[`stores:${store}`], list.map((c) => `categoryFriendlyName:${c}`)],
+    filters: BASE_FILTER,
+    attributesToRetrieve: ATTRS,
+    attributesToHighlight: [],
+    analytics: false,
+    clickAnalytics: false,
+  });
+  const requests = [...(cats.length ? [ask(cats, 1000)] : []), ...ranked.map((list) => ask(list, 30))];
+  if (!requests.length) return [];
+  const r = await post(requests, signal);
+  return r.map((x) => (x.hits ?? []) as Hit[]);
+}
+
 /** Every branch name, for the store picker. */
 export async function fetchStores(): Promise<string[]> {
   const r = await post([

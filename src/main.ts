@@ -1,12 +1,13 @@
 import './styles.css';
 import snapshot from './data/eol-snapshot.json';
 import sheetFile from './data/specs.json';
-import { PRESETS, clearCache, fetchStores, lookupIds, sampleStock, search } from './api.ts';
+import { PRESETS, addonStock, clearCache, fetchStores, lookupIds, sampleStock, search } from './api.ts';
 import { fillActivity, forgetLog } from './activity.ts';
+import { slotsFor } from './addons.ts';
 import { findCover, forget, remembered, spineOf, type Cover } from './covers.ts';
 import { DEMO_HITS } from './demo.ts';
 import { fetchEolDb, type EolDb } from './eol.ts';
-import { FOCI, clearStock, homeHtml, renderFlow, resetPickQuery, setPickQuery, type FlowHost } from './flows.ts';
+import { FOCI, clearAddons, clearStock, homeHtml, moreAddons, renderFlow, resetPickQuery, setPickQuery, toggleAddon, type FlowHost } from './flows.ts';
 import { getsUpdates, type FitType } from './sell.ts';
 import { cameraText, useSheets, waterTight, type SheetFile } from './specs.ts';
 import { toItem } from './parse.ts';
@@ -60,8 +61,8 @@ interface Filters {
   grades: string[];
   /** Category-specific filters, as option ids (see FACETS). */
   fx: string[];
-  /** Sales flow: '' (search), 'up' (step up from a pick) or 'fit' (match a budget). */
-  mode: '' | 'up' | 'fit' | 'in' | 'sold';
+  /** Sales flow: '' (search), 'up' (step up from a pick), 'fit' (match a budget) or 'add' (add-ons for an item). */
+  mode: '' | 'up' | 'fit' | 'add' | 'in' | 'sold';
   /** Which kind of item the activity screens are narrowed to ('' = all). */
   ac: string;
   pick: string;
@@ -482,7 +483,7 @@ function readHash(): void {
     brands: p.get('b')?.split('~').filter(Boolean) ?? [],
     grades: p.get('g')?.split('~').filter(Boolean) ?? [],
     fx: p.get('x')?.split('~').filter(Boolean) ?? [],
-    mode: ['up', 'fit', 'in', 'sold'].includes(p.get('m') ?? '') ? p.get('m') : '',
+    mode: ['up', 'fit', 'add', 'in', 'sold'].includes(p.get('m') ?? '') ? p.get('m') : '',
     ac: p.get('ac') ?? '',
     pick: p.get('id') ?? '',
     bud: Number(p.get('bud')) || 0,
@@ -1071,11 +1072,15 @@ function detailHtml(g: Group): string {
     priced = `<p class="why${days <= 7 ? ' st-warn' : ''}"><b>Price</b>${money(it.price)} on the system, last changed ${when} (${ago}).${scanned ? ' If the label shows a different price, it needs reprinting.' : ''}</p>`;
   }
   const sellable = it.kind === 'phone' || it.kind === 'tablet';
-  const similar =
-    scanned && (it.model || it.title)
-      ? `<div class="detail-acts">${sellable ? `<button type="button" class="chip" aria-pressed="true" data-act="stepup" data-v="${esc(it.id)}">Find a step up</button>` : ''}<button type="button" class="chip" data-act="similar" data-v="${esc(it.model || it.title)}">Find similar in stock</button></div>`
-      : '';
-  return `<div class="detail">${priced}${why}${speed}${specsHtml(it)}<ul class="variants">${rows}</ul>${similar}</div>`;
+  const acts: string[] = [];
+  // Anything with accessories worth offering (consoles, phones, tablets, computers, cameras, watches).
+  if (!demo && slotsFor(it).length) acts.push(`<button type="button" class="chip" aria-pressed="true" data-act="addons" data-v="${esc(it.id)}">Suggest add-ons</button>`);
+  if (scanned && (it.model || it.title)) {
+    if (sellable) acts.push(`<button type="button" class="chip" aria-pressed="true" data-act="stepup" data-v="${esc(it.id)}">Find a step up</button>`);
+    acts.push(`<button type="button" class="chip" data-act="similar" data-v="${esc(it.model || it.title)}">Find similar in stock</button>`);
+  }
+  const actions = acts.length ? `<div class="detail-acts">${acts.join('')}</div>` : '';
+  return `<div class="detail">${priced}${why}${speed}${specsHtml(it)}<ul class="variants">${rows}</ul>${actions}</div>`;
 }
 
 const isHome = (): boolean => !F.mode && !F.q.trim() && !F.preset;
@@ -1206,6 +1211,8 @@ const sheetOpen = (): boolean => $<HTMLDialogElement>('#sheet').open;
 
 /** How many pounds above the customer's price a suggestion may go. */
 let stepLimit = store.get('limit', 60);
+/** Where the add-ons screen was opened from in this visit (null when it was opened from a saved link). */
+let addonsFrom: string | null = null;
 
 const flowHost: FlowHost = {
   esc,
@@ -1225,6 +1232,15 @@ const flowHost: FlowHost = {
   limit: () => stepLimit,
   recent: () => store.get<string[]>('recent', []),
   categories: () => PRESETS.map((p) => [p.id, p.label]),
+  item: (id) => findItem(id) ?? undefined,
+  async lookup(id) {
+    const { hits: found } = await lookupIds([id], branch);
+    return found[0] ? toItem(found[0], 0, ctx) : null;
+  },
+  async addonStock(cats, ranked) {
+    // Each list keeps CeX's popularity order in `idx`, which is how the most popular pick is found.
+    return (await addonStock(branch, cats, ranked)).map((list) => list.map((h, i) => toItem(h, i, ctx)));
+  },
   demo,
 };
 
@@ -2238,7 +2254,8 @@ function menuFor(key: string): MenuSpec | null {
 // ------------------------------------------------------------------ actions
 
 /** Which screen a set of choices shows. Moving between two of these is a change of place, not a refinement. */
-const screenOf = (f: Filters): string => (f.mode === 'up' ? (f.pick ? `up:${f.pick}` : 'up') : f.mode ? f.mode : !f.q.trim() && !f.preset ? 'home' : 'list');
+const screenOf = (f: Filters): string =>
+  f.mode === 'up' ? (f.pick ? `up:${f.pick}` : 'up') : f.mode === 'add' ? `add:${f.pick}` : f.mode ? f.mode : !f.q.trim() && !f.preset ? 'home' : 'list';
 
 /**
  * Change screen the way a phone does: the new one slides in from the right while the old one
@@ -2371,6 +2388,27 @@ document.addEventListener('click', (ev) => {
     case 'flow-home':
       apply({ ...DEFAULTS }, true, true);
       window.scrollTo({ top: 0 });
+      break;
+    case 'addons':
+      $<HTMLDialogElement>('#scanner').close();
+      addonsFrom = location.hash;
+      apply({ ...DEFAULTS, mode: 'add', pick: v }, true, true);
+      window.scrollTo({ top: 0 });
+      break;
+    case 'flow-back':
+      // Back to the list the add-ons were opened from, as the phone's Back button would; from a
+      // saved link there is nothing to go back to, so it goes to the start.
+      if (addonsFrom !== null) history.back();
+      else apply({ ...DEFAULTS }, true, true);
+      break;
+    case 'addon':
+      toggleAddon(flowHost, el);
+      break;
+    case 'addon-more':
+      moreAddons(flowHost, F, $('#results'), v);
+      break;
+    case 'addon-clear':
+      clearAddons(flowHost);
       break;
     case 'pick':
       apply({ ...DEFAULTS, mode: 'up', pick: v }, true, true);

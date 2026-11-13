@@ -47,6 +47,42 @@ things worse for them.
 Search filters adapt to the category: phones, tablets, laptops, desktops and consoles each get
 their own (`FACETS` in `src/main.ts`).
 
+### Add-ons
+
+**Suggest add-ons**, in any card's expanded view, lists what else on the shelf goes with that
+item (`src/addons.ts`). It covers:
+
+- consoles, old and new, and handheld PCs;
+- phones, tablets, laptops and desktops;
+- watches, cameras, action cameras and drones.
+
+Each kind of item has slots in the order they are worth offering. For a PS5 that is a second
+controller, games, a headset, controller charging, a stand, the Portal, a wheel and VR. Each slot
+says in one line why it goes with the item. Tapping suggestions adds them to a running total for
+the whole bundle.
+
+- **Fit** comes from the names and the item's spec sheet. Some examples:
+  - the Slim stand for a PS5 Slim or Pro;
+  - no boxed games for a digital-only console, but the disc drive for a Slim Digital;
+  - microSD Express only for a Switch 2;
+  - the case that names this exact phone;
+  - USB-C or Lightning by model, and MagSafe only from the iPhone 12;
+  - the Apple Pencil each iPad takes;
+  - Apple Watch strap sizes by group;
+  - S Pens by Galaxy Tab series;
+  - lenses by mount, but not the kit lens it comes with;
+  - batteries by code.
+
+  Anything that might fit but can't be confirmed is marked "Check it fits"; anything that can't is
+  left out.
+- **Picks:** up to three per slot. They are the most popular on CeX, the cheapest, and the best
+  seller among the dearest third. With two or more from the item's own maker (AirPods for an
+  iPhone, Galaxy Buds for a Galaxy), all three come from that maker. Games and amiibo are simply
+  the best sellers. An add-on is capped at 60% of the item's price unless the slot says otherwise.
+
+The stock is read when the screen opens, in one request. `npm run addoncheck` tests the rules
+against real names from Eastbourne's stock.
+
 ## Phone and tablet spec sheets
 
 CeX's records name a phone but hold nothing about its camera, battery, screen or chip. Those come
