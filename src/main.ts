@@ -1226,6 +1226,8 @@ function openSub(parent: HTMLElement): void {
 
 function closeSub(): void {
   window.clearTimeout(dwellTimer);
+  window.clearTimeout(switchTimer);
+  pendingRow = null;
   subPanel?.remove();
   subPanel = null;
   subParent?.classList.remove('open');
@@ -1235,6 +1237,7 @@ function closeSub(): void {
 
 function closeHold(): void {
   closeSub();
+  trail = [];
   holdEl.hidden = true;
   holdEl.innerHTML = '';
   document.body.classList.remove('holding');
@@ -1297,6 +1300,78 @@ filtersBtn.addEventListener('pointerdown', (ev) => {
   holdTimer = window.setTimeout(() => startHold(ev.pointerId), 200);
 });
 
+// ---- reading intent, not just position
+//
+// A thumb heading for the side column rarely travels straight: it drifts over the rows above or
+// below on the way. Three rules keep the panel on what was meant:
+//   1. Rows are sticky: the current row holds until the finger is clearly inside another.
+//   2. Moving mostly leftward from a row that has a column is heading for that column, whatever
+//      rows the finger brushes on the way.
+//   3. With a column open, any move that stays inside the triangle from the finger to the
+//      column's near edge is still on its way there. Only a pause off the path, or a move away
+//      from the column, switches rows.
+
+/** Recent finger positions, newest last, for working out the direction of travel. */
+let trail: { x: number; y: number; t: number }[] = [];
+let switchTimer = 0;
+let pendingRow: HTMLElement | null = null;
+let lastPoint = { x: 0, y: 0 };
+
+function track(x: number, y: number): void {
+  const t = performance.now();
+  trail.push({ x, y, t });
+  while (trail.length > 2 && t - trail[0].t > 90) trail.shift();
+  lastPoint = { x, y };
+}
+
+/** Direction over roughly the last tenth of a second. */
+function heading(): { dx: number; dy: number } {
+  if (trail.length < 2) return { dx: 0, dy: 0 };
+  const a = trail[0];
+  const b = trail[trail.length - 1];
+  return { dx: b.x - a.x, dy: b.y - a.y };
+}
+
+const headingLeft = (): boolean => {
+  const h = heading();
+  return h.dx < -3 && -h.dx > Math.abs(h.dy) * 0.9;
+};
+
+/** Is the finger still travelling inside the cone towards the open column? */
+function towardsColumn(x: number, y: number): boolean {
+  if (!subPanel || trail.length < 2) return false;
+  const s = subPanel.getBoundingClientRect();
+  const p = trail[0];
+  // Triangle from where the finger was a moment ago to the column's near (right) edge, padded.
+  const ax = p.x;
+  const ay = p.y;
+  const bx = s.right + 6;
+  const by = s.top - 24;
+  const cx = s.right + 6;
+  const cy = s.bottom + 24;
+  const side = (x1: number, y1: number, x2: number, y2: number): number => (x - x2) * (y1 - y2) - (x1 - x2) * (y - y2);
+  const d1 = side(ax, ay, bx, by);
+  const d2 = side(bx, by, cx, cy);
+  const d3 = side(cx, cy, ax, ay);
+  const neg = d1 < 0 || d2 < 0 || d3 < 0;
+  const pos = d1 > 0 || d2 > 0 || d3 > 0;
+  return !(neg && pos) && x <= p.x + 2;
+}
+
+/** Row under the finger, holding on to `keep` until the finger is clearly past its edge. */
+function stickyRow(panel: HTMLElement, y: number, keep: HTMLElement | null): HTMLElement | null {
+  if (keep && panel.contains(keep)) {
+    const b = keep.getBoundingClientRect();
+    if (y >= b.top - 12 && y <= b.bottom + 12) return keep;
+  }
+  return nearestRow(panel, y);
+}
+
+function cancelSwitch(): void {
+  window.clearTimeout(switchTimer);
+  pendingRow = null;
+}
+
 filtersBtn.addEventListener('pointermove', (ev) => {
   if (ev.pointerId !== holdPointer) return;
   const x = ev.clientX;
@@ -1314,34 +1389,59 @@ filtersBtn.addEventListener('pointermove', (ev) => {
       return;
     }
   }
+  track(x, y);
   if (far > 16) holdMoved = true;
   if (!mainPanel || !holdMoved) return setHot(null);
   const box = mainPanel.getBoundingClientRect();
+
   if (subPanel) {
-    // Left of the main column is the side column; back over the main column is the main list.
-    if (x < box.left - 2) {
+    const inColumn = hot !== null && subPanel.contains(hot);
+    // Once in the column, the finger has to come well back over the main list to leave it.
+    if (x < box.left + (inColumn ? 18 : -2)) {
+      cancelSwitch();
       const sb = subPanel.getBoundingClientRect();
-      return setHot(y >= sb.top - 30 && y <= sb.bottom + 30 ? nearestRow(subPanel, y) : null);
+      return setHot(y >= sb.top - 30 && y <= sb.bottom + 30 ? stickyRow(subPanel, y, inColumn ? hot : null) : null);
     }
-    const row = nearestRow(mainPanel, y);
-    if (row !== subParent) closeSub();
-    return setHot(row);
+    const row = stickyRow(mainPanel, y, subParent);
+    if (row === subParent || row === null) {
+      cancelSwitch();
+      return setHot(subParent);
+    }
+    // Over a different main row. On the way to the column: stay put. Otherwise switch only
+    // once the finger has settled there.
+    if (headingLeft() || towardsColumn(x, y)) {
+      cancelSwitch();
+      return setHot(subParent);
+    }
+    if (pendingRow !== row) {
+      cancelSwitch();
+      pendingRow = row;
+      switchTimer = window.setTimeout(() => {
+        if (!subPanel || !mainPanel || pendingRow !== row) return;
+        if (stickyRow(mainPanel, lastPoint.y, null) !== row || lastPoint.x < mainPanel.getBoundingClientRect().left) return;
+        closeSub();
+        pendingRow = null;
+        setHot(row);
+      }, 160);
+    }
+    return;
   }
-  // Nudging left off a row that has more opens its column straight away.
-  if (x < box.left - 12 && hot && mainPanel.contains(hot) && entries.get(hot)?.sub) {
-    const r = hot.getBoundingClientRect();
-    if (y >= r.top - 24 && y <= r.bottom + 24) {
-      openSub(hot);
-      return setHot(null);
-    }
+
+  // No column yet. Heading left from a row that has one means that row, even if the finger
+  // drifts over a neighbour on the way.
+  const fromRow = hot && mainPanel.contains(hot) && entries.get(hot)?.sub ? hot : null;
+  if (fromRow && headingLeft()) {
+    if (x < box.left + 24) openSub(fromRow);
+    return;
   }
   if (x < box.left - 40 || y < box.top - 20) return setHot(null);
-  setHot(nearestRow(mainPanel, y));
+  setHot(stickyRow(mainPanel, y, hot && mainPanel.contains(hot) ? hot : null));
 });
 
 const endHold = (cancelled: boolean): void => {
   window.clearTimeout(holdTimer);
   window.clearTimeout(dwellTimer);
+  window.clearTimeout(switchTimer);
   if (!holding) return;
   holding = false;
   swallowTap = true;
