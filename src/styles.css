@@ -1939,3 +1939,116 @@ body:has(main input:focus) .dock {
 .sheet-go:active {
   transform: scale(0.985);
 }
+
+
+/* ---------------------------------------------------------------- top filters: tabs, then one row */
+
+/* Categories are places, not filters: text tabs with a bar under the current one. */
+.presets {
+  gap: 2px;
+  margin-top: 6px;
+  padding-right: 40px;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent);
+}
+
+.tab {
+  position: relative;
+  flex: none;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 12px;
+  font-size: 15.5px;
+  font-weight: 650;
+  color: var(--muted);
+  white-space: nowrap;
+  transition: color 0.15s, background 0.15s;
+}
+
+.tab::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 3px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tab[aria-pressed='true'] {
+  color: var(--text);
+}
+
+.tab[aria-pressed='true']::after {
+  transform: scaleX(1);
+}
+
+.tab:active {
+  background: var(--surface-2);
+}
+
+@media (hover: hover) {
+  .tab:hover {
+    color: var(--text);
+  }
+}
+
+/* Filters: one row, smaller than the tabs so the two read as different things. */
+.filters {
+  padding: 2px 0 2px;
+}
+
+.frow.bar {
+  gap: 6px;
+  padding-right: 40px;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent);
+}
+
+.frow.bar .chip {
+  min-height: 38px;
+  padding: 0 13px;
+  font-size: 14px;
+}
+
+.frow.bar .sep {
+  height: 20px;
+  margin: 0 2px;
+}
+
+.chip.pick {
+  position: relative;
+  gap: 4px;
+  padding-right: 9px;
+  cursor: pointer;
+}
+
+.chip.pick .caret {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.2;
+  opacity: 0.75;
+}
+
+/* The real select covers the chip, so a tap opens the phone's own picker. */
+.chip.pick select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.chip.pick:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.summary {
+  margin-top: 12px;
+}

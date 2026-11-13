@@ -597,6 +597,14 @@ function bars(tier: number): string {
   return `<span class="bars" aria-hidden="true">${[1, 2, 3, 4, 5].map((i) => `<i${i <= tier ? ' class="on"' : ''}></i>`).join('')}</span>`;
 }
 
+const CARET = '<svg class="caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>';
+
+/** A chip that opens the phone's own picker: the label shows the choice, and the chip lights when one is made. */
+function picker(act: string, label: string, on: boolean, options: [string, string][], current: string, aria: string): string {
+  const opts = options.map(([v, l]) => `<option value="${esc(v)}"${v === current ? ' selected' : ''}>${esc(l)}</option>`).join('');
+  return `<label class="chip pick" aria-pressed="${on}"><span>${esc(label)}</span>${CARET}<select data-act="${act}" aria-label="${aria}">${opts}</select></label>`;
+}
+
 function filterControls(inSheet: boolean): string {
   const sh = shelf();
   const steps = BUDGET_STEPS[sh];
@@ -619,12 +627,22 @@ function filterControls(inSheet: boolean): string {
   const groups = facetGroups();
   const fx = (o: Facet): string => chip('fx', o.id, o.label, F.fx.includes(o.id));
   if (!inSheet) {
-    // Two swipeable rows keep results high on a phone screen; the sheet has the labelled version.
-    const quick = groups.map((g) => g.options.filter((o) => g.quick?.includes(o.id)).map(fx).join('')).filter(Boolean);
-    const first = [mobile ? updates : '', device ? speed : '', ...quick].filter(Boolean).join('<span class="sep"></span>');
-    return `
-      ${first ? `<div class="frow">${first}</div>` : ''}
-      <div class="frow"><span class="flabel">Under</span>${budget}${custom}<span class="sep"></span>${sort}<button type="button" class="chip ghost" data-act="more">More</button></div>`;
+    // One swipeable row. Sort, price and speed are each one chip over the phone's own picker,
+    // which is quicker to use and far shorter than a chip per value.
+    const sortName = SORTS.find(([v]) => v === F.sort)?.[1] ?? 'Sort';
+    const prices: [string, string][] = [['0', 'Any price'], ...steps.map((p): [string, string] => [String(p), `Under £${p}`])];
+    if (F.max && !steps.includes(F.max)) prices.push([String(F.max), `Under £${F.max}`]);
+    const speeds: [string, string][] = [['0', 'Any speed'], ['3', 'Good or faster'], ['4', 'Fast or faster'], ['5', 'Top speed only']];
+    const speedName: Record<number, string> = { 3: 'Good+', 4: 'Fast+', 5: 'Top speed' };
+    const quick = groups.flatMap((g) => g.options.filter((o) => g.quick?.includes(o.id)).map(fx)).join('');
+    return `<div class="frow bar">
+      ${picker('sort', F.sort === 'rel' ? 'Sort' : sortName, F.sort !== 'rel', sorts, F.sort, 'Sort by')}
+      ${picker('maxSel', F.max ? `Under £${F.max}` : 'Price', F.max > 0, prices, String(F.max), 'Highest price')}
+      ${mobile || device || quick ? '<span class="sep"></span>' : ''}
+      ${mobile ? chip('up', F.up || 1, F.up === 2 ? '2+ years left' : 'Still updated', F.up > 0) : ''}
+      ${device ? picker('perfSel', speedName[F.perf] ?? 'Speed', F.perf > 0, speeds, String(F.perf), 'Lowest speed') : ''}
+      ${quick}
+    </div>`;
   }
   return `
     <div class="frow wrap"><span class="flabel">Budget — under</span>${budget}${custom}</div>
@@ -647,7 +665,12 @@ function renderChrome(): void {
   if (document.activeElement !== q) q.value = F.q;
   q.placeholder = `Search ${branch} stock…`;
   $('#clear').hidden = !F.q;
-  $('#presets').innerHTML = PRESETS.map((p) => chip('preset', p.id, p.label, F.preset === p.id)).join('');
+  $('#presets').innerHTML = PRESETS.map(
+    (p) => `<button type="button" class="tab" data-act="preset" data-v="${p.id}" aria-pressed="${F.preset === p.id}">${p.label}</button>`,
+  ).join('');
+  // Keep the chosen category in view when it sits past the edge of the strip.
+  const on = $('#presets').querySelector<HTMLElement>('[aria-pressed="true"]');
+  if (on) $('#presets').scrollLeft = Math.max(0, on.offsetLeft - 24);
   $('#filters').innerHTML = filterControls(false);
   const plain = isHome() || Boolean(F.mode);
   const n = plain ? 0 : activeCount();
@@ -789,7 +812,9 @@ function renderResults(): void {
   ];
   if (hiddenUnknown) parts.push(`${hiddenUnknown} hidden (update status unknown)`);
   if (total > hits.length) parts.push(`first ${hits.length} of ${total.toLocaleString('en-GB')} — ${shelf() === 'game' ? 'pick a platform or search' : 'search'} to narrow`);
-  main.innerHTML = `<p class="summary">${parts.join(' · ')}</p>${activePills()}
+  // Clearing sits on the count line: one tap from what the filters did to the list.
+  const clear = activeCount() ? ' <button type="button" class="link" data-act="reset">Clear all</button>' : '';
+  main.innerHTML = `<p class="summary">${parts.join(' · ')}${clear}</p>${activePills()}
     <ul class="list" id="list">${groups.slice(0, shown).map((g) => cardHtml(g)).join('')}</ul>
     <div id="sentinel"></div>`;
   pager.observe($('#sentinel'));
@@ -982,19 +1007,19 @@ async function openScan(): Promise<Scanner> {
 
 const ICON_X = '<svg class="x" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>';
 
-/** What is switched on, as pills that switch it off again. Filters chosen in the sheet would otherwise be invisible. */
+/**
+ * Filters chosen in the sheet that the filter row cannot show, as pills that switch them off.
+ * Everything in the row already shows its own state, so it is not repeated here.
+ */
 function activePills(): string {
-  const sh = shelf();
+  if (!activeCount()) return '';
+  const inRow = new Set(facetGroups().flatMap((g) => g.quick ?? []));
   const pills: string[] = [];
-  const speedNames: Record<number, string> = { 3: 'Good or faster', 4: 'Fast or faster', 5: 'Top speed' };
-  if (F.max) pills.push(chip('max', F.max, `Under £${F.max}${ICON_X}`, true));
-  if (F.up && isMobile(sh)) pills.push(chip('up', F.up, `${F.up === 1 ? 'Still gets updates' : '2+ years of updates'}${ICON_X}`, true));
-  if (F.perf && isDevice(sh)) pills.push(chip('perf', F.perf, `${speedNames[F.perf] ?? 'Speed'}${ICON_X}`, true));
-  for (const g of facetGroups()) for (const o of g.options) if (F.fx.includes(o.id)) pills.push(chip('fx', o.id, `${o.label}${ICON_X}`, true));
+  for (const g of facetGroups()) for (const o of g.options) if (F.fx.includes(o.id) && !inRow.has(o.id)) pills.push(chip('fx', o.id, `${o.label}${ICON_X}`, true));
   for (const b of F.brands) pills.push(chip('brand', b, `${esc(b)}${ICON_X}`, true));
   for (const g of F.grades) pills.push(chip('grade', g, `Grade ${g}${ICON_X}`, true));
   if (!pills.length) return '';
-  return `<div class="chips wrap active" aria-label="Active filters">${pills.join('')}<button type="button" class="link" data-act="reset">Clear all</button></div>`;
+  return `<div class="chips wrap active" aria-label="Other active filters">${pills.join('')}</div>`;
 }
 
 interface Quick {
@@ -1376,6 +1401,8 @@ document.addEventListener('click', (ev) => {
 document.addEventListener('change', (ev) => {
   const el = ev.target as HTMLInputElement | HTMLSelectElement;
   if (el.dataset.act === 'sort') apply({ sort: el.value as Sort }, true);
+  if (el.dataset.act === 'maxSel') apply({ max: Number(el.value) || 0 }, true);
+  if (el.dataset.act === 'perfSel') apply({ perf: Number(el.value) || 0 });
   if (el.dataset.act === 'maxInput') apply({ max: Math.max(0, Number(el.value) || 0) }, true);
   if (el.dataset.act === 'budInput') apply({ bud: Math.max(0, Number(el.value) || 0) }, true);
   if (el.dataset.act === 'limitInput') {
