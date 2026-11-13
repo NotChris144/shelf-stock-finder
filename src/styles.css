@@ -1579,3 +1579,358 @@ input {
   width: 2px;
   background: color-mix(in srgb, var(--text) 30%, transparent);
 }
+
+
+/* ---------------------------------------------------------------- bottom bar (thumb reach) */
+
+body {
+  padding-bottom: calc(104px + env(safe-area-inset-bottom));
+}
+
+.dock {
+  position: fixed;
+  left: 50%;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  z-index: 12;
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2px;
+  width: min(420px, calc(100% - 24px));
+  padding: 6px;
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow: var(--shadow);
+}
+
+.dock-btn {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 3px;
+  min-height: 52px;
+  padding: 6px 2px;
+  border-radius: 18px;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--muted);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  transition: background 0.12s, color 0.12s, transform 0.08s;
+}
+
+.dock-btn svg {
+  width: 23px;
+  height: 23px;
+}
+
+.dock-btn span {
+  white-space: nowrap;
+}
+
+.dock-btn:active {
+  transform: scale(0.95);
+  background: var(--surface-2);
+}
+
+.dock-btn.on {
+  color: var(--text);
+}
+
+.dock-btn.has {
+  color: var(--accent);
+}
+
+/* Holding this button is a gesture of its own, so the browser must not scroll or select on it. */
+#dockFilters {
+  touch-action: none;
+}
+
+/* The keyboard needs the room, and the bar would sit on top of what is being typed. */
+body:has(.top input:focus) .dock,
+body:has(main input:focus) .dock {
+  display: none;
+}
+
+.hold-tip {
+  position: fixed;
+  right: max(12px, calc(50% - 210px));
+  bottom: calc(86px + env(safe-area-inset-bottom));
+  z-index: 12;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  animation: reveal 0.2s ease-out;
+}
+
+/* ---------------------------------------------------------------- hold and slide shortcuts */
+
+/* One menu rising from the Filters button: the button stays lit as its anchor and the rest of
+   the bar steps back, so it is clear where the shortcuts came from and how to dismiss them. */
+.hold {
+  position: fixed;
+  inset: 0;
+  z-index: 13;
+  background: rgb(0 0 0 / 0.55);
+  touch-action: none;
+  animation: fade 0.14s ease-out;
+}
+
+@media (prefers-color-scheme: light) {
+  .hold {
+    background: rgb(20 20 30 / 0.3);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.hold-panel {
+  position: absolute;
+  width: min(300px, calc(100vw - 24px));
+  max-height: calc(100dvh - 150px);
+  overflow: hidden;
+  padding: 6px;
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  transform-origin: calc(100% - 44px) calc(100% + 20px);
+  animation: hold-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes hold-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.94);
+  }
+}
+
+.hold-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 10px 12px 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.hold-head span:first-child {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.hold-head span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hold-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 50px;
+  padding: 0 14px 0 10px;
+  border-radius: 16px;
+  text-align: left;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  transition: background 0.08s;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.hold-row + .hold-row {
+  margin-top: 2px;
+}
+
+.hold-tick {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+}
+
+.hold-tick svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2.6;
+  color: var(--accent);
+}
+
+.hold-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hold-row[aria-pressed='true'] .hold-label {
+  font-weight: 750;
+}
+
+.hold-n {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.hold-row[aria-pressed='true'] .hold-n {
+  color: var(--accent);
+}
+
+.hold-row.quiet {
+  min-height: 44px;
+  font-size: 14.5px;
+  color: var(--muted);
+}
+
+.hold-row.quiet .hold-tick svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2;
+  color: var(--muted);
+}
+
+.hold-sep {
+  height: 1px;
+  margin: 4px 10px 6px;
+  border: 0;
+  background: var(--line);
+}
+
+.hold-row:disabled {
+  color: var(--muted);
+  opacity: 0.5;
+  cursor: default;
+}
+
+.hold-row.hot,
+.hold-row:not(:disabled):active {
+  background: color-mix(in srgb, var(--text) 13%, var(--surface));
+}
+
+.holding .dock {
+  z-index: 14;
+}
+
+.holding .dock-btn:not(#dockFilters) {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.holding #dockFilters {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* ---------------------------------------------------------------- active filters and roomier targets */
+
+.chip {
+  min-height: 40px;
+}
+
+.chips.active {
+  margin: 0 0 10px;
+  padding: 0;
+  gap: 6px;
+}
+
+.chips.active .chip {
+  min-height: 34px;
+  padding: 0 8px 0 12px;
+  font-size: 13.5px;
+  gap: 4px;
+}
+
+.chip .x {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.2;
+  opacity: 0.8;
+}
+
+/* ---------------------------------------------------------------- header steps aside while scrolling */
+
+.top {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tuck .top {
+  transform: translateY(-100%);
+}
+
+/* ---------------------------------------------------------------- filter sheet */
+
+.sheet .chip {
+  min-height: 44px;
+  padding: 0 16px;
+  font-size: 15px;
+}
+
+.sheet-in h3 {
+  margin: 10px var(--gutter) 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.sheet-in header .icon-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+}
+
+.sheet-in {
+  padding-bottom: 0;
+}
+
+.sheet-foot {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px var(--gutter) calc(14px + env(safe-area-inset-bottom));
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+}
+
+.sheet-go {
+  flex: 1;
+  max-width: 320px;
+  margin-left: auto;
+  min-height: 50px;
+  padding: 0 20px;
+  border-radius: 16px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 16px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet-go:active {
+  transform: scale(0.985);
+}

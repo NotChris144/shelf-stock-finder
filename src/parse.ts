@@ -191,7 +191,8 @@ export function toItem(h: Hit, idx: number, ctx: SupportCtx): Item {
     support,
     perf,
     idx,
-    storageGb: toGb(p?.storage ?? ''),
+    // Consoles keep their size in the name ("Playstation 5 Console, 825GB, White").
+    storageGb: toGb(p?.storage ?? '') || (/consoles?$/i.test(category) ? toGb(name) : 0),
     ramGb: toGb(p?.ram ?? ''),
     screen: specs?.screen || Number(name.match(/(\d{1,2}(?:\.\d)?)\s*(?:"|''|”)/)?.[1] ?? 0),
     os: isPc

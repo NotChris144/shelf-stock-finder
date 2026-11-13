@@ -38,7 +38,7 @@ const store = {
 
 // ------------------------------------------------------------------ state
 
-type Sort = 'rel' | 'price' | 'priceDesc' | 'perf' | 'value' | 'life';
+type Sort = 'rel' | 'pop' | 'price' | 'priceDesc' | 'rated' | 'perf' | 'value' | 'life';
 
 interface Filters {
   q: string;
@@ -65,13 +65,14 @@ const DEFAULTS: Filters = { q: '', preset: '', max: 0, up: 0, perf: 0, sort: 're
 const FIT_TYPES: FitType[] = ['phone', 'iphone', 'android', 'ipad', 'androidtab'];
 const SORTS: [Sort, string][] = [
   ['rel', 'Best match'],
+  ['pop', 'Most popular'],
   ['price', 'Price: low to high'],
   ['priceDesc', 'Price: high to low'],
+  ['rated', 'Top rated'],
   ['perf', 'Fastest first'],
   ['value', 'Best value (speed per £)'],
   ['life', 'Longest update support'],
 ];
-const BUDGETS = [50, 100, 150, 200, 300, 500];
 const PAGE = 30;
 
 const demo = new URLSearchParams(location.search).has('demo');
@@ -101,15 +102,15 @@ let matched = 0;
 
 // ------------------------------------------------------------------ category filters
 
-/** What the current results mostly are, which decides the filters worth offering. */
-type Shelf = 'phone' | 'tablet' | 'laptop' | 'desktop' | 'console' | 'game' | '';
+/** What the current results mostly are, which decides the filters, budgets and sorts worth offering. */
+type Shelf = 'phone' | 'tablet' | 'laptop' | 'desktop' | 'console' | 'game' | 'film' | 'tech' | '';
 
 interface Facet {
   id: string;
   label: string;
   test(it: Item): boolean;
-  /** Applied by the search service instead of here, because the unfiltered set is too big to fetch whole. */
-  server?: string;
+  /** Applied by the search service (matching any one value), for categories too big to fetch whole. */
+  server?: string[];
 }
 interface FacetGroup {
   name: string;
@@ -118,35 +119,59 @@ interface FacetGroup {
   options: Facet[];
 }
 
-const atLeast = (key: 'storageGb' | 'ramGb', id: string, n: number, label: string): Facet => ({ id, label, test: (it) => it[key] >= n });
-const system = (id: string, label: string, os: string): Facet => ({ id, label, test: (it) => it.os === os });
-const made = (id: string, label: string, re: RegExp): Facet => ({ id, label, test: (it) => re.test(it.category) });
-/** A games platform: the branch holds thousands of games, so the service does this filtering. */
-const platform = (id: string, label: string, line: string): Facet => ({ id, label, test: () => true, server: `productLineName:${line}` });
+const where = (id: string, label: string, test: (it: Item) => boolean): Facet => ({ id, label, test });
+const atLeast = (key: 'storageGb' | 'ramGb', id: string, n: number, label: string): Facet => where(id, label, (it) => it[key] >= n);
+const system = (id: string, label: string, os: string): Facet => where(id, label, (it) => it.os === os);
+const inCategory = (id: string, label: string, re: RegExp): Facet => where(id, label, (it) => re.test(it.category));
+const named = (id: string, label: string, re: RegExp): Facet => where(id, label, (it) => re.test(it.name));
+const chipset = (id: string, label: string, re: RegExp): Facet => where(id, label, (it) => re.test(it.cpu));
+/** Filtered by CeX's own attributes on the server, e.g. served('fdvd', 'DVD', 'productLineName:DVD'). */
+const served = (id: string, label: string, ...values: string[]): Facet => ({ id, label, test: () => true, server: values });
+
 const STORAGE_MOBILE: FacetGroup = {
   name: 'Storage',
   quick: ['st128'],
   options: [atLeast('storageGb', 'st64', 64, '64GB+'), atLeast('storageGb', 'st128', 128, '128GB+'), atLeast('storageGb', 'st256', 256, '256GB+')],
 };
-const MEMORY: FacetGroup = { name: 'Memory', quick: ['ram8', 'ram16'], options: [atLeast('ramGb', 'ram8', 8, '8GB RAM+'), atLeast('ramGb', 'ram16', 16, '16GB RAM+')] };
+const MEMORY: FacetGroup = {
+  name: 'Memory',
+  quick: ['ram8', 'ram16'],
+  options: [atLeast('ramGb', 'ram8', 8, '8GB RAM+'), atLeast('ramGb', 'ram16', 16, '16GB RAM+'), atLeast('ramGb', 'ram32', 32, '32GB RAM+')],
+};
 const STORAGE_PC: FacetGroup = {
   name: 'Storage',
   quick: ['ss256'],
   options: [atLeast('storageGb', 'ss256', 256, '256GB+'), atLeast('storageGb', 'ss512', 512, '512GB+'), atLeast('storageGb', 'ss1000', 1000, '1TB+')],
 };
-const GRAPHICS: FacetGroup = { name: 'Graphics', quick: ['gpu'], options: [{ id: 'gpu', label: 'Graphics card', test: (it) => it.gpu }] };
+const PROCESSOR: FacetGroup = {
+  name: 'Processor',
+  options: [
+    chipset('ci3', 'Core i3', /\bi3[- ]?\d/i),
+    chipset('ci5', 'Core i5', /\bi5[- ]?\d|ultra\s*5/i),
+    chipset('ci7', 'Core i7 or i9', /\bi[79][- ]?\d|ultra\s*[79]/i),
+    chipset('ryz', 'Ryzen', /ryzen/i),
+    chipset('apm', 'Apple M-series', /^m[1-5]\b/i),
+    chipset('bud', 'Budget chip', /cel|pent|atom|athlon|^n\d{2,3}\b|^\d{4}[uy]?$/i),
+  ],
+};
+const WINDOWS = [named('w11', 'Windows 11', /\bW(in\w*\s*)?11\b/i), named('w10', 'Windows 10', /\bW(in\w*\s*)?10\b/i)];
+const GRAPHICS: FacetGroup = { name: 'Graphics', quick: ['gpu'], options: [where('gpu', 'Graphics card', (it) => it.gpu)] };
+const isMini = (it: Item): boolean => /\b(mini|micro|tiny|nuc|usff|sff)\b/i.test(it.name);
+const isAllInOne = (it: Item): boolean => it.screen > 0 || /\baio\b|imac|all-in-one/i.test(it.name);
+const MODERN_CONSOLE = /playstation[45]|xbox (series|one)|switch/i;
 
 const FACETS: Record<Exclude<Shelf, ''>, FacetGroup[]> = {
   phone: [
     { name: 'System', quick: ['ios', 'and'], options: [system('ios', 'iPhone', 'iOS'), system('and', 'Android', 'Android')] },
     STORAGE_MOBILE,
-    { name: 'Battery', quick: ['bat'], options: [{ id: 'bat', label: 'Big battery', test: (it) => (it.specs?.mah ?? 0) >= 4500 }] },
+    {
+      name: 'Size',
+      options: [where('pcomp', 'Compact (under 6″)', (it) => it.screen > 0 && it.screen < 6), where('pbig', 'Large (6.5″ and up)', (it) => it.screen >= 6.5)],
+    },
+    { name: 'Battery', quick: ['bat'], options: [where('bat', 'Big battery', (it) => (it.specs?.mah ?? 0) >= 4500)] },
     {
       name: 'Camera',
-      options: [
-        { id: 'uw', label: 'Ultra-wide camera', test: (it) => Boolean(it.specs?.ultrawide) },
-        { id: 'zoom', label: 'Zoom camera', test: (it) => Boolean(it.specs?.zoom) },
-      ],
+      options: [where('uw', 'Ultra-wide camera', (it) => Boolean(it.specs?.ultrawide)), where('zoom', 'Zoom camera', (it) => Boolean(it.specs?.zoom))],
     },
   ],
   tablet: [
@@ -156,87 +181,199 @@ const FACETS: Record<Exclude<Shelf, ''>, FacetGroup[]> = {
       name: 'Screen',
       quick: ['scl'],
       options: [
-        { id: 'scs', label: 'Under 9″', test: (it) => it.screen > 0 && it.screen < 9 },
-        { id: 'scm', label: '9″ to 12″', test: (it) => it.screen >= 9 && it.screen < 12 },
-        { id: 'scl', label: '12″ and up', test: (it) => it.screen >= 12 },
+        where('scs', 'Under 9″', (it) => it.screen > 0 && it.screen < 9),
+        where('scm', '9″ to 12″', (it) => it.screen >= 9 && it.screen < 12),
+        where('scl', '12″ and up', (it) => it.screen >= 12),
       ],
     },
-    {
-      name: 'Connection',
-      options: [
-        { id: 'wifi', label: 'Wi-Fi only', test: (it) => !it.cellular },
-        { id: 'sim', label: 'Takes a SIM', test: (it) => it.cellular },
-      ],
-    },
+    { name: 'Connection', options: [where('wifi', 'Wi-Fi only', (it) => !it.cellular), where('sim', 'Takes a SIM', (it) => it.cellular)] },
   ],
   laptop: [
-    { name: 'System', quick: ['win', 'mac'], options: [system('win', 'Windows', 'Windows'), system('mac', 'Mac', 'macOS'), system('cros', 'Chromebook', 'ChromeOS')] },
+    { name: 'System', quick: ['w11', 'mac'], options: [...WINDOWS, system('mac', 'Mac', 'macOS'), system('cros', 'Chromebook', 'ChromeOS')] },
+    PROCESSOR,
     MEMORY,
     STORAGE_PC,
     {
       name: 'Screen',
       options: [
-        { id: 'lsm', label: 'Up to 14″', test: (it) => it.screen > 0 && it.screen <= 14 },
-        { id: 'llg', label: '15″ and up', test: (it) => it.screen >= 15 },
+        where('l13', '13″ or smaller', (it) => it.screen > 0 && it.screen < 14),
+        where('l14', '14″', (it) => it.screen >= 14 && it.screen < 15),
+        where('l15', '15″ to 16″', (it) => it.screen >= 15 && it.screen < 17),
+        where('l17', '17″ and up', (it) => it.screen >= 17),
       ],
     },
     GRAPHICS,
   ],
   desktop: [
-    { name: 'System', quick: ['win', 'mac'], options: [system('win', 'Windows', 'Windows'), system('mac', 'Mac', 'macOS')] },
+    { name: 'System', quick: ['w11', 'mac'], options: [...WINDOWS, system('mac', 'Mac', 'macOS')] },
+    {
+      name: 'Type',
+      quick: ['mini', 'aio'],
+      options: [
+        where('mini', 'Mini PC', (it) => isMini(it) && !isAllInOne(it)),
+        where('aio', 'All-in-one', isAllInOne),
+        where('tower', 'Tower', (it) => !isMini(it) && !isAllInOne(it)),
+      ],
+    },
+    PROCESSOR,
     MEMORY,
     STORAGE_PC,
     GRAPHICS,
-    { name: 'Type', options: [{ id: 'aio', label: 'All-in-one (has a screen)', test: (it) => it.screen > 0 }] },
-  ],
-  game: [
-    {
-      name: 'Platform',
-      quick: ['gps5', 'gps4', 'gsw', 'gxs', 'gxo'],
-      options: [
-        platform('gps5', 'PS5', 'PlayStation 5'),
-        platform('gps4', 'PS4', 'PlayStation 4'),
-        platform('gsw', 'Switch', 'Switch'),
-        platform('gsw2', 'Switch 2', 'Switch 2'),
-        platform('gxs', 'Xbox Series', 'Xbox Series'),
-        platform('gxo', 'Xbox One', 'Xbox One'),
-        platform('gpc', 'PC', 'PC Gaming'),
-        platform('gps3', 'PS3', 'PlayStation 3'),
-        platform('gx360', 'Xbox 360', 'Xbox 360'),
-        platform('gwii', 'Wii', 'Wii'),
-        platform('gds', 'DS', 'DS'),
-        platform('g3ds', '3DS', '3DS'),
-        platform('gps2', 'PS2', 'PlayStation 2'),
-        platform('gretro', 'Retro', 'Retro Gaming'),
-      ],
-    },
   ],
   console: [
     {
-      name: 'Make',
-      quick: ['ps', 'xbox', 'nin'],
+      name: 'Console',
+      quick: ['cps5', 'cps4', 'cxs', 'cxo', 'csw'],
       options: [
-        made('ps', 'PlayStation', /playstation|^ps/i),
-        made('xbox', 'Xbox', /xbox/i),
-        made('nin', 'Nintendo', /switch|wii|3ds|nintendo|game ?boy|gamecube|nes/i),
+        inCategory('cps5', 'PS5', /playstation5/i),
+        inCategory('cps4', 'PS4', /playstation4/i),
+        inCategory('cxs', 'Xbox Series', /xbox series/i),
+        inCategory('cxo', 'Xbox One', /xbox one/i),
+        inCategory('csw', 'Switch', /switch/i),
+        inCategory('chh', 'Handheld', /3ds|nintendo ds|psp|vita|game ?boy|game gear|lynx/i),
+        where('cret', 'Retro and older', (it) => !MODERN_CONSOLE.test(it.category)),
       ],
     },
     {
       name: 'Packaging',
       quick: ['boxed'],
       options: [
-        { id: 'boxed', label: 'Boxed', test: (it) => it.condition === 'Boxed' },
-        { id: 'unboxed', label: 'Unboxed', test: (it) => it.condition === 'Unboxed' },
-        { id: 'disc', label: 'Discounted', test: (it) => it.condition === 'Discounted' },
+        where('boxed', 'Boxed', (it) => it.condition === 'Boxed'),
+        where('unboxed', 'Unboxed', (it) => it.condition === 'Unboxed'),
+        where('disc', 'Discounted', (it) => it.condition === 'Discounted'),
+      ],
+    },
+    { name: 'Edition', options: [named('cdig', 'Digital (no disc drive)', /digital/i)] },
+    { name: 'Storage', options: [atLeast('storageGb', 'c500', 500, '500GB+'), atLeast('storageGb', 'c1tb', 1000, '1TB+')] },
+  ],
+  game: [
+    {
+      name: 'Platform',
+      quick: ['gps5', 'gps4', 'gsw', 'gxs', 'gxo'],
+      options: [
+        served('gps5', 'PS5', 'productLineName:PlayStation 5'),
+        served('gps4', 'PS4', 'productLineName:PlayStation 4'),
+        served('gsw', 'Switch', 'productLineName:Switch'),
+        served('gsw2', 'Switch 2', 'productLineName:Switch 2'),
+        served('gxs', 'Xbox Series', 'productLineName:Xbox Series'),
+        served('gxo', 'Xbox One', 'productLineName:Xbox One'),
+        served('gpc', 'PC', 'productLineName:PC Gaming'),
+        served('gps3', 'PS3', 'productLineName:PlayStation 3'),
+        served('gx360', 'Xbox 360', 'productLineName:Xbox 360'),
+        served('gwii', 'Wii', 'productLineName:Wii'),
+        served('gds', 'DS', 'productLineName:DS'),
+        served('g3ds', '3DS', 'productLineName:3DS'),
+        served('gps2', 'PS2', 'productLineName:PlayStation 2'),
+        served('gretro', 'Retro', 'productLineName:Retro Gaming'),
+      ],
+    },
+    {
+      name: 'Age rating',
+      quick: ['pg7'],
+      options: [
+        served('pg7', 'Family (PEGI 3 or 7)', 'PEGI Certificate:3+', 'PEGI Certificate:7+'),
+        served('pg12', 'PEGI 12', 'PEGI Certificate:12+'),
+        served('pg16', 'PEGI 16', 'PEGI Certificate:16+'),
+        served('pg18', 'PEGI 18', 'PEGI Certificate:18+'),
+      ],
+    },
+    {
+      name: 'Genre',
+      options: [
+        served('gadv', 'Adventure', 'Genre:Adventure'),
+        served('gsho', 'Shooter', "Genre:Shoot 'Em Up"),
+        served('gspo', 'Sport', 'Genre:Sport'),
+        served('grac', 'Racing', 'Genre:Racing'),
+        served('gfig', 'Fighting', "Genre:Beat 'Em Up", 'Genre:Combat Game'),
+        served('gpla', 'Platformer', 'Genre:Platform'),
+        served('gstr', 'Strategy', 'Genre:Strategy'),
+        served('gpuz', 'Puzzle', 'Genre:Puzzle'),
+        served('grhy', 'Music and rhythm', 'Genre:Rhythm'),
+        served('gsim', 'Simulation', 'Genre:Simulation'),
       ],
     },
   ],
+  film: [
+    {
+      name: 'Format',
+      quick: ['fdvd', 'fblu', 'f4k'],
+      options: [served('fdvd', 'DVD', 'productLineName:DVD'), served('fblu', 'Blu-ray', 'productLineName:Blu-Ray'), served('f4k', '4K', 'categoryFriendlyName:Blu-Ray 4K')],
+    },
+    {
+      name: 'Type',
+      quick: ['fkid', 'ftv'],
+      options: [
+        served('ffilm', 'Films', 'categoryFriendlyName:DVD Movies', 'categoryFriendlyName:Blu-Ray Movies', 'categoryFriendlyName:Blu-Ray 4K', 'categoryFriendlyName:DVD World Cinema', 'categoryFriendlyName:Blu-Ray World Cinema'),
+        served('ftv', 'TV and documentaries', 'categoryFriendlyName:DVD TV & Documentary', 'categoryFriendlyName:Blu-Ray TV & Documentary'),
+        served('fkid', 'Kids', 'categoryFriendlyName:DVD Kids', 'categoryFriendlyName:Blu-Ray Kids'),
+        served('fani', 'Anime', 'categoryFriendlyName:Blu-Ray Anime', 'categoryFriendlyName:DVD Anime'),
+      ],
+    },
+    {
+      name: 'Certificate',
+      options: [
+        served('bbu', 'U or PG', 'Age Rating (BBFC):U', 'Age Rating (BBFC):Uc', 'Age Rating (BBFC):PG'),
+        served('bb12', '12', 'Age Rating (BBFC):12'),
+        served('bb15', '15', 'Age Rating (BBFC):15'),
+        served('bb18', '18', 'Age Rating (BBFC):18'),
+      ],
+    },
+    {
+      name: 'Genre',
+      options: [
+        served('fact', 'Action', 'Genre:Action'),
+        served('fcom', 'Comedy', 'Genre:Comedy'),
+        served('fdra', 'Drama', 'Genre:Drama'),
+        served('fhor', 'Horror', 'Genre:Horror'),
+        served('fsci', 'Sci-fi', 'Genre:Sci-Fi'),
+        served('fthr', 'Thriller', 'Genre:Thriller'),
+        served('fanm', 'Animation', 'Genre:Animated Feature', 'Genre:Animation'),
+      ],
+    },
+  ],
+  tech: [
+    {
+      name: 'Type',
+      quick: ['thead', 'twear', 'tcam', 'tsmart'],
+      options: [
+        served('thead', 'Headphones', 'productLineName:Headphones'),
+        served('twear', 'Watches and wearables', 'productLineName:Wearable Tech'),
+        served('tcam', 'Cameras', 'productLineName:Photography'),
+        served('tsmart', 'Smart home', 'productLineName:Smart Tech'),
+        served('tport', 'Portable players', 'productLineName:Portable Entertainment'),
+        served('tmus', 'Music tech', 'productLineName:Music Tech'),
+        served('tmem', 'Memory cards', 'productLineName:Memory Cards'),
+        served('tgad', 'Gadgets', 'productLineName:Gadgets'),
+      ],
+    },
+    { name: 'Show', quick: ['noacc'], options: [where('noacc', 'Hide accessories', (it) => !/accessor|batter|cables?|chargers?|cases?\b/i.test(it.category))] },
+  ],
 };
 
-const shelfOf = (it: Item): Shelf => (it.kind !== 'other' ? it.kind : /consoles?$/i.test(it.category) ? 'console' : /(games|software)$/i.test(it.category) ? 'game' : '');
+/** Price steps that suit what each category actually costs. */
+const BUDGET_STEPS: Record<Shelf, number[]> = {
+  phone: [50, 100, 150, 200, 300, 500],
+  tablet: [75, 100, 150, 200, 300, 500],
+  laptop: [150, 250, 350, 500, 750, 1000],
+  desktop: [150, 250, 350, 500, 750, 1000],
+  console: [50, 100, 150, 250, 350, 450],
+  game: [5, 10, 15, 20, 30, 40],
+  film: [1, 2, 5, 10, 20],
+  tech: [25, 50, 100, 150, 250],
+  '': [20, 50, 100, 200, 300, 500],
+};
 
-/** Facet filters the search service must apply for the current selection. */
-const serverFacets = (): string[] =>
+function shelfOf(it: Item): Shelf {
+  if (it.kind !== 'other') return it.kind;
+  if (/consoles?$/i.test(it.category)) return 'console';
+  if (/(games|software)$/i.test(it.category)) return 'game';
+  if (it.superCat === 'Film & TV') return 'film';
+  if (it.superCat === 'Electronics') return 'tech';
+  return '';
+}
+
+/** Facet filters the search service must apply for the current selection: each inner list is one "any of". */
+const serverFacets = (): string[][] =>
   Object.values(FACETS)
     .flat()
     .flatMap((g) => g.options)
@@ -245,7 +382,7 @@ const serverFacets = (): string[] =>
 
 /** A category chip decides it outright; a free-text search adapts when most results are one kind. */
 function shelf(): Shelf {
-  const byPreset: Record<string, Shelf> = { phones: 'phone', tablets: 'tablet', laptops: 'laptop', desktops: 'desktop', consoles: 'console', gaming: 'game' };
+  const byPreset: Record<string, Shelf> = { phones: 'phone', tablets: 'tablet', laptops: 'laptop', desktops: 'desktop', consoles: 'console', gaming: 'game', film: 'film', electronics: 'tech' };
   if (F.preset) return byPreset[F.preset] ?? '';
   if (!items.length) return '';
   const counts = new Map<Shelf, number>();
@@ -254,7 +391,10 @@ function shelf(): Shelf {
   return n >= items.length * 0.6 ? top : '';
 }
 
-const isDevice = (s: Shelf): boolean => s === 'phone' || s === 'tablet' || s === 'laptop' || s === 'desktop';
+/** Phones and tablets are the only things sold on how long they will keep getting updates. */
+const isMobile = (s: Shelf): boolean => s === 'phone' || s === 'tablet';
+/** Speed ratings exist for anything with a processor we can read. */
+const isDevice = (s: Shelf): boolean => isMobile(s) || s === 'laptop' || s === 'desktop';
 const facetGroups = (): FacetGroup[] => {
   const s = shelf();
   return s ? FACETS[s] : [];
@@ -282,7 +422,7 @@ function readHash(): void {
   });
 }
 
-function writeHash(): void {
+function writeHash(push = false): void {
   const p = new URLSearchParams();
   if (F.q) p.set('q', F.q);
   if (F.preset) p.set('p', F.preset);
@@ -301,7 +441,11 @@ function writeHash(): void {
     if (F.need !== 'u') p.set('need', F.need);
   }
   const h = p.toString();
-  history.replaceState(null, '', location.pathname + location.search + (h ? '#' + h : ''));
+  const url = location.pathname + location.search + (h ? '#' + h : '');
+  // A step that Back should undo gets its own history entry; filter tweaks and typing do not.
+  // An entry left behind by a closed sheet or scanner is reused rather than stacked on.
+  if (push && !history.state?.ui && url !== location.pathname + location.search + location.hash) history.pushState(null, '', url);
+  else history.replaceState(null, '', url);
 }
 
 // ------------------------------------------------------------------ data
@@ -342,7 +486,7 @@ async function load(fresh = false): Promise<void> {
       ms = 0;
     } else {
       aborter = new AbortController();
-      const r = await search(F.q, branch, PRESETS.find((p) => p.id === F.preset), aborter.signal, fresh, serverFacets());
+      const r = await search({ q: F.q, store: branch, preset: PRESETS.find((p) => p.id === F.preset), signal: aborter.signal, fresh, extra: serverFacets(), max: F.max, order: F.sort });
       if (mine !== seq) return;
       hits = r.hits;
       total = r.total;
@@ -359,6 +503,7 @@ async function load(fresh = false): Promise<void> {
   loadedAt = Date.now();
   shown = PAGE;
   render();
+  if (sheetOpen()) void openSheet();
 }
 
 function compute(): void {
@@ -366,10 +511,11 @@ function compute(): void {
   hiddenUnknown = 0;
   const kept: Item[] = [];
   const active = facetGroups().flatMap((g) => g.options).filter((o) => F.fx.includes(o.id));
+  const sh = shelf();
   for (const it of items) {
     if (F.max && it.price > F.max) continue;
     if (active.some((o) => !o.test(it))) continue;
-    if (F.up) {
+    if (F.up && isMobile(sh)) {
       const s = it.support;
       if (s.status === 'unknown') {
         hiddenUnknown++;
@@ -378,7 +524,7 @@ function compute(): void {
       if (!getsUpdates(s)) continue;
       if (F.up === 2 && (s.status !== 'ok' || (s.until !== undefined && s.until - now < 2 * YEAR))) continue;
     }
-    if (F.perf && (!it.perf || it.perf.tier < F.perf)) continue;
+    if (F.perf && isDevice(sh) && (!it.perf || it.perf.tier < F.perf)) continue;
     if (F.brands.length && !F.brands.includes(it.brand)) continue;
     if (F.grades.length && !F.grades.includes(it.grade)) continue;
     kept.push(it);
@@ -412,6 +558,9 @@ function compute(): void {
   const rel = (a: Group, b: Group): number => a.head.idx - b.head.idx;
   const by: Record<Sort, (a: Group, b: Group) => number> = {
     rel,
+    // Popularity, rating and price order come from the search service, so its order is kept.
+    pop: rel,
+    rated: rel,
     price: (a, b) => a.min - b.min || rel(a, b),
     priceDesc: (a, b) => b.min - a.min || rel(a, b),
     perf: (a, b) => pct(b) - pct(a) || a.min - b.min,
@@ -436,8 +585,10 @@ function bars(tier: number): string {
 }
 
 function filterControls(inSheet: boolean): string {
-  const budget = BUDGETS.map((b) => chip('max', b, `£${b}`, F.max === b)).join('');
-  const custom = F.max && !BUDGETS.includes(F.max) ? chip('max', F.max, `£${F.max}`, true) : '';
+  const sh = shelf();
+  const steps = BUDGET_STEPS[sh];
+  const budget = steps.map((b) => chip('max', b, `£${b}`, F.max === b)).join('');
+  const custom = F.max && !steps.includes(F.max) ? chip('max', F.max, `£${F.max}`, true) : '';
   const speed = [
     [3, 'Good+'],
     [4, 'Fast+'],
@@ -445,26 +596,27 @@ function filterControls(inSheet: boolean): string {
   ]
     .map(([t, l]) => chip('perf', t, `${bars(t as number)}${l}`, F.perf === t))
     .join('');
-  const sorts = isDevice(shelf()) ? SORTS : SORTS.filter(([v]) => v === 'rel' || v === 'price' || v === 'priceDesc');
+  const sorts = SORTS.filter(([v]) => (v === 'life' ? isMobile(sh) : v === 'perf' || v === 'value' ? isDevice(sh) : true));
   const sort = `<label class="select"><span class="sr">Sort by</span><select data-act="sort">${sorts.map(
     ([v, l]) => `<option value="${v}"${F.sort === v ? ' selected' : ''}>${l}</option>`,
   ).join('')}</select></label>`;
   const updates = chip('up', 1, 'Still gets updates', F.up === 1) + chip('up', 2, '2+ years left', F.up === 2);
-  const device = isDevice(shelf());
+  const device = isDevice(sh);
+  const mobile = isMobile(sh);
   const groups = facetGroups();
   const fx = (o: Facet): string => chip('fx', o.id, o.label, F.fx.includes(o.id));
   if (!inSheet) {
     // Two swipeable rows keep results high on a phone screen; the sheet has the labelled version.
     const quick = groups.map((g) => g.options.filter((o) => g.quick?.includes(o.id)).map(fx).join('')).filter(Boolean);
-    const first = [device ? updates : '', device ? speed : '', ...quick].filter(Boolean).join('<span class="sep"></span>');
+    const first = [mobile ? updates : '', device ? speed : '', ...quick].filter(Boolean).join('<span class="sep"></span>');
     return `
       ${first ? `<div class="frow">${first}</div>` : ''}
       <div class="frow"><span class="flabel">Under</span>${budget}${custom}<span class="sep"></span>${sort}<button type="button" class="chip ghost" data-act="more">More</button></div>`;
   }
   return `
     <div class="frow wrap"><span class="flabel">Budget — under</span>${budget}${custom}</div>
-    ${device ? `<div class="frow wrap"><span class="flabel">Updates</span>${updates}</div>
-    <div class="frow wrap"><span class="flabel">Speed</span>${speed}</div>` : ''}
+    ${mobile ? `<div class="frow wrap"><span class="flabel">Updates</span>${updates}</div>` : ''}
+    ${device ? `<div class="frow wrap"><span class="flabel">Speed</span>${speed}</div>` : ''}
     ${groups.map((g) => `<div class="frow wrap"><span class="flabel">${g.name}</span>${g.options.map(fx).join('')}</div>`).join('')}
     <div class="frow wrap"><span class="flabel">Sort</span>${sort}</div>`;
 }
@@ -472,6 +624,8 @@ function filterControls(inSheet: boolean): string {
 function activeCount(): number {
   return (F.max ? 1 : 0) + (F.up ? 1 : 0) + (F.perf ? 1 : 0) + (F.sort !== 'rel' ? 1 : 0) + F.brands.length + F.grades.length + F.fx.length;
 }
+
+let tipShown = false;
 
 function renderChrome(): void {
   $('#storeName').textContent = branch;
@@ -482,10 +636,20 @@ function renderChrome(): void {
   $('#clear').hidden = !F.q;
   $('#presets').innerHTML = PRESETS.map((p) => chip('preset', p.id, p.label, F.preset === p.id)).join('');
   $('#filters').innerHTML = filterControls(false);
-  const n = activeCount();
-  const fab = $('#fab');
-  fab.textContent = n ? `Filters · ${n}` : 'Filters';
-  fab.classList.toggle('has', n > 0);
+  const plain = isHome() || Boolean(F.mode);
+  const n = plain ? 0 : activeCount();
+  $('#dockFiltersLabel').textContent = plain ? 'Settings' : n ? `Filters · ${n}` : 'Filters';
+  $('#dockFilters').classList.toggle('has', n > 0);
+  $('#dockHome').classList.toggle('on', isHome());
+  // Mention the shortcut a few times, until it has been used.
+  const tip = $('#holdTip');
+  const seen = store.get('holdTipSeen', 0);
+  if (!plain && tip.hidden && !tipShown && seen < 4 && !store.get('holdUsed', false)) {
+    tipShown = true;
+    tip.hidden = false;
+    store.set('holdTipSeen', seen + 1);
+    window.setTimeout(() => (tip.hidden = true), 6000);
+  }
 }
 
 function renderStatus(): void {
@@ -535,7 +699,7 @@ function cardHtml(g: Group, note = '', opts: { cls?: string; tag?: string; vt?: 
 function detailHtml(g: Group): string {
   const it = g.head;
   const s = it.support;
-  const why = s.status === 'na' ? '' : `<p class="why st-${s.status}"><b>Updates</b>${esc(s.detail)}</p>`;
+  const why = s.status === 'na' ? '' : `<p class="why st-${s.status}"><b>${it.kind === 'laptop' || it.kind === 'desktop' ? 'System' : 'Updates'}</b>${esc(s.detail)}</p>`;
   const speed = it.perf
     ? `<p class="why"><b>Speed</b>${it.perf.label} — about ${it.perf.score.toLocaleString('en-GB')} points${it.perf.chip ? ` (${esc(it.perf.chip)})` : ''}. Approximate benchmark, for comparing stock.</p>`
     : '';
@@ -576,7 +740,6 @@ function renderResults(): void {
   $('#filters').hidden = plain;
   // On the home screen the categories sit under the two sales options instead.
   $('#presets').hidden = plain;
-  $('#fab').hidden = plain || !filtersOffscreen;
   if (F.mode) {
     renderFlow(flowHost, F, main);
     return;
@@ -613,7 +776,7 @@ function renderResults(): void {
   ];
   if (hiddenUnknown) parts.push(`${hiddenUnknown} hidden (update status unknown)`);
   if (total > hits.length) parts.push(`first ${hits.length} of ${total.toLocaleString('en-GB')} — ${shelf() === 'game' ? 'pick a platform or search' : 'search'} to narrow`);
-  main.innerHTML = `<p class="summary">${parts.join(' · ')}${activeCount() ? ' <button type="button" class="link" data-act="reset">Clear filters</button>' : ''}</p>
+  main.innerHTML = `<p class="summary">${parts.join(' · ')}</p>${activePills()}
     <ul class="list" id="list">${groups.slice(0, shown).map((g) => cardHtml(g)).join('')}</ul>
     <div id="sentinel"></div>`;
   pager.observe($('#sentinel'));
@@ -635,11 +798,6 @@ const pager = new IntersectionObserver(
   { rootMargin: '600px' },
 );
 
-let filtersOffscreen = false;
-new IntersectionObserver(([e]) => {
-  filtersOffscreen = !e.isIntersecting;
-  $('#fab').hidden = !filtersOffscreen || isHome() || Boolean(F.mode);
-}).observe($('#filters'));
 
 // ------------------------------------------------------------------ sheet
 
@@ -650,21 +808,26 @@ async function openSheet(): Promise<void> {
     for (const it of items) if (it.brand) counts.set(it.brand, (counts.get(it.brand) ?? 0) + 1);
     const brands = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 16);
     const grades = ['A', 'B', 'C'].filter((g) => items.some((i) => i.grade === g));
+    const plain = isHome() || Boolean(F.mode);
     sheet.innerHTML = `<form method="dialog" class="sheet-in">
-      <header><h2>Filters and settings</h2><button class="chip" aria-pressed="true" value="close">Done</button></header>
-      ${filterControls(true)}
+      <header><h2>${plain ? 'Settings' : 'Filters'}</h2><button class="icon-btn" value="close" aria-label="Close">${ICON_X}</button></header>
+      ${plain ? '' : `${filterControls(true)}
       <div class="frow wrap"><span class="flabel">Max £</span><input class="num" type="number" inputmode="numeric" min="0" step="5" placeholder="Any" value="${F.max || ''}" data-act="maxInput" aria-label="Maximum price in pounds"></div>
       ${brands.length > 1 ? `<div class="frow wrap"><span class="flabel">Brand</span>${brands.map(([b, n]) => chip('brand', b, `${esc(b)} <em>${n}</em>`, F.brands.includes(b))).join('')}</div>` : ''}
       ${grades.length > 1 ? `<div class="frow wrap"><span class="flabel">Grade</span>${grades.map((g) => chip('grade', g, g, F.grades.includes(g))).join('')}</div>` : ''}
+      <h3>Settings</h3>`}
       <div class="frow wrap"><span class="flabel">Step-up limit — how far over their price to suggest</span>${[30, 60, 100, 150].map((l) => chip('limit', l, `£${l}`, stepLimit === l)).join('')}<input class="num" type="number" inputmode="numeric" min="5" step="5" placeholder="Other £" value="${[30, 60, 100, 150].includes(stepLimit) ? '' : stepLimit}" data-act="limitInput" aria-label="Step-up limit in pounds"></div>
       <div class="frow wrap"><span class="flabel">View</span>${chip('group', 1, 'Group colours & grades', grouped)}</div>
       <div class="frow wrap"><span class="flabel">Store</span><input class="text" list="stores" value="${esc(branch)}" data-act="store" aria-label="Store" autocomplete="off"><datalist id="stores">${stores.map((s) => `<option value="${esc(s)}">`).join('')}</datalist></div>
       <p class="fine">Update dates come from endoflife.date (refreshed ${esc(db.at)}); Apple dates are estimates. Speed ratings are approximate chip benchmarks.</p>
-      ${activeCount() ? '<button type="button" class="link" data-act="reset">Clear all filters</button>' : ''}
+      <footer class="sheet-foot">${!plain && activeCount() ? '<button type="button" class="link" data-act="reset">Clear all</button>' : '<span></span>'}<button class="sheet-go" value="close">${plain ? 'Done' : loading ? 'Searching…' : `Show ${matched.toLocaleString('en-GB')} ${matched === 1 ? 'item' : 'items'}`}</button></footer>
     </form>`;
   };
   draw(storeList);
-  if (!sheet.open) sheet.showModal();
+  if (!sheet.open) {
+    sheet.showModal();
+    history.pushState({ ui: true }, '');
+  }
   if (!storeList.length && !demo) {
     try {
       storeList = await fetchStores();
@@ -691,7 +854,7 @@ const flowHost: FlowHost = {
   register: (g) => void scanGroups.set(g.key, g),
   async loadKind(kind) {
     const preset = PRESETS.find((p) => p.id === (kind === 'phone' ? 'phones' : 'tablets'))!;
-    const found = demo ? DEMO_HITS.filter((h) => (kind === 'phone' ? /iphone|android phones/i : /ipad|^tablets -/i).test(h.categoryFriendlyName ?? '')) : (await search('', branch, preset)).hits;
+    const found = demo ? DEMO_HITS.filter((h) => (kind === 'phone' ? /iphone|android phones/i : /ipad|^tablets -/i).test(h.categoryFriendlyName ?? '')) : (await search({ q: '', store: branch, preset })).hits;
     return found.map((h, i) => toItem(h, i, ctx)).filter((it) => it.kind === kind);
   },
   scanned: (id) => scanResults.get(id)?.item,
@@ -786,16 +949,249 @@ async function openScan(): Promise<Scanner> {
   if (scanner && dialog.open) return scanner;
   const { openScanner } = await import('./scan.ts');
   scanner = openScanner(dialog, scanHost);
+  history.pushState({ ui: true }, '');
   dialog.addEventListener('close', () => (scanner = null), { once: true });
   renderTray();
   return scanner;
 }
 
+// ------------------------------------------------------------------ bottom bar and hold-to-filter
+
+const ICON_X = '<svg class="x" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>';
+
+/** What is switched on, as pills that switch it off again. Filters chosen in the sheet would otherwise be invisible. */
+function activePills(): string {
+  const sh = shelf();
+  const pills: string[] = [];
+  const speedNames: Record<number, string> = { 3: 'Good or faster', 4: 'Fast or faster', 5: 'Top speed' };
+  if (F.max) pills.push(chip('max', F.max, `Under £${F.max}${ICON_X}`, true));
+  if (F.up && isMobile(sh)) pills.push(chip('up', F.up, `${F.up === 1 ? 'Still gets updates' : '2+ years of updates'}${ICON_X}`, true));
+  if (F.perf && isDevice(sh)) pills.push(chip('perf', F.perf, `${speedNames[F.perf] ?? 'Speed'}${ICON_X}`, true));
+  for (const g of facetGroups()) for (const o of g.options) if (F.fx.includes(o.id)) pills.push(chip('fx', o.id, `${o.label}${ICON_X}`, true));
+  for (const b of F.brands) pills.push(chip('brand', b, `${esc(b)}${ICON_X}`, true));
+  for (const g of F.grades) pills.push(chip('grade', g, `Grade ${g}${ICON_X}`, true));
+  if (!pills.length) return '';
+  return `<div class="chips wrap active" aria-label="Active filters">${pills.join('')}<button type="button" class="link" data-act="reset">Clear all</button></div>`;
+}
+
+interface Quick {
+  label: string;
+  act: string;
+  v: string;
+  on: boolean;
+}
+
+/** The handful of filters worth a shortcut for what is on screen, most used first (nearest the thumb). */
+function quickList(): Quick[] {
+  const sh = shelf();
+  const out: Quick[] = [];
+  if (isMobile(sh)) out.push({ label: 'Still gets updates', act: 'up', v: '1', on: F.up === 1 });
+  for (const g of facetGroups()) {
+    for (const o of g.options) if (g.quick?.includes(o.id)) out.push({ label: o.label, act: 'fx', v: o.id, on: F.fx.includes(o.id) });
+  }
+  if (isDevice(sh)) out.push({ label: 'Fast or faster', act: 'perf', v: '4', on: F.perf === 4 });
+  const step = BUDGET_STEPS[sh][1];
+  out.push({ label: `Under £${step}`, act: 'max', v: String(step), on: F.max === step });
+  const list = out.slice(0, 7);
+  if (activeCount()) list.push({ label: 'Clear filters', act: 'reset', v: '', on: false });
+  return list;
+}
+
+const holdEl = $('#hold');
+const filtersBtn = $<HTMLButtonElement>('#dockFilters');
+let holdTimer = 0;
+let holding = false;
+let holdMoved = false;
+let holdStart = { x: 0, y: 0 };
+let hot: HTMLElement | null = null;
+/** The tap that ends a hold must not also open the sheet. */
+let swallowTap = false;
+
+const ICON_TICK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+
+/** The filters after tapping a shortcut, worked out the same way the chip handlers do. */
+function nextState(q: Quick): Partial<Filters> {
+  const n = Number(q.v);
+  switch (q.act) {
+    case 'up':
+      return { up: F.up === n ? 0 : n };
+    case 'perf':
+      return { perf: F.perf === n ? 0 : n };
+    case 'max':
+      return { max: F.max === n ? 0 : n };
+    case 'fx': {
+      const group = facetGroups().find((g) => g.options.some((o) => o.id === q.v));
+      const others = F.fx.filter((id) => !group?.options.some((o) => o.id === id));
+      return { fx: F.fx.includes(q.v) ? others : [...others, q.v] };
+    }
+    default:
+      return {};
+  }
+}
+
+/**
+ * How many items a shortcut leaves on screen: the current count for one already on, the
+ * count after adding it otherwise. Null where the loaded items cannot answer honestly
+ * (the search service applies the filter, or only part of the category is loaded).
+ */
+function countFor(q: Quick): number | null {
+  if (q.act === 'reset' || loading || !items.length || total > hits.length) return null;
+  if (q.on) return matched;
+  const opt = q.act === 'fx' ? facetGroups().flatMap((g) => g.options).find((o) => o.id === q.v) : undefined;
+  if (opt?.server) return null;
+  const saved = { ...F, fx: [...F.fx], brands: [...F.brands], grades: [...F.grades] };
+  const kept = { groups, matched, hiddenUnknown };
+  Object.assign(F, nextState(q));
+  compute();
+  const n = matched;
+  Object.assign(F, saved);
+  ({ groups, matched, hiddenUnknown } = kept);
+  return n;
+}
+
+function openHold(): void {
+  const list = quickList();
+  const reset = list.find((q) => q.act === 'reset');
+  // Most used nearest the thumb: the list reads upward from the button.
+  const rows = list.filter((q) => q.act !== 'reset').reverse();
+  const dock = $('.dock').getBoundingClientRect();
+  const where = PRESETS.find((p) => p.id === F.preset)?.label ?? (F.q ? `“${F.q}”` : 'Results');
+  const row = (q: Quick): string => {
+    const n = countFor(q);
+    // A shortcut that would empty the list is shown but cannot be picked.
+    const none = n === 0 && !q.on;
+    return `<button type="button" class="hold-row"${none ? ' disabled' : ''} role="menuitemcheckbox" aria-checked="${q.on}" data-act="${q.act}" data-v="${esc(q.v)}" aria-pressed="${q.on}">
+      <span class="hold-tick">${q.on ? ICON_TICK : ''}</span><span class="hold-label">${esc(q.label)}</span>${n === null ? '' : `<span class="hold-n">${n.toLocaleString('en-GB')}</span>`}
+    </button>`;
+  };
+  holdEl.innerHTML = `<div class="hold-panel" role="menu" aria-label="Quick filters" style="right:${Math.round(window.innerWidth - dock.right)}px;bottom:${Math.round(window.innerHeight - dock.top + 10)}px">
+    <p class="hold-head"><span>Quick filters</span><span>${esc(where)}</span></p>
+    ${reset ? `<button type="button" class="hold-row quiet" role="menuitem" data-act="reset" data-v=""><span class="hold-tick">${ICON_X}</span><span class="hold-label">Clear all filters</span></button><hr class="hold-sep">` : ''}
+    ${rows.map(row).join('')}
+  </div>`;
+  holdEl.hidden = false;
+  document.body.classList.add('holding');
+  store.set('holdUsed', true);
+  $('#holdTip').hidden = true;
+}
+
+function closeHold(): void {
+  holdEl.hidden = true;
+  holdEl.innerHTML = '';
+  document.body.classList.remove('holding');
+  hot = null;
+}
+
+function setHot(el: HTMLElement | null): void {
+  if (el === hot) return;
+  hot?.classList.remove('hot');
+  hot = el;
+  hot?.classList.add('hot');
+  if (hot && navigator.userActivation?.hasBeenActive) navigator.vibrate?.(8);
+}
+
+filtersBtn.addEventListener('pointerdown', (ev) => {
+  if (isHome() || F.mode) return;
+  holdStart = { x: ev.clientX, y: ev.clientY };
+  holdMoved = false;
+  window.clearTimeout(holdTimer);
+  holdTimer = window.setTimeout(() => {
+    holding = true;
+    openHold();
+    try {
+      filtersBtn.setPointerCapture(ev.pointerId);
+    } catch {
+      /* the finger has already lifted */
+    }
+    if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.(15);
+  }, 280);
+});
+
+filtersBtn.addEventListener('pointermove', (ev) => {
+  const far = Math.hypot(ev.clientX - holdStart.x, ev.clientY - holdStart.y);
+  if (!holding) {
+    if (far > 14) window.clearTimeout(holdTimer);
+    return;
+  }
+  if (far > 16) holdMoved = true;
+  const panel = holdEl.querySelector<HTMLElement>('.hold-panel');
+  if (!panel || !holdMoved) return setHot(null);
+  const box = panel.getBoundingClientRect();
+  // Forgiving sideways: a thumb drifting a little past the panel's edge still counts.
+  if (ev.clientX < box.left - 40 || ev.clientY < box.top - 20) return setHot(null);
+  let best: HTMLElement | null = null;
+  let bestGap = Infinity;
+  for (const el of panel.querySelectorAll<HTMLElement>('.hold-row:not(:disabled)')) {
+    const b = el.getBoundingClientRect();
+    const gap = ev.clientY < b.top ? b.top - ev.clientY : ev.clientY > b.bottom ? ev.clientY - b.bottom : 0;
+    if (gap < bestGap) {
+      best = el;
+      bestGap = gap;
+    }
+  }
+  // Below the last row is the dock: letting go there changes nothing.
+  setHot(bestGap <= 18 ? best : null);
+});
+
+const endHold = (cancelled: boolean): void => {
+  window.clearTimeout(holdTimer);
+  if (!holding) return;
+  holding = false;
+  swallowTap = true;
+  window.setTimeout(() => (swallowTap = false), 400);
+  if (cancelled) return closeHold();
+  if (hot) {
+    const chosen = hot;
+    closeHold();
+    // Same route as tapping a chip, so every shortcut behaves exactly like its filter.
+    document.body.append(chosen);
+    chosen.click();
+    chosen.remove();
+  } else if (holdMoved) closeHold();
+  // Held without sliding: the panel stays up to be tapped.
+};
+filtersBtn.addEventListener('pointerup', () => endHold(false));
+filtersBtn.addEventListener('pointercancel', () => endHold(true));
+filtersBtn.addEventListener('contextmenu', (ev) => ev.preventDefault());
+holdEl.addEventListener('click', (ev) => {
+  // A tapped shortcut is handled by the shared click handler first; then the menu goes.
+  if (ev.target === holdEl || (ev.target as HTMLElement).closest('.hold-item')) window.setTimeout(closeHold, 0);
+});
+
+// The header steps aside while reading down a list and returns on the way back up.
+let lastY = 0;
+window.addEventListener(
+  'scroll',
+  () => {
+    const y = window.scrollY;
+    if (Math.abs(y - lastY) < 8) return;
+    const typing = document.activeElement instanceof HTMLInputElement;
+    document.body.classList.toggle('tuck', y > 140 && y > lastY && !typing);
+    lastY = y;
+  },
+  { passive: true },
+);
+
+// The phone's Back button closes whatever is open before it leaves the page.
+for (const id of ['#sheet', '#scanner']) {
+  $(id).addEventListener('close', () => {
+    if (history.state?.ui) history.back();
+  });
+}
+window.addEventListener('popstate', () => {
+  closeHold();
+  for (const id of ['#sheet', '#scanner']) {
+    const d = $<HTMLDialogElement>(id);
+    if (d.open) d.close();
+  }
+});
+
 // ------------------------------------------------------------------ actions
 
-function apply(patch: Partial<Filters>, refetch = false): void {
+/** `push` marks a move the Back button should undo (a new screen), as opposed to a refinement of this one. */
+function apply(patch: Partial<Filters>, refetch = false, push = false): void {
   Object.assign(F, patch);
-  writeHash();
+  writeHash(push);
   shown = PAGE;
   if (refetch) void load();
   else render();
@@ -817,11 +1213,12 @@ document.addEventListener('click', (ev) => {
   const v = el.dataset.v ?? '';
   switch (el.dataset.act) {
     case 'preset':
-      apply({ preset: F.preset === v ? '' : v, brands: [], grades: [], fx: [], mode: '' }, true);
+      // Each category has its own filters, price steps and sorts, so none carry over.
+      apply({ ...DEFAULTS, q: F.q, preset: F.preset === v ? '' : v }, true, true);
       window.scrollTo({ top: 0 });
       break;
     case 'max':
-      apply({ max: F.max === Number(v) ? 0 : Number(v) });
+      apply({ max: F.max === Number(v) ? 0 : Number(v) }, true);
       break;
     case 'up':
       apply({ up: F.up === Number(v) ? 0 : Number(v) });
@@ -849,7 +1246,7 @@ document.addEventListener('click', (ev) => {
       apply({});
       break;
     case 'reset':
-      apply({ max: 0, up: 0, perf: 0, sort: 'rel', brands: [], grades: [], fx: [] }, serverFacets().length > 0);
+      apply({ max: 0, up: 0, perf: 0, sort: 'rel', brands: [], grades: [], fx: [] }, true);
       break;
     case 'clear':
       apply({ q: '' }, true);
@@ -858,16 +1255,16 @@ document.addEventListener('click', (ev) => {
       break;
     case 'door-up':
       resetPickQuery();
-      apply({ ...DEFAULTS, mode: 'up' }, true);
+      apply({ ...DEFAULTS, mode: 'up' }, true, true);
       // Same tap, so phones open the keyboard straight away.
       document.getElementById('pickq')?.focus();
       break;
     case 'flow-home':
-      apply({ ...DEFAULTS }, true);
+      apply({ ...DEFAULTS }, true, true);
       window.scrollTo({ top: 0 });
       break;
     case 'pick':
-      apply({ ...DEFAULTS, mode: 'up', pick: v }, true);
+      apply({ ...DEFAULTS, mode: 'up', pick: v }, true, true);
       window.scrollTo({ top: 0 });
       break;
     case 'pick-clear':
@@ -877,11 +1274,11 @@ document.addEventListener('click', (ev) => {
       break;
     case 'stepup':
       $<HTMLDialogElement>('#scanner').close();
-      apply({ ...DEFAULTS, mode: 'up', pick: v }, true);
+      apply({ ...DEFAULTS, mode: 'up', pick: v }, true, true);
       window.scrollTo({ top: 0 });
       break;
     case 'bud':
-      apply({ ...(F.mode === 'fit' ? {} : DEFAULTS), mode: 'fit', bud: F.mode === 'fit' && F.bud === Number(v) ? 0 : Number(v) }, true);
+      apply({ ...(F.mode === 'fit' ? {} : DEFAULTS), mode: 'fit', bud: F.mode === 'fit' && F.bud === Number(v) ? 0 : Number(v) }, true, F.mode !== 'fit');
       break;
     case 'ftype':
       apply({ ft: v as FitType }, true);
@@ -895,13 +1292,13 @@ document.addEventListener('click', (ev) => {
       apply({}, Boolean(F.mode));
       break;
     case 'recent':
-      apply({ ...DEFAULTS, q: v }, true);
+      apply({ ...DEFAULTS, q: v }, true, true);
       break;
     case 'retry':
       void load(true);
       break;
     case 'home':
-      apply({ ...DEFAULTS }, true);
+      apply({ ...DEFAULTS }, true, true);
       window.scrollTo({ top: 0 });
       break;
     case 'scan':
@@ -909,12 +1306,20 @@ document.addEventListener('click', (ev) => {
       break;
     case 'similar':
       $<HTMLDialogElement>('#scanner').close();
-      apply({ ...DEFAULTS, q: v }, true);
+      apply({ ...DEFAULTS, q: v }, true, true);
       window.scrollTo({ top: 0 });
       break;
     case 'more':
+      if (swallowTap) break;
       void openSheet();
       break;
+    case 'dock-search': {
+      document.body.classList.remove('tuck');
+      const box = $<HTMLInputElement>('#q');
+      box.focus();
+      box.select();
+      break;
+    }
     case 'toggle': {
       const li = el.closest<HTMLElement>('.card')!;
       const g = groups.find((x) => x.key === li.dataset.key) ?? scanGroups.get(li.dataset.key ?? '');
@@ -932,8 +1337,8 @@ document.addEventListener('click', (ev) => {
 
 document.addEventListener('change', (ev) => {
   const el = ev.target as HTMLInputElement | HTMLSelectElement;
-  if (el.dataset.act === 'sort') apply({ sort: el.value as Sort });
-  if (el.dataset.act === 'maxInput') apply({ max: Math.max(0, Number(el.value) || 0) });
+  if (el.dataset.act === 'sort') apply({ sort: el.value as Sort }, true);
+  if (el.dataset.act === 'maxInput') apply({ max: Math.max(0, Number(el.value) || 0) }, true);
   if (el.dataset.act === 'budInput') apply({ bud: Math.max(0, Number(el.value) || 0) }, true);
   if (el.dataset.act === 'limitInput') {
     stepLimit = Math.max(5, Number(el.value) || 60);
@@ -955,7 +1360,8 @@ $('#q').addEventListener('input', (ev) => {
   const q = (ev.target as HTMLInputElement).value;
   $('#clear').hidden = !q;
   clearTimeout(typing);
-  typing = window.setTimeout(() => apply({ q, brands: [], grades: [], fx: [], mode: '' }, true), 160);
+  // The first keystroke from the start screen or a sales flow opens a new screen; the rest refine it.
+  typing = window.setTimeout(() => apply({ q, brands: [], grades: [], fx: [], mode: '' }, true, isHome() || Boolean(F.mode)), 160);
 });
 
 $('#form').addEventListener('submit', (ev) => {

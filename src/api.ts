@@ -69,25 +69,43 @@ export function clearCache(): void {
   cache.clear();
 }
 
-/** `extra` narrows on the server (each entry is one more required facet), for sets too big to filter after fetching. */
-export function search(q: string, store: string, preset: Preset | undefined, signal?: AbortSignal, fresh = false, extra: string[] = []): Promise<SearchResult> {
-  const key = `${store}|${preset?.id ?? ''}|${extra.join('+')}|${q.trim().toLowerCase()}`;
+export interface SearchOptions {
+  q: string;
+  store: string;
+  preset?: Preset;
+  signal?: AbortSignal;
+  /** Skip the short-lived cache. */
+  fresh?: boolean;
+  /** More required facets, each an "any of" list. Done on the server because a branch can hold more of a category than one request returns. */
+  extra?: string[][];
+  /** Highest price to return (0 = any). */
+  max?: number;
+  /** Server-side ordering; anything else is best match. */
+  order?: string;
+}
+
+// CeX keeps a copy of its index for each ordering its website offers.
+const ORDERED: Record<string, string> = { pop: '_popularity_desc', price: '_price_asc', priceDesc: '_price_desc', rated: '_rating_desc' };
+
+export function search({ q, store, preset, signal, fresh = false, extra = [], max = 0, order = '' }: SearchOptions): Promise<SearchResult> {
+  const index = CONFIG.index + (ORDERED[order] ?? '');
+  const key = `${store}|${preset?.id ?? ''}|${extra.map((e) => e.join(',')).join('+')}|${max}|${index}|${q.trim().toLowerCase()}`;
   const hit = cache.get(key);
   if (hit && !fresh && Date.now() - hit.at < TTL) return hit.p;
   const t0 = performance.now();
   const facetFilters: string[][] = [[`stores:${store}`]];
   if (preset) facetFilters.push(preset.ff);
-  for (const f of extra) facetFilters.push([f]);
+  for (const anyOf of extra) facetFilters.push(anyOf);
   const p = post(
     [
       {
-        indexName: CONFIG.index,
+        indexName: index,
         query: [preset?.q, q.trim()].filter(Boolean).join(' '),
         // Presets want the whole shelf for client-side filtering; free text wants speed.
         hitsPerPage: preset ? 1000 : 300,
         page: 0,
         facetFilters,
-        filters: BASE_FILTER,
+        filters: max ? `${BASE_FILTER} AND sellPrice <= ${max}` : BASE_FILTER,
         attributesToRetrieve: ATTRS,
         attributesToHighlight: [],
         analytics: false,

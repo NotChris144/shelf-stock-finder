@@ -196,13 +196,13 @@ function computer(p: SupportInput, ctx: SupportCtx): Support {
     }
     if (c?.vendor === 'intel') {
       return c.gen >= 8
-        ? { status: 'warn', label: 'Intel Mac · security only', detail: `Intel Macs can't run macOS ${ctx.latest.macos}. Still gets security fixes on an older macOS for now.` }
-        : { status: 'ended', label: 'No updates', detail: 'Too old for any macOS version Apple still patches.' };
+        ? { status: 'warn', label: 'Intel Mac', detail: `Intel Macs can't run macOS ${ctx.latest.macos}. Still gets security fixes on an older macOS for now.` }
+        : { status: 'ended', label: 'Older Intel Mac', detail: 'Too old for any macOS version Apple still patches.' };
     }
     return UNKNOWN;
   }
   if (/chrome/.test(os) || /chromebook/i.test(p.category)) {
-    return { status: 'unknown', label: 'ChromeOS · check AUE', detail: "Chromebooks have a fixed auto-update expiry date per model — look it up on Google's AUE list." };
+    return { status: 'unknown', label: 'ChromeOS', detail: "Chromebooks have a fixed auto-update expiry date per model — look it up on Google's AUE list." };
   }
   const w = os.match(/w(?:in\w*)?\s*(\d+)/);
   const ver = w ? Number(w[1]) : 0;
@@ -210,14 +210,14 @@ function computer(p: SupportInput, ctx: SupportCtx): Support {
   const canRun11 = !c || c.gen === 0 ? undefined : c.vendor === 'intel' ? c.gen >= 8 : c.vendor === 'amd' ? c.gen >= 2 : true;
   if (ver === 10) {
     if (canRun11) {
-      return { status: 'warn', stale: true, label: 'W10 · can run 11', detail: 'Windows 10 support ended Oct 2025, but this processor is on the Windows 11 list — it can be upgraded for free.' };
+      return { status: 'warn', stale: true, label: 'Windows 10 · can run 11', detail: 'Windows 10 support ended Oct 2025, but this processor is on the Windows 11 list — it can be upgraded for free.' };
     }
     if (canRun11 === false) {
-      return { status: 'ended', label: 'No updates', detail: 'Windows 10 support ended Oct 2025 and this processor is too old for Windows 11.' };
+      return { status: 'ended', label: 'Windows 10 only', detail: 'Windows 10 support ended Oct 2025 and this processor is too old for Windows 11.' };
     }
     return { status: 'warn', stale: true, label: 'Windows 10', detail: 'Windows 10 support ended Oct 2025. Check whether this processor can run Windows 11.' };
   }
-  if (ver > 0) return { status: 'ended', label: 'No updates', detail: `Windows ${ver} is no longer supported by Microsoft.` };
+  if (ver > 0) return { status: 'ended', label: `Windows ${ver}`, detail: `Windows ${ver} is no longer supported by Microsoft.` };
   return UNKNOWN;
 }
 
