@@ -887,7 +887,8 @@ function showCover(it: Item, c: Cover): void {
   const s = spineOf(c);
   const pct = (n: number): string => `${(n * 100).toFixed(2)}%`;
   const ed = edition(c, it);
-  // A sheet: pulled down, or Done at the foot of it, puts it away; nothing to reach for at the top.
+  // A sheet: pulled down (or the dimmed page above it tapped) puts it away, so it needs no close
+  // button; the one here is for screen readers only.
   d.innerHTML = `<span class="grabber" aria-hidden="true"></span>
     <header class="cover-top">
       <h2>${esc(it.title)}</h2>
@@ -906,7 +907,7 @@ function showCover(it: Item, c: Cover): void {
         <button type="button" data-act="cover-part" data-v="spine" aria-pressed="true">Spine</button>
         <button type="button" data-act="cover-part" data-v="front" aria-pressed="false">Front</button>
       </div>
-      <button type="button" class="cover-done" data-act="cover-close">Done</button>
+      <button type="button" class="sr" data-act="cover-close">Close</button>
     </footer>`;
   const stage = $('#coverStage');
   const img = stage.querySelector('img')!;

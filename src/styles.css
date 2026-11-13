@@ -2450,18 +2450,18 @@ body:has(main input:focus) .dock {
   scroll-snap-align: end;
 }
 
-/* Everything to do sits under the thumb: which part of the sleeve, and Done. */
+/* Which part of the sleeve, under the thumb and centred. Pulling the sheet down closes it. */
 .cover-foot {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px var(--gutter) calc(12px + env(safe-area-inset-bottom));
+  justify-content: center;
+  padding: 8px var(--gutter) calc(12px + env(safe-area-inset-bottom));
 }
 
 .seg {
   --at: 1;
   position: relative;
   flex: 1;
+  max-width: 420px;
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
@@ -2505,25 +2505,6 @@ body:has(main input:focus) .dock {
 
 .seg button:active {
   opacity: 0.55;
-  transition-duration: 0s;
-}
-
-.cover-done {
-  flex: none;
-  min-height: 50px;
-  margin-left: auto;
-  padding: 0 24px;
-  border-radius: 999px;
-  background: var(--text);
-  color: var(--bg);
-  font-size: 17px;
-  font-weight: 600;
-  transition: opacity 0.25s, transform 0.3s var(--ease, ease);
-}
-
-.cover-done:active {
-  transform: scale(0.96);
-  opacity: 0.8;
   transition-duration: 0s;
 }
 
