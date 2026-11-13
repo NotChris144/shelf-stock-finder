@@ -53,8 +53,7 @@ CeX's records name a phone but hold nothing about its camera, battery, screen or
 from [GSMArena](https://www.gsmarena.com)'s device pages, read ahead of time by a script and saved
 in `src/data/specs.json`; the app only ever reads that file.
 
-It keeps itself up to date. A GitHub job (`.github/workflows/specs.yml`) runs every half hour and
-goes by UK time:
+It keeps itself up to date: the stock watch (below) runs it every half hour, going by UK time:
 
 - **9am to 6pm**: it asks CeX what the store has in stock, and reads the sheet of any phone or
   tablet model that has just arrived without one.
@@ -93,9 +92,17 @@ first, with how long ago) and **Recently sold** (tech only: phones, tablets, com
 electronics).
 
 CeX's search says what a branch has now, not when it arrived or left, and not how many of each. So
-a GitHub job (`.github/workflows/stock.yml`) lists everything Eastbourne has in stock every 15
-minutes from 8am to 9pm UK time, just off the round minutes (about 8,000 products, in 13 queries) and compares it with the
-last list (`src/tracker.ts`):
+a GitHub job (`.github/workflows/stock.yml`, `scripts/stock-watch.sh`) keeps watch through the day:
+every 15 minutes from 8am to 9pm UK time it lists everything Eastbourne has in stock (about 8,000
+products, in 13 queries) and compares it with the last list (`src/tracker.ts`).
+
+GitHub's own timer only starts the day's watch, and proved unreliable (on the first morning none of
+its runs started), so it is asked several times each morning, and a running watch carries itself on:
+shortly before GitHub's six-hour limit it starts its own successor. If the record says it was last
+checked yesterday evening, start the watch by hand: the repository's Actions tab, **Stock activity**,
+**Run workflow**.
+
+What each look finds:
 
 - A product that was not there before has come in. Another copy of something already on the shelf
   doesn't show, because CeX lists one entry per product.

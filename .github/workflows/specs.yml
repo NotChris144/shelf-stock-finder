@@ -1,18 +1,16 @@
 name: Spec sheets
 
-# Keeps the phone and tablet spec sheets up to date without anyone running anything.
+# Reads phone and tablet spec sheets by hand. Day to day this is done by the stock watch
+# (.github/workflows/stock.yml), which runs scripts/update-specs.ts every half hour, because
+# GitHub's own timer proved unreliable:
 #
-#   Shop hours (9am to 6pm UK)   looks at what CeX shows in stock and reads the sheet of any
-#                                model that has just arrived without one
+#   Shop hours (9am to 6pm UK)   reads the sheet of any model that has just arrived without one
 #   After closing (6pm to 9pm)   works through the models that still have no sheet
 #
 # The script goes by UK time and keeps to a daily allowance of GSMArena pages (see the top of
 # scripts/update-specs.ts). A run that finds nothing new commits nothing.
 
 on:
-  schedule:
-    # Every half hour from 08:07 to 20:37 UTC, which covers 9am to 9pm UK in winter and summer.
-    - cron: '7,37 8-20 * * *'
   workflow_dispatch:
     inputs:
       mode:

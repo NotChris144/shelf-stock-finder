@@ -4,7 +4,8 @@
 // are read from GSMArena's device pages, one page per model, and saved to src/data/specs.json.
 // The app itself never asks GSMArena anything: it reads the saved file.
 //
-// It runs itself on GitHub every half hour (.github/workflows/specs.yml) and goes by the shop's clock:
+// It runs every half hour as part of the stock watch (scripts/stock-watch.sh) and goes by the
+// shop's clock:
 //   9am to 6pm  day      looks at what CeX shows in stock and reads the sheet of any model that has
 //                        just arrived without one
 //   6pm to 9pm  evening  works through the models that still have no sheet; once there are none,

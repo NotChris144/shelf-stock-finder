@@ -2,8 +2,8 @@
 //
 // Reads state.json and log.json from the folder (absent on the first run), lists everything the
 // branch has in stock now, records what has come in and what has gone (src/tracker.ts), and
-// writes both files back. Run every 15 minutes by .github/workflows/stock.yml, which keeps the
-// folder on the repository's `stock-data` branch.
+// writes both files back. Run every 15 minutes through the day by scripts/stock-watch.sh, which
+// keeps the folder on the repository's `stock-data` branch.
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { Busy, compare, fetchStock, queries, record, updatedAt, type Log, type State } from '../src/tracker.ts';

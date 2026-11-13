@@ -1,56 +1,51 @@
 name: Stock activity
 
-# Every 15 minutes while the shop is open, list everything Eastbourne has in stock and record
-# what has come in and what has gone since the last look (scripts/track-stock.ts).
+# Keeps watch over Eastbourne's stock through the day (scripts/stock-watch.sh): a look every 15
+# minutes, recording what has come in and what has gone (scripts/track-stock.ts), and every half
+# hour a look for new spec sheets (scripts/update-specs.ts).
 #
-# The record lives on its own branch, `stock-data`, as a single commit that is replaced each
+# GitHub's timer only starts the day's watch. It proved unreliable, so it is asked several
+# times each morning, and once a watch is running it carries itself on: shortly before GitHub's
+# six-hour limit it starts its own successor. Runs never overlap (see `concurrency`); a start
+# that arrives while a watch is running waits, and is dropped if the watch hands over first.
+#
+# The stock record lives on its own branch, `stock-data`, as a single commit that is replaced each
 # time, so it never builds up history. The app reads log.json straight from that branch, so new
 # stock shows without redeploying the site.
 
 on:
   schedule:
-    # 08:04 to 20:49 UTC: 9am to 6pm UK in winter and summer, with an hour or two either side.
-    # Off the round minutes, which GitHub is busiest on and runs latest, and just after CeX's own
-    # 10-minute updates.
-    - cron: '4,19,34,49 8-20 * * *'
+    # 07:04 to 09:34 UTC covers 8am to 9am UK in winter and summer; the later ones restart a
+    # watch that has stopped for any reason.
+    - cron: '4,34 7-9 * * *'
+    - cron: '4 11,14,17 * * *'
   workflow_dispatch:
 
 permissions:
   contents: write
+  # To start its own successor and the site's rebuild.
+  actions: write
 
 concurrency:
   group: stock
   cancel-in-progress: false
 
 jobs:
-  look:
+  watch:
     runs-on: ubuntu-latest
+    timeout-minutes: 345
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - name: Get the last look
-        run: |
-          mkdir -p stock-data
-          if git fetch -q --depth=1 origin stock-data 2>/dev/null; then
-            git show FETCH_HEAD:state.json > stock-data/state.json
-            git show FETCH_HEAD:log.json > stock-data/log.json
-          else
-            echo "No record yet: this look sets the starting point."
-          fi
-      - name: Compare with the shelf now
-        id: look
-        run: node scripts/track-stock.ts stock-data
-      - name: Save the record
-        if: steps.look.outputs.changed == '1'
+      # Spec pages already read are kept between runs, so the day's allowance is not spent twice.
+      - uses: actions/cache@v6
+        with:
+          path: .cache/specs
+          key: specs-pages-${{ github.run_id }}
+          restore-keys: specs-pages-
+      - name: Keep watch
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          cd stock-data
-          git init -q -b stock-data
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add state.json log.json
-          git commit -q -m "Stock at $(date -u +'%Y-%m-%d %H:%M') UTC"
-          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" stock-data
+        run: bash scripts/stock-watch.sh
