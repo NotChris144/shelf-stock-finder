@@ -391,6 +391,19 @@ function shelf(): Shelf {
   return n >= items.length * 0.6 ? top : '';
 }
 
+/** System options that are Apple's own: choosing one already chooses the brand. */
+const APPLE_SYSTEMS = ['ios', 'ipad', 'mac'];
+const systemOptions = (): Facet[] => facetGroups().find((g) => g.name === 'System')?.options ?? [];
+
+/** Brand choices still meaningful under a new set of filters: none under an Apple system, no Apple otherwise. */
+function brandsFor(fx: string[]): string[] {
+  const sys = systemOptions();
+  if (!sys.length) return F.brands;
+  if (fx.some((id) => APPLE_SYSTEMS.includes(id))) return [];
+  const other = sys.find((o) => !APPLE_SYSTEMS.includes(o.id) && fx.includes(o.id));
+  return F.brands.filter((b) => b.toLowerCase() !== 'apple' && (!other || items.some((it) => it.brand === b && other.test(it))));
+}
+
 /** Phones and tablets are the only things sold on how long they will keep getting updates. */
 const isMobile = (s: Shelf): boolean => s === 'phone' || s === 'tablet';
 /** Speed ratings exist for anything with a processor we can read. */
@@ -804,16 +817,26 @@ const pager = new IntersectionObserver(
 async function openSheet(): Promise<void> {
   const sheet = $<HTMLDialogElement>('#sheet');
   const draw = (stores: string[] = []): void => {
+    // Where the System row already offers Apple (iPhone, iPad, Mac), brand only means the others:
+    // Apple is left out, the row hides when an Apple system is chosen, and it narrows to the
+    // brands of whichever other system is chosen.
+    const sys = systemOptions();
+    const appleOn = sys.some((o) => APPLE_SYSTEMS.includes(o.id) && F.fx.includes(o.id));
+    const otherOn = sys.find((o) => !APPLE_SYSTEMS.includes(o.id) && F.fx.includes(o.id));
     const counts = new Map<string, number>();
-    for (const it of items) if (it.brand) counts.set(it.brand, (counts.get(it.brand) ?? 0) + 1);
-    const brands = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 16);
+    for (const it of items) {
+      if (!it.brand || (sys.length && it.brand.toLowerCase() === 'apple') || (otherOn && !otherOn.test(it))) continue;
+      counts.set(it.brand, (counts.get(it.brand) ?? 0) + 1);
+    }
+    const brands = appleOn ? [] : [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 16);
+    const brandLabel = shelf() === 'phone' ? 'Android brand' : 'Brand';
     const grades = ['A', 'B', 'C'].filter((g) => items.some((i) => i.grade === g));
     const plain = isHome() || Boolean(F.mode);
     sheet.innerHTML = `<form method="dialog" class="sheet-in">
       <header><h2>${plain ? 'Settings' : 'Filters'}</h2><button class="icon-btn" value="close" aria-label="Close">${ICON_X}</button></header>
       ${plain ? '' : `${filterControls(true)}
       <div class="frow wrap"><span class="flabel">Max £</span><input class="num" type="number" inputmode="numeric" min="0" step="5" placeholder="Any" value="${F.max || ''}" data-act="maxInput" aria-label="Maximum price in pounds"></div>
-      ${brands.length > 1 ? `<div class="frow wrap"><span class="flabel">Brand</span>${brands.map(([b, n]) => chip('brand', b, `${esc(b)} <em>${n}</em>`, F.brands.includes(b))).join('')}</div>` : ''}
+      ${brands.length > 1 ? `<div class="frow wrap"><span class="flabel">${brandLabel}</span>${brands.map(([b, n]) => chip('brand', b, `${esc(b)} <em>${n}</em>`, F.brands.includes(b))).join('')}</div>` : ''}
       ${grades.length > 1 ? `<div class="frow wrap"><span class="flabel">Grade</span>${grades.map((g) => chip('grade', g, g, F.grades.includes(g))).join('')}</div>` : ''}
       <h3>Settings</h3>`}
       <div class="frow wrap"><span class="flabel">Step-up limit — how far over their price to suggest</span>${[30, 60, 100, 150].map((l) => chip('limit', l, `£${l}`, stepLimit === l)).join('')}<input class="num" type="number" inputmode="numeric" min="5" step="5" placeholder="Other £" value="${[30, 60, 100, 150].includes(stepLimit) ? '' : stepLimit}" data-act="limitInput" aria-label="Step-up limit in pounds"></div>
@@ -1022,7 +1045,8 @@ function nextState(q: Quick): Partial<Filters> {
     case 'fx': {
       const group = facetGroups().find((g) => g.options.some((o) => o.id === q.v));
       const others = F.fx.filter((id) => !group?.options.some((o) => o.id === id));
-      return { fx: F.fx.includes(q.v) ? others : [...others, q.v] };
+      const fx = F.fx.includes(q.v) ? others : [...others, q.v];
+      return { fx, brands: brandsFor(fx) };
     }
     default:
       return {};
@@ -1243,8 +1267,9 @@ document.addEventListener('click', (ev) => {
       // One choice per group: picking 128GB+ replaces 64GB+.
       const group = facetGroups().find((g) => g.options.some((o) => o.id === v));
       const others = F.fx.filter((id) => !group?.options.some((o) => o.id === id));
+      const fx = F.fx.includes(v) ? others : [...others, v];
       // A platform choice changes what the service returns, so it needs a fresh search.
-      apply({ fx: F.fx.includes(v) ? others : [...others, v] }, Boolean(group?.options.some((o) => o.server)));
+      apply({ fx, brands: brandsFor(fx) }, Boolean(group?.options.some((o) => o.server)));
       break;
     }
     case 'brand':
