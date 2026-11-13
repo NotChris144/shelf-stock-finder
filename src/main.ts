@@ -1037,34 +1037,6 @@ interface Quick {
   on: boolean;
 }
 
-/** The handful of filters worth a shortcut for what is on screen, most used first (nearest the thumb). */
-function quickList(): Quick[] {
-  const sh = shelf();
-  const out: Quick[] = [];
-  if (isMobile(sh)) out.push({ label: 'Still gets updates', act: 'up', v: '1', on: F.up === 1 });
-  for (const g of facetGroups()) {
-    for (const o of g.options) if (g.quick?.includes(o.id)) out.push({ label: o.label, act: 'fx', v: o.id, on: F.fx.includes(o.id) });
-  }
-  if (isDevice(sh)) out.push({ label: 'Fast or faster', act: 'perf', v: '4', on: F.perf === 4 });
-  const step = BUDGET_STEPS[sh][1];
-  out.push({ label: `Under £${step}`, act: 'max', v: String(step), on: F.max === step });
-  const list = out.slice(0, 7);
-  if (activeCount()) list.push({ label: 'Clear filters', act: 'reset', v: '', on: false });
-  return list;
-}
-
-const holdEl = $('#hold');
-const filtersBtn = $<HTMLButtonElement>('#dockFilters');
-let holdTimer = 0;
-let holding = false;
-let holdMoved = false;
-let holdStart = { x: 0, y: 0 };
-let hot: HTMLElement | null = null;
-/** The tap that ends a hold must not also open the sheet. */
-let swallowTap = false;
-
-const ICON_TICK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
-
 /** The filters after tapping a shortcut, worked out the same way the chip handlers do. */
 function nextState(q: Quick): Partial<Filters> {
   const n = Number(q.v);
@@ -1106,36 +1078,167 @@ function countFor(q: Quick): number | null {
   return n;
 }
 
+/** One row of the quick-filter panel. */
+interface HoldEntry {
+  label: string;
+  meta?: string;
+  on: boolean;
+  /** What letting go here (or tapping it) does. */
+  run?: () => void;
+  /** Menu key (see menuFor) of the choices this row opens in a column to its left. */
+  sub?: string;
+  quiet?: boolean;
+  disabled?: boolean;
+}
+
+/** Do exactly what tapping the matching chip would. */
+function act(a: string, v: string): void {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.hidden = true;
+  b.dataset.act = a;
+  b.dataset.v = v;
+  document.body.append(b);
+  b.click();
+  b.remove();
+}
+
+function toggleEntry(label: string, a: string, v: string, on: boolean): HoldEntry {
+  const n = countFor({ label, act: a, v, on });
+  return { label, on, meta: n === null ? undefined : n.toLocaleString('en-GB'), disabled: n === 0 && !on, run: () => act(a, v) };
+}
+
+/**
+ * The main column. Single choices are plain toggles; anything with several values (Android
+ * brand, price, speed, platform) is one row that opens a column of its values to the left.
+ * Listed most used first, which puts them nearest the thumb.
+ */
+function holdEntries(): HoldEntry[] {
+  const sh = shelf();
+  const out: HoldEntry[] = [];
+  if (isMobile(sh)) out.push(toggleEntry('Still updated', 'up', '1', F.up === 1));
+  for (const g of facetGroups()) {
+    const quick = g.options.filter((o) => g.quick?.includes(o.id));
+    if (!quick.length) continue;
+    if (g.name === 'System') {
+      for (const o of quick) {
+        if (o.id === 'and' || o.id === 'andt') {
+          const on = F.fx.includes(o.id);
+          const label = on && F.brands.length === 1 ? F.brands[0] : o.label;
+          out.push({ ...toggleEntry(label, 'fx', o.id, on), meta: undefined, sub: `brand:${o.id}` });
+        } else out.push(toggleEntry(o.label, 'fx', o.id, F.fx.includes(o.id)));
+      }
+    } else if (quick.length > 2) {
+      const chosen = g.options.find((o) => F.fx.includes(o.id));
+      out.push({ label: chosen ? chosen.label : g.name, on: Boolean(chosen), sub: `group:${g.name}` });
+    } else for (const o of quick) out.push(toggleEntry(o.label, 'fx', o.id, F.fx.includes(o.id)));
+  }
+  const speedName: Record<number, string> = { 3: 'Good or faster', 4: 'Fast or faster', 5: 'Top speed' };
+  if (isDevice(sh)) out.push({ label: speedName[F.perf] ?? 'Speed', on: F.perf > 0, sub: 'speed' });
+  out.push({ label: F.max ? `Under £${F.max}` : 'Price', on: F.max > 0, sub: 'price' });
+  return out;
+}
+
+const holdEl = $('#hold');
+const filtersBtn = $<HTMLButtonElement>('#dockFilters');
+let holdTimer = 0;
+let dwellTimer = 0;
+let holding = false;
+let holdMoved = false;
+let holdStart = { x: 0, y: 0 };
+/** The finger that started the hold; any other pointer (a second finger, a mouse) is ignored. */
+let holdPointer = -1;
+let hot: HTMLElement | null = null;
+/** The tap that ends a hold must not also open the sheet. */
+let swallowTap = false;
+const entries = new WeakMap<HTMLElement, HoldEntry>();
+let mainPanel: HTMLElement | null = null;
+let subPanel: HTMLElement | null = null;
+let subParent: HTMLElement | null = null;
+/** Width of the main column while a side column is open. */
+const SPLIT_W = 152;
+
+const ICON_TICK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+const ICON_MORE = '<svg class="more" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>';
+
+const rowHtml = (e: HoldEntry, i: number): string =>
+  `<button type="button" class="hold-row${e.quiet ? ' quiet' : ''}" data-i="${i}" role="menuitem"${e.disabled ? ' disabled' : ''} aria-pressed="${e.on}"${e.sub ? ' aria-haspopup="menu"' : ''}>` +
+  `<span class="hold-tick">${e.quiet ? ICON_X : e.on ? ICON_TICK : ''}</span><span class="hold-label">${esc(e.label)}</span>` +
+  `${e.meta ? `<span class="hold-n">${esc(e.meta)}</span>` : ''}${e.sub ? ICON_MORE : ''}</button>`;
+
+function bindRows(panel: HTMLElement, list: HoldEntry[]): void {
+  for (const el of panel.querySelectorAll<HTMLElement>('.hold-row')) entries.set(el, list[Number(el.dataset.i)]);
+}
+
 function openHold(): void {
-  const list = quickList();
-  const reset = list.find((q) => q.act === 'reset');
-  // Most used nearest the thumb: the list reads upward from the button.
-  const rows = list.filter((q) => q.act !== 'reset').reverse();
+  const list = holdEntries().reverse();
+  const reset: HoldEntry | null = activeCount() ? { label: 'Clear all filters', on: false, quiet: true, run: () => act('reset', '') } : null;
+  const all = reset ? [reset, ...list] : list;
   const dock = $('.dock').getBoundingClientRect();
   const where = PRESETS.find((p) => p.id === F.preset)?.label ?? (F.q ? `“${F.q}”` : 'Results');
-  const row = (q: Quick): string => {
-    const n = countFor(q);
-    // A shortcut that would empty the list is shown but cannot be picked.
-    const none = n === 0 && !q.on;
-    return `<button type="button" class="hold-row"${none ? ' disabled' : ''} role="menuitemcheckbox" aria-checked="${q.on}" data-act="${q.act}" data-v="${esc(q.v)}" aria-pressed="${q.on}">
-      <span class="hold-tick">${q.on ? ICON_TICK : ''}</span><span class="hold-label">${esc(q.label)}</span>${n === null ? '' : `<span class="hold-n">${n.toLocaleString('en-GB')}</span>`}
-    </button>`;
-  };
-  holdEl.innerHTML = `<div class="hold-panel" role="menu" aria-label="Quick filters" style="right:${Math.round(window.innerWidth - dock.right)}px;bottom:${Math.round(window.innerHeight - dock.top + 10)}px">
+  holdEl.innerHTML = `<div class="hold-panel hold-main" role="menu" aria-label="Quick filters" style="right:${Math.round(window.innerWidth - dock.right)}px;bottom:${Math.round(window.innerHeight - dock.top + 10)}px">
     <p class="hold-head"><span>Quick filters</span><span>${esc(where)}</span></p>
-    ${reset ? `<button type="button" class="hold-row quiet" role="menuitem" data-act="reset" data-v=""><span class="hold-tick">${ICON_X}</span><span class="hold-label">Clear all filters</span></button><hr class="hold-sep">` : ''}
-    ${rows.map(row).join('')}
+    ${all.map((e, i) => rowHtml(e, i) + (e === reset ? '<hr class="hold-sep">' : '')).join('')}
   </div>`;
+  mainPanel = holdEl.querySelector<HTMLElement>('.hold-main');
+  if (mainPanel) bindRows(mainPanel, all);
   holdEl.hidden = false;
   document.body.classList.add('holding');
   store.set('holdUsed', true);
   $('#holdTip').hidden = true;
 }
 
+/** Open the column of choices behind a main row, to its left and level with it. */
+function openSub(parent: HTMLElement): void {
+  const e = entries.get(parent);
+  if (!e?.sub || !mainPanel || subParent === parent) return;
+  closeSub();
+  const m = menuFor(e.sub);
+  if (!m) return;
+  // Reversed so the first choice ("Any …") sits level with the row it came from and the most
+  // likely ones stack just above it.
+  const rows = m.list
+    .filter((i) => !i.sep)
+    .map((i): HoldEntry => ({ label: i.label, meta: i.meta, on: Boolean(i.on), quiet: i.quiet, disabled: i.meta === '0' && !i.on, run: () => m.pick(i.v) }))
+    .reverse();
+  mainPanel.classList.add('split');
+  parent.classList.add('open');
+  const mainLeft = window.innerWidth - parseFloat(mainPanel.style.right) - SPLIT_W;
+  const width = Math.min(250, mainLeft - 8 - 12);
+  const el = document.createElement('div');
+  el.className = 'hold-panel hold-sub';
+  el.setAttribute('role', 'menu');
+  el.setAttribute('aria-label', m.title);
+  el.innerHTML = `<p class="hold-head"><span>${esc(m.title)}</span></p>${rows.map(rowHtml).join('')}`;
+  el.style.width = `${Math.round(width)}px`;
+  el.style.left = `${Math.round(mainLeft - 8 - width)}px`;
+  el.style.bottom = `${Math.round(window.innerHeight - parent.getBoundingClientRect().bottom - 6)}px`;
+  holdEl.append(el);
+  if (el.getBoundingClientRect().top < 12) {
+    el.style.bottom = 'auto';
+    el.style.top = '12px';
+  }
+  bindRows(el, rows);
+  subPanel = el;
+  subParent = parent;
+  if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.(8);
+}
+
+function closeSub(): void {
+  window.clearTimeout(dwellTimer);
+  subPanel?.remove();
+  subPanel = null;
+  subParent?.classList.remove('open');
+  subParent = null;
+  mainPanel?.classList.remove('split');
+}
+
 function closeHold(): void {
+  closeSub();
   holdEl.hidden = true;
   holdEl.innerHTML = '';
   document.body.classList.remove('holding');
+  mainPanel = null;
   hot = null;
 }
 
@@ -1144,7 +1247,30 @@ function setHot(el: HTMLElement | null): void {
   hot?.classList.remove('hot');
   hot = el;
   hot?.classList.add('hot');
+  window.clearTimeout(dwellTimer);
+  // Resting on a row with more behind it opens its column, so a slow, careful thumb gets there too.
+  if (hot && hot !== subParent && mainPanel?.contains(hot) && entries.get(hot)?.sub) {
+    const row = hot;
+    dwellTimer = window.setTimeout(() => {
+      if (hot === row) openSub(row);
+    }, 320);
+  }
   if (hot && navigator.userActivation?.hasBeenActive) navigator.vibrate?.(8);
+}
+
+/** The enabled row nearest a height, if the finger is close enough to mean it. */
+function nearestRow(panel: HTMLElement, y: number): HTMLElement | null {
+  let best: HTMLElement | null = null;
+  let bestGap = Infinity;
+  for (const el of panel.querySelectorAll<HTMLElement>('.hold-row:not(:disabled)')) {
+    const b = el.getBoundingClientRect();
+    const gap = y < b.top ? b.top - y : y > b.bottom ? y - b.bottom : 0;
+    if (gap < bestGap) {
+      best = el;
+      bestGap = gap;
+    }
+  }
+  return bestGap <= 18 ? best : null;
 }
 
 /** Open the panel now, holding on to the finger so a slide keeps reporting here. */
@@ -1163,6 +1289,8 @@ function startHold(pointerId: number): void {
 
 filtersBtn.addEventListener('pointerdown', (ev) => {
   if (isHome() || F.mode) return;
+  if (holding) return;
+  holdPointer = ev.pointerId;
   holdStart = { x: ev.clientX, y: ev.clientY };
   holdMoved = false;
   window.clearTimeout(holdTimer);
@@ -1170,8 +1298,11 @@ filtersBtn.addEventListener('pointerdown', (ev) => {
 });
 
 filtersBtn.addEventListener('pointermove', (ev) => {
-  const dx = ev.clientX - holdStart.x;
-  const dy = ev.clientY - holdStart.y;
+  if (ev.pointerId !== holdPointer) return;
+  const x = ev.clientX;
+  const y = ev.clientY;
+  const dx = x - holdStart.x;
+  const dy = y - holdStart.y;
   const far = Math.hypot(dx, dy);
   if (!holding) {
     // A flick upward off the button is intent on its own: open at once, no waiting.
@@ -1184,48 +1315,78 @@ filtersBtn.addEventListener('pointermove', (ev) => {
     }
   }
   if (far > 16) holdMoved = true;
-  const panel = holdEl.querySelector<HTMLElement>('.hold-panel');
-  if (!panel || !holdMoved) return setHot(null);
-  const box = panel.getBoundingClientRect();
-  // Forgiving sideways: a thumb drifting a little past the panel's edge still counts.
-  if (ev.clientX < box.left - 40 || ev.clientY < box.top - 20) return setHot(null);
-  let best: HTMLElement | null = null;
-  let bestGap = Infinity;
-  for (const el of panel.querySelectorAll<HTMLElement>('.hold-row:not(:disabled)')) {
-    const b = el.getBoundingClientRect();
-    const gap = ev.clientY < b.top ? b.top - ev.clientY : ev.clientY > b.bottom ? ev.clientY - b.bottom : 0;
-    if (gap < bestGap) {
-      best = el;
-      bestGap = gap;
+  if (!mainPanel || !holdMoved) return setHot(null);
+  const box = mainPanel.getBoundingClientRect();
+  if (subPanel) {
+    // Left of the main column is the side column; back over the main column is the main list.
+    if (x < box.left - 2) {
+      const sb = subPanel.getBoundingClientRect();
+      return setHot(y >= sb.top - 30 && y <= sb.bottom + 30 ? nearestRow(subPanel, y) : null);
+    }
+    const row = nearestRow(mainPanel, y);
+    if (row !== subParent) closeSub();
+    return setHot(row);
+  }
+  // Nudging left off a row that has more opens its column straight away.
+  if (x < box.left - 12 && hot && mainPanel.contains(hot) && entries.get(hot)?.sub) {
+    const r = hot.getBoundingClientRect();
+    if (y >= r.top - 24 && y <= r.bottom + 24) {
+      openSub(hot);
+      return setHot(null);
     }
   }
-  // Below the last row is the dock: letting go there changes nothing.
-  setHot(bestGap <= 18 ? best : null);
+  if (x < box.left - 40 || y < box.top - 20) return setHot(null);
+  setHot(nearestRow(mainPanel, y));
 });
 
 const endHold = (cancelled: boolean): void => {
   window.clearTimeout(holdTimer);
+  window.clearTimeout(dwellTimer);
   if (!holding) return;
   holding = false;
   swallowTap = true;
   window.setTimeout(() => (swallowTap = false), 400);
   if (cancelled) return closeHold();
-  if (hot) {
-    const chosen = hot;
+  const chosen = hot ? entries.get(hot) : undefined;
+  if (chosen?.run) {
     closeHold();
-    // Same route as tapping a chip, so every shortcut behaves exactly like its filter.
-    document.body.append(chosen);
-    chosen.click();
-    chosen.remove();
-  } else if (holdMoved) closeHold();
+    chosen.run();
+    return;
+  }
+  if (hot && chosen?.sub) {
+    // Let go on a row that only opens more: show its column and leave both up to be tapped.
+    const row = hot;
+    setHot(null);
+    openSub(row);
+    return;
+  }
+  if (holdMoved) closeHold();
   // Held without sliding: the panel stays up to be tapped.
 };
-filtersBtn.addEventListener('pointerup', () => endHold(false));
-filtersBtn.addEventListener('pointercancel', () => endHold(true));
+filtersBtn.addEventListener('pointerup', (ev) => ev.pointerId === holdPointer && endHold(false));
+filtersBtn.addEventListener('pointercancel', (ev) => ev.pointerId === holdPointer && endHold(true));
 filtersBtn.addEventListener('contextmenu', (ev) => ev.preventDefault());
+
+// Tapping, once the panel is up: rows with more open their column, everything else applies.
 holdEl.addEventListener('click', (ev) => {
-  // A tapped shortcut is handled by the shared click handler first; then the menu goes.
-  if (ev.target === holdEl || (ev.target as HTMLElement).closest('.hold-item')) window.setTimeout(closeHold, 0);
+  const row = (ev.target as HTMLElement).closest<HTMLElement>('.hold-row');
+  if (!row) {
+    if (ev.target === holdEl) closeHold();
+    return;
+  }
+  ev.stopPropagation();
+  const e = entries.get(row);
+  if (!e) return;
+  if (e.sub && mainPanel?.contains(row)) {
+    if (subParent === row) closeSub();
+    else openSub(row);
+    return;
+  }
+  closeHold();
+  e.run?.();
+});
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape' && !holdEl.hidden) closeHold();
 });
 
 // The header steps aside while reading down a list and returns on the way back up.
@@ -1373,12 +1534,23 @@ const countText = (p: { n: number } | null): string | undefined => (p ? p.n.toLo
 const sortsFor = (sh: Shelf): [Sort, string][] =>
   SORTS.filter(([v]) => (v === 'life' ? isMobile(sh) : v === 'perf' || v === 'value' ? isDevice(sh) : true));
 
-/** The menus behind the picker chips. `key` is the chip's data-v. */
+interface MenuSpec {
+  title: string;
+  list: MenuItem[];
+  pick: (v: string) => void;
+}
+
+/** The menus behind the picker chips and the quick panel's side columns. */
 function openPicker(key: string, anchor: HTMLElement): void {
+  const spec = menuFor(key);
+  if (spec) openMenu(anchor, spec.title, spec.list, spec.pick);
+}
+
+function menuFor(key: string): MenuSpec | null {
   const sh = shelf();
   if (key === 'sort') {
     const list = sortsFor(sh).map(([v, l]): MenuItem => ({ v, label: l, on: F.sort === v }));
-    return openMenu(anchor, 'Sort by', list, (v) => apply({ sort: v as Sort }, true));
+    return { title: 'Sort by', list, pick: (v) => apply({ sort: v as Sort }, true) };
   }
   if (key === 'price') {
     const steps = [...BUDGET_STEPS[sh]];
@@ -1390,7 +1562,7 @@ function openPicker(key: string, anchor: HTMLElement): void {
       { v: '0', label: 'Any price', on: !F.max },
       ...steps.map((p): MenuItem => ({ v: String(p), label: `Under £${p}`, meta: counted(p), on: F.max === p })),
     ];
-    return openMenu(anchor, 'Price', list, (v) => apply({ max: Number(v) || 0 }, true));
+    return { title: 'Price', list, pick: (v) => apply({ max: Number(v) || 0 }, true) };
   }
   if (key === 'speed') {
     const list: MenuItem[] = [
@@ -1401,13 +1573,13 @@ function openPicker(key: string, anchor: HTMLElement): void {
         [5, 'Top speed only'],
       ] as [number, string][]).map(([t, l]): MenuItem => ({ v: String(t), label: l, meta: countText(preview({ perf: t })), on: F.perf === t })),
     ];
-    return openMenu(anchor, 'Speed', list, (v) => apply({ perf: Number(v) || 0 }));
+    return { title: 'Speed', list, pick: (v) => apply({ perf: Number(v) || 0 }) };
   }
   if (key.startsWith('brand:')) {
     const id = key.slice(6);
     const sys = systemOptions();
     const opt = sys.find((o) => o.id === id);
-    if (!opt) return;
+    if (!opt) return null;
     const others = F.fx.filter((x) => !sys.some((o) => o.id === x));
     const withSys = [...others, id];
     const on = F.fx.includes(id);
@@ -1418,7 +1590,7 @@ function openPicker(key: string, anchor: HTMLElement): void {
       .sort((x, y) => (y.p?.n ?? 0) - (x.p?.n ?? 0) || x.b.localeCompare(y.b));
     const any = preview({ fx: withSys, brands: [] });
     const list: MenuItem[] = [
-      { v: '*', label: `Any ${opt.label} brand`, meta: countText(any), on: on && !F.brands.length },
+      { v: '*', label: 'Any brand', meta: countText(any), on: on && !F.brands.length },
       { v: '', label: '', sep: true },
       ...makers.map(({ b, p }): MenuItem => ({
         v: b,
@@ -1428,11 +1600,29 @@ function openPicker(key: string, anchor: HTMLElement): void {
       })),
     ];
     if (on) list.push({ v: '', label: '', sep: true }, { v: 'off', label: `Show all ${PRESETS.find((p) => p.id === F.preset)?.label.toLowerCase() ?? 'items'}`, quiet: true });
-    return openMenu(anchor, `${opt.label} brand`, list, (v) => {
-      if (v === 'off') apply({ fx: others, brands: [] });
-      else apply({ fx: withSys, brands: v === '*' ? [] : [v] });
-    });
+    return {
+      title: `${opt.label} brand`,
+      list,
+      pick: (v) => {
+        if (v === 'off') apply({ fx: others, brands: [] });
+        else apply({ fx: withSys, brands: v === '*' ? [] : [v] });
+      },
+    };
   }
+  if (key.startsWith('group:')) {
+    const g = facetGroups().find((x) => x.name === key.slice(6));
+    if (!g) return null;
+    const others = F.fx.filter((id) => !g.options.some((o) => o.id === id));
+    const server = g.options.some((o) => o.server);
+    const list: MenuItem[] = [
+      { v: '*', label: `Any ${g.name.toLowerCase()}`, on: !g.options.some((o) => F.fx.includes(o.id)) },
+      ...g.options
+        .map((o): MenuItem => ({ v: o.id, label: o.label, meta: o.server ? undefined : countText(preview({ fx: [...others, o.id] })), on: F.fx.includes(o.id) }))
+        .filter((i) => i.on || i.meta !== '0'),
+    ];
+    return { title: g.name, list, pick: (v) => apply({ fx: v === '*' ? others : [...others, v] }, server) };
+  }
+  return null;
 }
 
 // ------------------------------------------------------------------ actions

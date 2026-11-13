@@ -2163,3 +2163,97 @@ body:has(main input:focus) .dock {
 .summary {
   margin-top: 12px;
 }
+
+
+/* ---------------------------------------------------------------- quick panel: side column */
+
+.hold-row {
+  display: flex;
+  gap: 10px;
+}
+
+.hold-tick {
+  flex: none;
+}
+
+.hold-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.hold-row .more {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.2;
+  color: var(--muted);
+}
+
+/* The row whose column is open stays lit, so it is clear what the column belongs to. */
+.hold-row.open {
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+}
+
+.hold-row.open .more {
+  color: var(--accent);
+}
+
+.hold-main {
+  transition: width 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hold-main.split {
+  width: 152px;
+}
+
+.hold-main.split .hold-n,
+.hold-main.split .hold-head span:last-child {
+  display: none;
+}
+
+.hold-main.split .hold-row {
+  padding-right: 10px;
+  font-size: 15px;
+}
+
+.hold-sub {
+  transform-origin: 100% 100%;
+  animation: sub-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hold-sub .hold-row {
+  min-height: 46px;
+  font-size: 15px;
+}
+
+.hold-sub .hold-n {
+  font-size: 12.5px;
+}
+
+@keyframes sub-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px) scale(0.97);
+  }
+}
+
+/* Side column rows put the detail under the name, so names stay whole in a narrow column. */
+.hold-sub .hold-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 8px;
+  row-gap: 1px;
+  padding: 5px 10px 5px 8px;
+}
+
+.hold-sub .hold-tick {
+  grid-row: 1 / 3;
+}
+
+.hold-sub .hold-n {
+  grid-column: 2;
+  font-size: 12.5px;
+  line-height: 1.2;
+}
