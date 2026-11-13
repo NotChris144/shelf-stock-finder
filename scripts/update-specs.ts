@@ -261,6 +261,23 @@ function readSheet(html: string, id: number): Sheet | null {
   if (os[0]) s.os = os[0];
   const upTo = os.find((o) => /^upgradable to/i.test(o))?.replace(/^upgradable to\s*/i, '');
   if (upTo) s.up = upTo;
+
+  // GSMArena's own lab results, on the models it has reviewed.
+  const page = text(html);
+  const active = page.match(/Active use score (\d+):(\d+)h/);
+  if (active) s.act = Number(active[1]) * 60 + Number(active[2]);
+  const endurance = num(page, /Endurance rating (\d+)h/);
+  if (endurance) s.end = endurance;
+  const nits = num(page, /(\d{3,4}) nits max brightness \(measured\)/);
+  if (nits) s.nits = nits;
+  const lufs = page.match(/(-\d+(?:\.\d+)?) LUFS/);
+  if (lufs) s.lufs = Number(lufs[1]);
+  // "GeekBench: 5833 (v5), 6747 (v6)": versions do not compare with each other, so each is kept apart.
+  const bench = (r.get('tbench') ?? '').match(/GeekBench:([^|]*)/)?.[1] ?? '';
+  for (const [, score, version] of bench.matchAll(/(\d{3,6}) \(v([\d.]+)\)/g)) {
+    if (version === '6') s.gb6 = Number(score);
+    else if (version.startsWith('5')) s.gb5 = Number(score);
+  }
   return s;
 }
 

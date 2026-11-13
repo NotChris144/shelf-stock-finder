@@ -46,7 +46,12 @@
    "jack": 1,
    "wt": 189,
    "usbc": 1,
-   "os": "Android 14"
+   "os": "Android 14",
+   "act": 830,
+   "nits": 564,
+   "lufs": -27.7,
+   "gb5": 1273,
+   "gb6": 1276
   },
   "samsung|galaxya07": {
    "n": "Samsung Galaxy A07 4G",
@@ -72,7 +77,11 @@
    "jack": 1,
    "wt": 184,
    "usbc": 1,
-   "os": "Android 15"
+   "os": "Android 15",
+   "act": 764,
+   "nits": 468,
+   "lufs": -27.5,
+   "gb6": 1941
   },
   "samsung|galaxya11": {
    "n": "Samsung Galaxy A11",
@@ -126,7 +135,11 @@
    "wt": 205,
    "usbc": 1,
    "os": "Android 10",
-   "up": "Android 12"
+   "up": "Android 12",
+   "end": 123,
+   "nits": 472,
+   "lufs": -30.4,
+   "gb5": 1034
   },
   "samsung|galaxya13": {
    "n": "Samsung Galaxy A13",
@@ -153,7 +166,11 @@
    "wt": 195,
    "usbc": 1,
    "os": "Android 12",
-   "up": "Android 14"
+   "up": "Android 14",
+   "end": 114,
+   "nits": 587,
+   "lufs": -29.7,
+   "gb5": 588
   },
   "samsung|galaxya14": {
    "n": "Samsung Galaxy A14",
@@ -207,7 +224,11 @@
    "nfc": 1,
    "wt": 200,
    "usbc": 1,
-   "os": "Android 14"
+   "os": "Android 14",
+   "act": 883,
+   "nits": 808,
+   "lufs": -25.2,
+   "gb6": 1920
   },
   "samsung|galaxya17": {
    "n": "Samsung Galaxy A17 4G",
@@ -259,7 +280,11 @@
    "nfc": 1,
    "wt": 196,
    "usbc": 1,
-   "os": "Android 17"
+   "os": "Android 17",
+   "act": 790,
+   "nits": 775,
+   "lufs": -25.8,
+   "gb6": 2144
   },
   "samsung|galaxya20e": {
    "n": "Samsung Galaxy A20e",
@@ -312,7 +337,11 @@
    "wt": 192,
    "usbc": 1,
    "os": "Android 10",
-   "up": "Android 12"
+   "up": "Android 12",
+   "end": 119,
+   "nits": 490,
+   "lufs": -30,
+   "gb5": 1100
   },
   "samsung|galaxya25": {
    "n": "Samsung Galaxy A25",
@@ -340,7 +369,12 @@
    "nfc": 1,
    "wt": 197,
    "usbc": 1,
-   "os": "Android 14"
+   "os": "Android 14",
+   "act": 619,
+   "nits": 1030,
+   "lufs": -26,
+   "gb5": 2023,
+   "gb6": 2098
   },
   "samsung|galaxya35": {
    "n": "Samsung Galaxy A35",
@@ -369,7 +403,12 @@
    "nfc": 1,
    "wt": 209,
    "usbc": 1,
-   "os": "Android 14"
+   "os": "Android 14",
+   "act": 746,
+   "nits": 1024,
+   "lufs": -26.1,
+   "gb5": 2740,
+   "gb6": 2931
   },
   "samsung|galaxys20fe": {
    "n": "Samsung Galaxy S20 FE",
@@ -425,7 +464,11 @@
    "nfc": 1,
    "wt": 167,
    "usbc": 1,
-   "os": "Android 12"
+   "os": "Android 12",
+   "end": 85,
+   "nits": 982,
+   "lufs": -26.4,
+   "gb5": 3682
   },
   "samsung|galaxys23": {
    "n": "Samsung Galaxy S23",
@@ -452,7 +495,12 @@
    "nfc": 1,
    "wt": 168,
    "usbc": 1,
-   "os": "Android 13"
+   "os": "Android 13",
+   "act": 687,
+   "end": 101,
+   "nits": 1198,
+   "lufs": -27,
+   "gb5": 4950
   },
   "samsung|galaxys23ultra": {
    "n": "Samsung Galaxy S23 Ultra",
@@ -481,7 +529,12 @@
    "wt": 234,
    "usbc": 1,
    "os": "Android 13",
-   "up": "Android 17"
+   "up": "Android 17",
+   "act": 804,
+   "end": 126,
+   "nits": 1274,
+   "lufs": -25.6,
+   "gb5": 4927
   },
   "samsung|galaxys24": {
    "n": "Samsung Galaxy S24",
@@ -510,7 +563,12 @@
    "wt": 167,
    "usbc": 1,
    "os": "Android 14",
-   "up": "Android 17"
+   "up": "Android 17",
+   "act": 726,
+   "nits": 1401,
+   "lufs": -25.2,
+   "gb5": 5833,
+   "gb6": 6747
   },
   "samsung|galaxys24ultra": {
    "n": "Samsung Galaxy S24 Ultra",
@@ -538,7 +596,11 @@
    "wt": 232,
    "usbc": 1,
    "os": "Android 14",
-   "up": "Android 17"
+   "up": "Android 17",
+   "act": 829,
+   "nits": 1447,
+   "lufs": -24.6,
+   "gb6": 7076
   },
   "samsung|galaxys25": {
    "n": "Samsung Galaxy S25",
@@ -566,7 +628,11 @@
    "wt": 162,
    "usbc": 1,
    "os": "Android 15",
-   "up": "Android 17"
+   "up": "Android 17",
+   "act": 789,
+   "nits": 1395,
+   "lufs": -26.1,
+   "gb6": 10050
   },
   "samsung|galaxys25ultra": {
    "n": "Samsung Galaxy S25 Ultra",
@@ -595,7 +661,11 @@
    "wt": 218,
    "usbc": 1,
    "os": "Android 15",
-   "up": "Android 17"
+   "up": "Android 17",
+   "act": 889,
+   "nits": 1417,
+   "lufs": -24.6,
+   "gb6": 9846
   },
   "samsung|galaxys26": {
    "n": "Samsung Galaxy S26",
@@ -623,7 +693,11 @@
    "wt": 167,
    "usbc": 1,
    "os": "Android 16",
-   "up": "Android 17"
+   "up": "Android 17",
+   "act": 920,
+   "nits": 1383,
+   "lufs": -26.7,
+   "gb6": 10824
   },
   "samsung|galaxys26fe": {
    "n": "Samsung Galaxy S26 FE",
@@ -650,7 +724,11 @@
    "nfc": 1,
    "wt": 193,
    "usbc": 1,
-   "os": "Android 17"
+   "os": "Android 17",
+   "act": 889,
+   "nits": 1268,
+   "lufs": -26.6,
+   "gb6": 8035
   },
   "samsung|galaxys26ultra": {
    "n": "Samsung Galaxy S26 Ultra",
@@ -679,7 +757,11 @@
    "wt": 214,
    "usbc": 1,
    "os": "Android 16",
-   "up": "Android 17"
+   "up": "Android 17",
+   "act": 983,
+   "nits": 1480,
+   "lufs": -25.9,
+   "gb6": 11566
   },
   "samsung|galaxyzflip6": {
    "n": "Samsung Galaxy Z Flip6",
@@ -706,7 +788,11 @@
    "wt": 187,
    "usbc": 1,
    "os": "Android 14",
-   "up": "Android 17"
+   "up": "Android 17",
+   "act": 635,
+   "nits": 1475,
+   "lufs": -26.3,
+   "gb6": 6265
   },
   "samsung|galaxyzfold7": {
    "n": "Samsung Galaxy Z Fold7",
@@ -735,7 +821,11 @@
    "wt": 215,
    "usbc": 1,
    "os": "Android 16",
-   "up": "Android 17"
+   "up": "Android 17",
+   "act": 704,
+   "nits": 1408,
+   "lufs": -28,
+   "gb6": 9152
   }
  }
 }

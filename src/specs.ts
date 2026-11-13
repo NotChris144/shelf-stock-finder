@@ -45,6 +45,18 @@ export interface Sheet {
   /** System it launched with, and the newest it has been upgraded to. */
   os?: string;
   up?: string;
+  // Measured by GSMArena on the models it has reviewed; absent where it has not tested.
+  /** Battery test, minutes of active use (the test used since 2023). */
+  act?: number;
+  /** Battery test, endurance rating in hours (the older test). The two do not compare. */
+  end?: number;
+  /** Brightest the screen went, in nits. */
+  nits?: number;
+  /** Loudspeaker volume in LUFS; nearer zero is louder. */
+  lufs?: number;
+  /** Geekbench multi-core score, by version. Versions do not compare with each other. */
+  gb6?: number;
+  gb5?: number;
 }
 
 export interface SheetFile {

@@ -3,7 +3,7 @@
 // Every reason produced here is a fact that is true of both items. If nothing concrete is better,
 // no step up is offered — the screen is shown to customers, so it has to hold up when read.
 
-import { norm, stripNet } from './eol.ts';
+import { norm } from './eol.ts';
 import { cameraText, waterTight } from './specs.ts';
 import type { Item } from './types.ts';
 
@@ -20,11 +20,24 @@ export interface Product {
   score: number;
 }
 
+/** What a difference between two phones is about. */
+export type Aspect = 'updates' | 'speed' | 'storage' | 'camera' | 'battery' | 'charging' | 'screen' | 'network' | 'tough' | 'ports' | 'sound' | 'condition' | 'newer' | 'size';
+
+/** One difference, with how much it should count towards choosing: 0 (barely) to 1 (decisive). */
+export interface Point {
+  aspect: Aspect;
+  text: string;
+  w: number;
+}
+
 export interface Diff {
   /** What `to` does better than `from`, most persuasive first. */
   gains: string[];
   /** What it gives up. */
   losses: string[];
+  /** The same, with the weight behind each line. */
+  up: Point[];
+  down: Point[];
 }
 
 const GRADE: Record<string, number> = { A: 1, B: 0.65, C: 0.25 };
@@ -91,172 +104,310 @@ const num = (n: number): string => n.toLocaleString('en-GB');
 const yearOf = (t: number): number => new Date(t).getUTCFullYear();
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-/** Facts that separate two items, phrased from the point of view of moving from `from` to `to`. */
-export function diff(from: Item, to: Item): Diff {
-  const gains: string[] = [];
-  const losses: string[] = [];
+const hm = (minutes: number): string => `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`;
+/** 0.37 -> "35%" */
+const pct5 = (x: number): string => `${Math.max(5, Math.round((x * 100) / 5) * 5)}%`;
+const cap = (s: string): string => s.replace(/^./, (ch) => ch.toUpperCase());
+
+/** How far a ratio above 1 should count: 1.15 a little, 2 a lot, 3 and over fully. */
+const byRatio = (r: number): number => clamp(Math.log2(r) / 1.6, 0.12, 1);
+
+/**
+ * Facts that separate two items, phrased from the point of view of moving from `from` to `to`.
+ * Where GSMArena has tested both phones the measured result is used; otherwise the spec sheet.
+ * `focus` is what this customer cares about most: it leads the list.
+ */
+export function diff(from: Item, to: Item, focus?: Aspect): Diff {
+  const up: Point[] = [];
+  const down: Point[] = [];
+  const gain = (aspect: Aspect, w: number, text: string): void => void up.push({ aspect, w, text });
+  const lose = (aspect: Aspect, w: number, text: string): void => void down.push({ aspect, w, text });
   const a = from.support;
   const b = to.support;
   const live = getsUpdates;
 
   if (live(b) && a.status === 'ended') {
-    gains.push(`Still gets software updates${b.until ? ` until ${b.est ? 'about ' : ''}${yearOf(b.until)}` : ''}; the ${from.title} no longer does`);
+    gain('updates', 1, `Still gets software updates${b.until ? ` until ${b.est ? 'about ' : ''}${yearOf(b.until)}` : ''}; the ${from.title} no longer does`);
   } else if (live(b) && (a.status === 'unknown' || a.stale)) {
-    gains.push(`Software updates confirmed${b.until ? ` until ${b.est ? 'about ' : ''}${yearOf(b.until)}` : ''}; not confirmed for the ${from.title}`);
+    gain('updates', 0.55, `Software updates confirmed${b.until ? ` until ${b.est ? 'about ' : ''}${yearOf(b.until)}` : ''}; not confirmed for the ${from.title}`);
   } else if (live(a) && (b.status === 'ended' || b.stale)) {
-    losses.push('No longer gets software updates');
+    lose('updates', 1, 'No longer gets software updates');
+  } else if (a.status === 'unknown' && b.status === 'ended') {
+    lose('updates', 0.5, 'No longer gets software updates');
+  } else if (live(a) && b.status === 'unknown') {
+    lose('updates', 0.5, 'Software updates are not confirmed for it');
   } else if (live(a) && live(b) && a.until && b.until) {
     // Counted from the two years printed beside it, so the reader's own subtraction agrees.
     const years = yearOf(b.until) - yearOf(a.until);
-    const approx = a.est || b.est ? 'about ' : '';
-    if (years >= 1) gains.push(`${approx.replace(/^a/, 'A')}${plural(years, 'more year')} of updates (to ${yearOf(b.until)} instead of ${yearOf(a.until)})`);
-    else if (years <= -1) losses.push(`${approx.replace(/^a/, 'A')}${plural(-years, 'fewer year')} of updates (to ${yearOf(b.until)})`);
+    const approx = a.est || b.est ? 'About ' : '';
+    if (years >= 1) gain('updates', clamp(0.2 + 0.2 * years, 0, 0.9), `${approx}${plural(years, 'more year')} of updates (to ${yearOf(b.until)} instead of ${yearOf(a.until)})`);
+    else if (years <= -1) lose('updates', clamp(0.2 + 0.2 * -years, 0, 0.9), `${approx}${plural(-years, 'fewer year')} of updates (to ${yearOf(b.until)})`);
   }
 
-  if (from.perf && to.perf) {
-    const r = to.perf.score / from.perf.score;
-    if (r >= 2.7) gains.push(`About ${Math.round(r)} times as fast`);
-    else if (r >= 1.8) gains.push('About twice as fast');
-    else if (r >= 1.15) gains.push(`About ${Math.round(((r - 1) * 100) / 5) * 5}% faster`);
-    else if (r <= 0.87) losses.push(`Slower (about ${Math.round(((1 - r) * 100) / 5) * 5}% less speed)`);
+  const sa = from.specs?.sheet;
+  const sb = to.specs?.sheet;
+
+  // Speed: the same benchmark run on both phones beats an estimate from the chip.
+  const tested = sa?.gb6 && sb?.gb6 ? sb.gb6 / sa.gb6 : sa?.gb5 && sb?.gb5 ? sb.gb5 / sa.gb5 : 0;
+  const speed = tested || (from.perf && to.perf ? to.perf.score / from.perf.score : 0);
+  if (speed) {
+    const how = tested ? " in GSMArena's speed test" : '';
+    if (speed >= 2.7) gain('speed', byRatio(speed), `About ${Math.round(speed)} times as fast${how}`);
+    else if (speed >= 1.8) gain('speed', byRatio(speed), `About twice as fast${how}`);
+    else if (speed >= 1.15) gain('speed', byRatio(speed), `About ${pct5(speed - 1)} faster${how}`);
+    else if (speed <= 0.87) lose('speed', byRatio(1 / speed), `Slower${how} (about ${pct5(1 - speed)} less speed)`);
   }
 
   if (from.storageGb && to.storageGb && from.storageGb !== to.storageGb) {
     const r = to.storageGb / from.storageGb;
-    if (r > 1) gains.push(`${r === 2 ? 'Double the storage' : Number.isInteger(r) ? `${r} times the storage` : 'More storage'}: ${gb(to.storageGb)} instead of ${gb(from.storageGb)}`);
-    else losses.push(`Less storage: ${gb(to.storageGb)} instead of ${gb(from.storageGb)}`);
+    const w = clamp(0.3 + 0.25 * Math.abs(Math.log2(r)));
+    if (r > 1) gain('storage', w, `${r === 2 ? 'Double the storage' : Number.isInteger(r) ? `${r} times the storage` : 'More storage'}: ${gb(to.storageGb)} instead of ${gb(from.storageGb)}`);
+    else lose('storage', w, `Less storage: ${gb(to.storageGb)} instead of ${gb(from.storageGb)}`);
   }
 
   const ca = from.specs;
   const cb = to.specs;
   if (ca && cb) {
-    const cam: string[] = [];
-    if (cb.mp >= ca.mp * 2) cam.push(`${cb.mp}MP main camera, up from ${ca.mp}MP`);
-    if (cb.ultrawide && !ca.ultrawide) cam.push('adds an ultra-wide camera');
-    if (cb.zoom && !ca.zoom) cam.push(`adds a ${cb.zoom}× zoom camera`);
-    else if (cb.zoom >= ca.zoom + 1 && ca.zoom) cam.push(`longer zoom (${cb.zoom}× instead of ${ca.zoom}×)`);
-    if (cam.length) gains.push(cam.join(', ').replace(/^./, (c) => c.toUpperCase()));
-    const lost: string[] = [];
-    if (ca.ultrawide && !cb.ultrawide) lost.push('no ultra-wide camera');
-    if (ca.zoom && !cb.zoom) lost.push('no zoom camera');
-    if (lost.length) losses.push(lost.join(', ').replace(/^./, (c) => c.toUpperCase()));
-
-    // Battery size only compares fairly within one platform: iPhones do more with fewer mAh.
-    if (ca.mah && cb.mah && (from.os === 'iOS') === (to.os === 'iOS')) {
-      const r = cb.mah / ca.mah;
-      if (r >= 1.12) gains.push(`Bigger battery: ${num(cb.mah)} mAh instead of ${num(ca.mah)} (when new)`);
-      else if (r <= 0.88) losses.push(`Smaller battery: ${num(cb.mah)} mAh instead of ${num(ca.mah)} (when new)`);
+    if (from.kind === 'phone' && to.kind === 'phone') {
+      const cam: string[] = [];
+      let w = 0;
+      if (cb.mp >= ca.mp * 2) (cam.push(`${cb.mp}MP main camera, up from ${ca.mp}MP`), (w += 0.25));
+      if (cb.ultrawide && !ca.ultrawide) (cam.push('adds an ultra-wide camera'), (w += 0.3));
+      if (cb.zoom && !ca.zoom) (cam.push(`adds a ${cb.zoom}× zoom camera`), (w += 0.4));
+      else if (cb.zoom >= ca.zoom + 1 && ca.zoom) (cam.push(`longer zoom (${cb.zoom}× instead of ${ca.zoom}×)`), (w += 0.2));
+      if (cam.length) gain('camera', Math.min(0.9, w), cap(cam.join(', ')));
+      const lost: string[] = [];
+      let lw = 0;
+      if (ca.ultrawide && !cb.ultrawide) (lost.push('no ultra-wide camera'), (lw += 0.3));
+      if (ca.zoom && !cb.zoom) (lost.push('no zoom camera'), (lw += 0.35));
+      else if (cb.zoom && cb.zoom <= ca.zoom - 1) (lost.push(`shorter zoom (${cb.zoom}× instead of ${ca.zoom}×)`), (lw += 0.2));
+      if (cb.mp * 2 <= ca.mp) (lost.push(`${cb.mp}MP main camera, down from ${ca.mp}MP`), (lw += 0.2));
+      if (lost.length) lose('camera', lw, cap(lost.join(', ')));
     }
-    if (cb.year - ca.year >= 1) gains.push(`${plural(cb.year - ca.year, 'year')} newer model (${cb.year})`);
+
+    // Battery: hours in the same test, where both were tested. Failing that, capacity, which
+    // only compares fairly within one platform: iPhones do more with fewer mAh.
+    if (sa?.act && sb?.act) {
+      const hours = (sb.act - sa.act) / 60;
+      if (hours >= 1) gain('battery', clamp(0.2 + hours * 0.15), `Lasts longer: ${hm(sb.act)} of active use in GSMArena's battery test, against ${hm(sa.act)}`);
+      else if (hours <= -1) lose('battery', clamp(0.2 + -hours * 0.15), `Shorter battery life: ${hm(sb.act)} of active use in GSMArena's test, against ${hm(sa.act)}`);
+    } else if (sa?.end && sb?.end) {
+      const r = sb.end / sa.end;
+      if (r >= 1.15) gain('battery', clamp(0.2 + (r - 1) * 1.2), `Lasts longer: endurance rating of ${sb.end}h in GSMArena's battery test, against ${sa.end}h`);
+      else if (r <= 0.87) lose('battery', clamp(0.2 + (1 / r - 1) * 1.2), `Shorter battery life: endurance rating of ${sb.end}h in GSMArena's test, against ${sa.end}h`);
+    } else if (ca.mah && cb.mah && (from.os === 'iOS') === (to.os === 'iOS')) {
+      const r = cb.mah / ca.mah;
+      if (r >= 1.12) gain('battery', clamp(0.15 + (r - 1)), `Bigger battery: ${num(cb.mah)} mAh instead of ${num(ca.mah)} (when new)`);
+      else if (r <= 0.88) lose('battery', clamp(0.15 + (1 / r - 1)), `Smaller battery: ${num(cb.mah)} mAh instead of ${num(ca.mah)} (when new)`);
+    }
+    if (cb.year - ca.year >= 1) gain('newer', clamp(0.1 * (cb.year - ca.year), 0, 0.5), `${plural(cb.year - ca.year, 'year')} newer model (${cb.year})`);
+    else if (ca.year - cb.year >= 1) lose('newer', clamp(0.08 * (ca.year - cb.year), 0, 0.4), `${plural(ca.year - cb.year, 'year')} older model (${cb.year})`);
   }
 
   // Features are only compared when both have a full spec sheet, so "has" and "has not" are both known.
-  const sa = ca?.sheet;
-  const sb = cb?.sheet;
   if (sa && sb) {
-    if (sb.g5 && !sa.g5) gains.push(`Has 5G; the ${from.title} is 4G only`);
-    else if (sa.g5 && !sb.g5) losses.push('4G only, no 5G');
+    if (sb.g5 && !sa.g5) gain('network', 0.45, `Has 5G; the ${from.title} is 4G only`);
+    else if (sa.g5 && !sb.g5) lose('network', 0.45, '4G only, no 5G');
 
     const screen: string[] = [];
-    if (sb.pan === 'OLED' && sa.pan === 'LCD') screen.push('OLED instead of LCD (deeper blacks, richer colour)');
-    if ((sb.hz ?? 60) >= 90 && (sa.hz ?? 60) < 90) screen.push(`smoother ${sb.hz}Hz scrolling`);
-    if (screen.length) gains.push(`Better screen: ${screen.join(', ')}`);
-    else if (sa.pan === 'OLED' && sb.pan === 'LCD') losses.push('LCD screen instead of OLED');
+    let w = 0;
+    if (sb.pan === 'OLED' && sa.pan === 'LCD') (screen.push('OLED instead of LCD (deeper blacks, richer colour)'), (w += 0.4));
+    if ((sb.hz ?? 60) >= 90 && (sa.hz ?? 60) < 90) (screen.push(`smoother ${sb.hz}Hz scrolling`), (w += 0.3));
+    if (sa.nits && sb.nits && sb.nits >= sa.nits * 1.3) (screen.push(`brighter outdoors (${num(sb.nits)} nits measured, against ${num(sa.nits)})`), (w += 0.25));
+    if (screen.length) gain('screen', Math.min(0.9, w), `Better screen: ${screen.join(', ')}`);
+    const worse: string[] = [];
+    let lw = 0;
+    if (sa.pan === 'OLED' && sb.pan === 'LCD') (worse.push('LCD instead of OLED'), (lw += 0.4));
+    if ((sa.hz ?? 60) >= 90 && (sb.hz ?? 60) < 90) (worse.push(`${sb.hz ?? 60}Hz instead of ${sa.hz}Hz`), (lw += 0.25));
+    if (worse.length) lose('screen', lw, `Plainer screen: ${worse.join(', ')}`);
 
     const power: string[] = [];
-    if (sa.w && sb.w && sb.w >= sa.w * 1.5) power.push(`faster charging (${sb.w}W instead of ${sa.w}W)`);
-    if (sb.wl !== undefined && sa.wl === undefined) power.push('wireless charging');
-    if (power.length) gains.push(power.join(', ').replace(/^./, (c) => c.toUpperCase()));
-    else if (sa.wl !== undefined && sb.wl === undefined) losses.push('No wireless charging');
+    let pw = 0;
+    if (sa.w && sb.w && sb.w >= sa.w * 1.5) (power.push(`faster charging (${sb.w}W instead of ${sa.w}W)`), (pw += 0.25));
+    if (sb.wl !== undefined && sa.wl === undefined) (power.push('wireless charging'), (pw += 0.2));
+    if (power.length) gain('charging', pw, cap(power.join(', ')));
+    else if (sa.wl !== undefined && sb.wl === undefined) lose('charging', 0.15, 'No wireless charging');
 
-    if (waterTight(sb) && !waterTight(sa)) gains.push(`Water resistant (${sb.ip})`);
-    else if (waterTight(sa) && !waterTight(sb)) losses.push('Not water resistant');
+    if (waterTight(sb) && !waterTight(sa)) gain('tough', 0.35, `Water resistant (${sb.ip})`);
+    else if (waterTight(sa) && !waterTight(sb)) lose('tough', 0.3, 'Not water resistant');
 
     const gone: string[] = [];
-    if (sa.sd && !sb.sd) gone.push('no memory card slot');
-    if (sa.jack && !sb.jack) gone.push('no headphone socket');
-    if (gone.length) losses.push(gone.join(', ').replace(/^./, (c) => c.toUpperCase()));
+    let gw = 0;
+    if (sa.sd && !sb.sd) (gone.push('no memory card slot'), (gw += 0.25));
+    if (sa.jack && !sb.jack) (gone.push('no headphone socket'), (gw += 0.2));
+    if (gone.length) lose('ports', gw, cap(gone.join(', ')));
+
+    // LUFS: nearer zero is louder; 3 is a difference you can hear across a room.
+    if (sa.lufs && sb.lufs && sb.lufs - sa.lufs >= 3) gain('sound', 0.15, "Louder speaker in GSMArena's test");
   }
 
   const ga = GRADE[from.grade];
   const gbb = GRADE[to.grade];
   if (ga !== undefined && gbb !== undefined && ga !== gbb) {
-    if (gbb > ga) gains.push(`Better condition: grade ${to.grade} instead of ${from.grade}`);
-    else losses.push(`More signs of wear: grade ${to.grade} instead of ${from.grade}`);
+    const w = clamp(Math.abs(gbb - ga) * 0.85, 0.3, 0.65);
+    if (gbb > ga) gain('condition', w, `Better condition: grade ${to.grade} instead of ${from.grade}`);
+    else lose('condition', w, `More signs of wear: grade ${to.grade} instead of ${from.grade}`);
   }
-  // The difference a customer sees first when the two are side by side.
+  // The difference a customer sees first when the two are side by side. It is a matter of taste,
+  // so it is stated but never the reason an option is chosen.
   if (from.screen && to.screen && Math.abs(to.screen - from.screen) >= (from.kind === 'tablet' ? 0.9 : 0.4)) {
-    (to.screen > from.screen ? gains : losses).push(`${to.screen > from.screen ? 'Bigger' : 'Smaller'} screen: ${to.screen}″ instead of ${from.screen}″`);
+    if (to.screen > from.screen) gain('size', 0.12, `Bigger screen: ${to.screen}″ instead of ${from.screen}″`);
+    else lose('size', 0.12, `Smaller screen: ${to.screen}″ instead of ${from.screen}″`);
   }
-  return { gains, losses };
+  return order({ up, down, gains: [], losses: [] }, focus);
+}
+
+/** Most persuasive first, with what this customer cares about ahead of everything else. */
+function order(d: Diff, focus?: Aspect): Diff {
+  const rank = (p: Point): number => p.w + (p.aspect === focus ? 2 : 0);
+  d.up.sort((x, y) => rank(y) - rank(x));
+  d.down.sort((x, y) => rank(y) - rank(x));
+  d.gains = d.up.map((p) => p.text);
+  d.losses = d.down.map((p) => p.text);
+  return d;
 }
 
 /**
- * Compare two products by their cheapest variants, without claiming a condition difference the
- * shelf contradicts: if the first also comes in the second's grade, grade is not a reason.
+ * Compare two products by their cheapest variants. Better condition is not claimed as a reason
+ * when the first also comes in the second's grade. Worse condition is always stated, because the
+ * price shown is for that copy.
  */
-export function diffProducts(from: Product, to: Product): Diff {
-  const d = diff(from.head, to.head);
+export function diffProducts(from: Product, to: Product, focus?: Aspect): Diff {
+  const d = diff(from.head, to.head, focus);
   const has = (p: Product, grade: string): boolean => p.items.some((v) => (GRADE[v.grade] ?? 0) >= (GRADE[grade] ?? 0));
-  return {
-    gains: has(from, to.head.grade) ? d.gains.filter((g) => !g.startsWith('Better condition')) : d.gains,
-    losses: has(to, from.head.grade) ? d.losses.filter((l) => !l.startsWith('More signs of wear')) : d.losses,
-  };
+  if (has(from, to.head.grade)) d.up = d.up.filter((p) => p.aspect !== 'condition');
+  return order(d, focus);
+}
+
+/** How much better on balance a different phone has to be before it is worth a customer's time. */
+const CLEAR = 0.45;
+
+/** What is given up counts for more than what is gained: nobody thanks you for a trade-off they did not expect. */
+const LOSS = 1.6;
+
+/**
+ * How much better `d` makes things overall: the weights of what is gained less what is lost.
+ * Above about 0.3 is worth a customer's attention; above 1 is a different class of phone.
+ */
+export function uplift(d: Diff, focus?: Aspect): number {
+  const f = (p: Point): number => p.w * (p.aspect === focus ? 3 : 1);
+  return d.up.reduce((n, p) => n + f(p), 0) - LOSS * d.down.reduce((n, p) => n + f(p), 0);
 }
 
 const family = (it: Item): string => `${it.kind}|${it.brand.toLowerCase() === 'apple' ? 'apple' : 'other'}`;
-const modelKey = (it: Item): string => `${it.brand.toLowerCase()}|${stripNet(norm(it.model))}`;
+// The 4G and 5G versions of a model are different phones inside, so the network stays in the name.
+const modelKey = (it: Item): string => `${it.brand.toLowerCase()}|${norm(it.model)}`;
 
-export type StepKind = 'same' | 'small' | 'best' | 'swap';
+export type StepKind = 'same' | 'value' | 'focus' | 'best' | 'reach' | 'swap';
 export interface Step {
   kind: StepKind;
   product: Product;
   diff: Diff;
+  /** Overall improvement on the pick (see `uplift`). */
+  gain: number;
 }
 
 /**
- * Options for a customer who has already picked `base`:
- *   same  – the same model with more storage or in better condition
- *   small – the cheapest clearly better phone, within half the limit
- *   best  – the best phone within the limit
- *   swap  – something better for the same money or less
+ * A step is only worth showing with one solid reason behind it, not a pile of small ones. Screen
+ * size is taste, so it only counts as a reason for a customer who asked for a bigger screen.
  */
-export function stepUps(base: Product, all: Product[], limit: number): Step[] {
-  const fam = family(base.head);
-  const pool = all.filter((p) => p.key !== base.key && family(p.head) === fam);
-  const dearer = pool.filter((p) => p.price > base.price && p.price <= base.price + limit);
-  const steps: Step[] = [];
-  const used = new Set<string>();
-  const add = (kind: StepKind, p: Product | undefined): void => {
-    if (!p || used.has(p.key)) return;
-    const d = diffProducts(base, p);
-    if (!d.gains.length) return;
-    used.add(p.key);
-    steps.push({ kind, product: p, diff: d });
-  };
+const solid = (d: Diff, focus?: Aspect): boolean => d.up.some((p) => (p.w >= 0.2 && p.aspect !== 'size') || (p.aspect === 'size' && focus === 'size'));
 
+/** Losses no gain makes up for: updates ending, a phone that feels clearly slower, or less of the one thing they asked about. */
+const dealBreaker = (d: Diff, focus?: Aspect): boolean =>
+  d.down.some((p) => (p.aspect === 'updates' && p.w >= 0.9) || (p.aspect === 'speed' && p.w >= 0.35) || (focus !== undefined && p.aspect === focus));
+
+/**
+ * They chose a phone of a certain size on purpose. One that is a good deal bigger or smaller is a
+ * different kind of phone to hold, so it has to earn its place by more than a like-sized one.
+ */
+function sizeShift(from: Item, to: Item, focus?: Aspect): number {
+  if (focus === 'size' || from.kind !== 'phone' || !from.screen || !to.screen) return 0;
+  const by = Math.abs(to.screen - from.screen);
+  return by >= 0.9 ? 0.3 : by >= 0.5 ? 0.15 : 0;
+}
+
+/**
+ * Options for a customer who has already picked `base`, each measured against that pick:
+ *   same  – the same model with more storage or in better condition (the easy yes)
+ *   value – the most improvement for each extra pound
+ *   best  – the most improvement the limit allows
+ *   focus – the best for the one thing they said matters most, when `best` is not it
+ *   reach – when nothing within the limit is worth it: the nearest real improvement beyond it
+ *   swap  – something better for the same money or less
+ * An option has to be better on balance after its losses are counted. It is never one that drops
+ * updates or is clearly slower, and a phone whose updates have ended has to be much better to be
+ * suggested at all. `focus` tilts every choice towards what this customer cares about.
+ */
+export function stepUps(base: Product, all: Product[], limit: number, focus?: Aspect): Step[] {
+  const fam = family(base.head);
   const mk = modelKey(base.head);
-  const sameModel = dearer
-    .filter((p) => modelKey(p.head) === mk && p.head.storageGb >= base.head.storageGb && (GRADE[p.head.grade] ?? 0) >= (GRADE[base.head.grade] ?? 0))
-    .sort((x, y) => x.price - y.price);
-  const better = dearer.filter((p) => modelKey(p.head) !== mk && p.score >= base.score + 0.03);
-  const best = [...better].sort((x, y) => y.score - x.score || x.price - y.price)[0];
-  // Only a genuinely smaller step: cheaper than the best option, or it is not worth a rung.
-  const small = better
-    .filter((p) => p !== best && best !== undefined && p.price < best.price && p.price <= base.price + limit / 2 && p.score >= base.score + 0.05)
-    .sort((x, y) => x.price - y.price)[0];
-  add('same', sameModel[0]);
-  add('small', small);
+  const cond = (it: Item): number => GRADE[it.grade] ?? 0;
+  // Like is set beside like: each other phone is represented by its cheapest copy in at least
+  // the pick's condition, so a step up is not quietly paid for in scratches. Only when it has
+  // no such copy is the worn one offered, and then the wear is stated.
+  const beside = (p: Product): Product => {
+    const ok = p.items.filter((i) => cond(i) >= cond(base.head));
+    return ok.length && ok[0] !== p.head ? { ...p, items: ok, head: ok[0], price: ok[0].price } : p;
+  };
+  // The easiest step of all: the very same phone in better condition.
+  const tidier = base.items.filter((i) => cond(i) > cond(base.head)).sort((x, y) => x.price - y.price);
+  const ownBetter: Product[] = tidier.length ? [{ ...base, key: `${base.key}|tidier`, items: tidier, head: tidier[0], price: tidier[0].price }] : [];
+  const judged = [...ownBetter, ...all.filter((p) => p.key !== base.key && family(p.head) === fam).map(beside)]
+    .map((p) => {
+      // Within the pick's own group the better grade is the whole point, so it is not filtered out.
+      const d = ownBetter.includes(p) ? diff(base.head, p.head, focus) : diffProducts(base, p, focus);
+      const same = modelKey(p.head) === mk;
+      // Selling someone a phone that is already out of updates takes a good reason.
+      const stale = !same && p.head.support.status === 'ended' ? 0.3 : 0;
+      return { p, d, same, gain: uplift(d, focus) - sizeShift(base.head, p.head, focus) - stale, delta: p.price - base.price };
+    })
+    // A different model is only suggested when its speed or its specs are on record: one fact
+    // about a phone nothing else is known of is not a recommendation.
+    .filter((x) => solid(x.d, focus) && !dealBreaker(x.d, focus) && (x.same || x.p.head.perf !== null || x.p.head.specs !== null));
+  type Judged = (typeof judged)[number];
+  const steps: Step[] = [];
+  const add = (kind: StepKind, x: Judged | undefined): void => {
+    if (x && !steps.some((s) => s.product.key === x.p.key)) steps.push({ kind, product: x.p, diff: x.d, gain: x.gain });
+  };
+  const byGain = (x: Judged, y: Judged): number => y.gain - x.gain || x.delta - y.delta;
+  const asked = (x: Judged): boolean => x.d.up.some((p) => p.aspect === focus);
+  const otherModel = (x: Judged, than: Judged): boolean => modelKey(x.p.head) !== modelKey(than.p.head);
+
+  const dearer = judged.filter((x) => x.delta > 0 && x.delta <= limit);
+  // The same phone, bigger or tidier: nothing is given up, so any gain will do. Of those, the
+  // one that gives most for each pound.
+  const same = dearer
+    .filter((x) => x.same && x.p.head.storageGb >= base.head.storageGb && cond(x.p.head) >= cond(base.head) && !x.d.down.length)
+    .sort((x, y) => y.gain / (y.delta + 15) - x.gain / (x.delta + 15))[0];
+  // A different phone has to be clearly better on balance: more than one modest reason's worth.
+  const others = dearer.filter((x) => !x.same && x.gain >= CLEAR);
+  const best = [...others].sort(byGain)[0];
+  // What they asked about, if the best all-round option does not improve it.
+  const forFocus = focus && best && !asked(best) ? others.filter((x) => asked(x) && otherModel(x, best)).sort(byGain)[0] : undefined;
+  // Value: improvement per pound, with a few pounds of ballast so a £2 step with one small gain
+  // does not win. It has to be a real saving on the best option and still a real improvement.
+  const value =
+    best && !forFocus
+      ? others
+          .filter((x) => x !== best && otherModel(x, best) && x.delta <= best.delta * 0.75 && x.gain >= Math.max(CLEAR, best.gain * 0.4))
+          .sort((x, y) => y.gain / (y.delta + 15) - x.gain / (x.delta + 15))[0]
+      : undefined;
+  add('same', same);
+  add('value', value);
+  add('focus', forFocus);
   add('best', best);
+  // Nothing in reach: rather than a shrug, the nearest step that is really worth taking.
+  if (!steps.length) {
+    add(
+      'reach',
+      judged.filter((x) => x.delta > limit && x.delta <= limit * 3 && x.gain >= 0.5 && (!x.same || !x.d.down.length)).sort((x, y) => x.delta - y.delta || y.gain - x.gain)[0],
+    );
+  }
   steps.sort((x, y) => x.product.price - y.product.price);
 
-  const swap = pool
-    .filter((p) => p.price <= base.price && p.price >= base.price * 0.75 && p.score >= base.score + 0.08 && modelKey(p.head) !== mk)
-    .sort((x, y) => y.score - x.score)[0];
-  if (swap) {
-    const d = diffProducts(base, swap);
-    if (d.gains.length) steps.push({ kind: 'swap', product: swap, diff: d });
-  }
+  const swap = judged.filter((x) => !x.same && x.delta <= 0 && x.p.price >= base.price * 0.75 && x.gain >= 0.35).sort(byGain)[0];
+  if (swap && !steps.some((s) => s.product.key === swap.p.key)) steps.push({ kind: 'swap', product: swap.p, diff: swap.d, gain: swap.gain });
   return steps;
 }
 
@@ -367,7 +518,10 @@ export function compareRows(list: Product[], now: number): Row[] {
     row('Speed', (it) => it.perf?.label ?? '—', (it) => it.perf?.tier ?? 0),
     row('Storage', (it) => (it.storageGb ? gb(it.storageGb) : '—'), (it) => it.storageGb),
     row('Camera', (it) => (it.specs && it.kind === 'phone' ? cameraText(it.specs) : '—'), (it) => cameraScore(it) ?? 0),
-    row('Battery', (it) => (it.specs?.mah ? `${num(it.specs.mah)} mAh` : '—'), (it) => it.specs?.mah ?? 0),
+    // Hours in GSMArena's test where every phone in the table has been tested; capacity otherwise.
+    its.every((it) => it.specs?.sheet?.act)
+      ? row('Battery', (it) => `${hm(it.specs!.sheet!.act!)} in testing`, (it) => it.specs?.sheet?.act ?? 0)
+      : row('Battery', (it) => (it.specs?.mah ? `${num(it.specs.mah)} mAh` : '—'), (it) => it.specs?.mah ?? 0),
     row('Screen', (it) => (it.screen ? [`${it.screen}″`, it.specs?.sheet?.pan, (it.specs?.sheet?.hz ?? 0) >= 90 && `${it.specs?.sheet?.hz}Hz`].filter(Boolean).join(' ') : '—'), (it) => it.screen),
     // Yes or no only where the sheet says so; a model without a sheet shows a dash, not a guess.
     row('5G', (it) => (it.specs?.sheet ? (it.specs.sheet.g5 ? 'Yes' : 'No') : '—'), (it) => (it.specs?.sheet?.g5 ? 1 : 0)),

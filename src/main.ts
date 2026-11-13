@@ -5,7 +5,7 @@ import { PRESETS, clearCache, fetchStores, lookupIds, search } from './api.ts';
 import { findCover, forget, remembered, spineOf, type Cover } from './covers.ts';
 import { DEMO_HITS } from './demo.ts';
 import { fetchEolDb, type EolDb } from './eol.ts';
-import { clearStock, homeHtml, renderFlow, resetPickQuery, setPickQuery, type FlowHost } from './flows.ts';
+import { FOCI, clearStock, homeHtml, renderFlow, resetPickQuery, setPickQuery, type FlowHost } from './flows.ts';
 import { getsUpdates, type FitType } from './sell.ts';
 import { cameraText, useSheets, waterTight, type SheetFile } from './specs.ts';
 import { toItem } from './parse.ts';
@@ -65,9 +65,11 @@ interface Filters {
   bud: number;
   ft: FitType;
   need: string;
+  /** What the customer said matters most, for the step-up options ('' = no steer). */
+  fo: string;
 }
 
-const DEFAULTS: Filters = { q: '', preset: '', max: 0, up: 0, perf: 0, sort: 'rel', brands: [], grades: [], fx: [], mode: '', pick: '', bud: 0, ft: 'phone', need: 'u' };
+const DEFAULTS: Filters = { q: '', preset: '', max: 0, up: 0, perf: 0, sort: 'rel', brands: [], grades: [], fx: [], mode: '', pick: '', bud: 0, ft: 'phone', need: 'u', fo: '' };
 const FIT_TYPES: FitType[] = ['phone', 'iphone', 'android', 'ipad', 'androidtab'];
 const SORTS: [Sort, string][] = [
   ['rel', 'Best match'],
@@ -482,6 +484,7 @@ function readHash(): void {
     bud: Number(p.get('bud')) || 0,
     ft: FIT_TYPES.includes(p.get('ft') as FitType) ? p.get('ft') : 'phone',
     need: p.has('need') ? (p.get('need') ?? '') : 'u',
+    fo: FOCI.some(([id]) => id === p.get('fo')) ? p.get('fo') : '',
   });
 }
 
@@ -502,6 +505,7 @@ function writeHash(push = false): void {
     if (F.bud) p.set('bud', String(F.bud));
     if (F.ft !== 'phone') p.set('ft', F.ft);
     if (F.need !== 'u') p.set('need', F.need);
+    if (F.fo) p.set('fo', F.fo);
   }
   const h = p.toString();
   const url = location.pathname + location.search + (h ? '#' + h : '');
@@ -2154,6 +2158,9 @@ document.addEventListener('click', (ev) => {
     case 'ftype':
       apply({ ft: v as FitType }, true);
       break;
+    case 'focus':
+      apply({ fo: F.fo === v ? '' : v }, true);
+      break;
     case 'need':
       apply({ need: F.need.includes(v) ? F.need.replace(v, '') : F.need + v }, true);
       break;
@@ -2294,7 +2301,12 @@ readHash();
 $<HTMLInputElement>('#q').value = F.q;
 void load();
 // Handy when checking parsing against live data from the dev console.
-if (import.meta.env.DEV) Object.assign(window, { shelf: { items: () => items, hits: () => hits, openScan } });
+if (import.meta.env.DEV) {
+  // Simulated customers for the step-up flow (see src/sim.ts): `await shelf.sim()` in the console.
+  const sim = async (limit = stepLimit): Promise<unknown> =>
+    (await import('./sim.ts')).simulate([...(await flowHost.loadKind('phone')), ...(await flowHost.loadKind('tablet'))], limit);
+  Object.assign(window, { shelf: { items: () => items, hits: () => hits, openScan, sim } });
+}
 if (!F.mode && matchMedia('(hover: hover) and (pointer: fine)').matches) $<HTMLInputElement>('#q').focus();
 
 // Keep lifecycle data current without anyone having to redeploy.

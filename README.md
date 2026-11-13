@@ -21,10 +21,28 @@ The home screen opens two flows for phones and tablets (`src/flows.ts`, logic in
 - **Match a budget** — choose a budget and needs; it shows a cheaper option, the best match and
   one a little over, with a side-by-side table.
 
-Every reason shown is a fact about both items (updates, speed, storage, camera, battery,
-condition). Camera and battery facts come from the hand-compiled table in `src/specs.ts`; models
-missing from it get no camera or battery comparison. The step-up limit (default £60) is set under
-Filters and settings. `npm run sellcheck` prints sample recommendations.
+Every reason shown is a fact about both items (updates, speed, storage, camera, battery, screen,
+5G, condition and more). Where GSMArena has tested both phones the measured result is quoted
+(battery life, speed, screen brightness); otherwise the spec sheet, and with no sheet the short
+table in `src/specs.ts`. The step-up limit (default £60) is set under Filters and settings.
+
+How step-up options are chosen (`stepUps` in `src/sell.ts`):
+
+- Each difference from the pick carries a weight, and a loss counts 1.6 times a gain of the same
+  size. An option has to come out clearly ahead, with at least one solid reason behind it.
+- Never offered: a phone that drops updates or is clearly slower. A phone already out of updates,
+  a much bigger or smaller one, or one nothing is known about has to earn its place.
+- Other phones are compared in at least the pick's condition where such a copy is in stock; a
+  tidier copy of the pick itself is offered too.
+- Up to three rungs: the same phone bigger or tidier, the best value step, and the best step. When
+  nothing inside the limit is worth it, the nearest real step beyond it is shown instead.
+- "What matters most?" (battery, camera, speed, storage, updates, condition, bigger screen) tilts
+  the choice, puts that reason first, and says so when nothing in reach improves it.
+
+`npm run sellcheck` prints sample recommendations. In the dev build, `await shelf.sim()` in the
+console runs twelve kinds of simulated customer over every phone and tablet in stock (`src/sim.ts`)
+and reports how often each is offered a real improvement and how often an option would make
+things worse for them.
 
 Search filters adapt to the category: phones, tablets, laptops, desktops and consoles each get
 their own (`FACETS` in `src/main.ts`).

@@ -2523,3 +2523,12 @@ body:has(main input:focus) .dock {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* What the customer cares about most, above the step-up options. */
+.frow.focus {
+  margin: 4px calc(-1 * var(--gutter)) 16px;
+}
+
+.focus .flabel {
+  width: 100%;
+}

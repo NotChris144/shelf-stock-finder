@@ -7,7 +7,7 @@
 // The home screen is the staff member's own. Once a flow shows results the phone gets turned
 // round, so from there every line is a plain fact addressed to the customer.
 
-import { compareRows, diffProducts, fit, fitKind, products, stepUps, type Diff, type FitNeeds, type FitType, type Product } from './sell.ts';
+import { compareRows, diffProducts, fit, fitKind, products, stepUps, type Aspect, type Diff, type FitNeeds, type FitType, type Product } from './sell.ts';
 import type { Group, Item } from './types.ts';
 
 export interface FlowState {
@@ -18,6 +18,8 @@ export interface FlowState {
   ft: FitType;
   /** Needs as flags: u = still updated, s = 128GB or more, t = grade A or B. */
   need: string;
+  /** What the customer said matters most (an Aspect), or '' for no steer. */
+  fo: string;
 }
 
 export interface FlowHost {
@@ -52,6 +54,16 @@ const NEEDS: [string, string][] = [
   ['u', 'Still gets updates'],
   ['s', '128GB or more'],
   ['t', 'Grade A or B'],
+];
+/** What a customer might say matters most, as [aspect, label on the chip, how it reads in a sentence]. */
+export const FOCI: [Aspect, string, string][] = [
+  ['battery', 'Battery', 'battery life'],
+  ['camera', 'Camera', 'the camera'],
+  ['speed', 'Speed', 'speed'],
+  ['storage', 'Storage', 'storage'],
+  ['updates', 'Updates', 'software updates'],
+  ['condition', 'Condition', 'condition'],
+  ['size', 'Bigger screen', 'a bigger screen'],
 ];
 const ICON_SEARCH = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>';
 const ICON_SCAN =
@@ -150,7 +162,7 @@ function tableHtml(host: FlowHost, list: Product[], headers: string[], pick: num
       .map((r) => `<tr><th scope="row">${r.label}</th>${r.cells.map((c, i) => `<td class="${r.best === i ? 'best' : ''}${i === pick ? ' col-pick' : ''}">${host.esc(c)}</td>`).join('')}</tr>`)
       .join('')}</tbody>
   </table></div>
-  <p class="fine">Speed is an approximate rating. Battery is capacity when new. Update dates for Apple devices are estimates.</p>`;
+  <p class="fine">Figures described as GSMArena’s test were measured by GSMArena. Other speed ratings are approximate, battery capacity is when new, and update dates for Apple devices are estimates.</p>`;
 }
 
 const skeleton = '<ul class="list"><li class="card skeleton"></li><li class="card skeleton"></li><li class="card skeleton"></li></ul>';
@@ -204,7 +216,7 @@ function matches(p: Product, words: string[]): boolean {
 }
 
 async function drawUp(host: FlowHost, s: FlowState, body: HTMLElement): Promise<void> {
-  const token = (drawn = `up|${s.pick}|${pickQuery}|${host.limit()}`);
+  const token = (drawn = `up|${s.pick}|${pickQuery}|${host.limit()}|${s.fo}`);
   if (!body.childElementCount) body.innerHTML = skeleton;
   let all: Product[];
   try {
@@ -239,16 +251,32 @@ async function drawUp(host: FlowHost, s: FlowState, body: HTMLElement): Promise<
     body.innerHTML = '<div class="empty"><p>That item isn’t a phone or tablet in stock here.</p><button type="button" class="chip" data-act="pick-clear" aria-pressed="true">Choose another</button></div>';
     return;
   }
-  const steps = stepUps(base, all, host.limit());
+  // Compared from the copy they are holding, not the cheapest one of that model.
+  const held = base.items.find((i) => i.id === s.pick);
+  if (held && held !== base.head) base = { ...base, head: held, price: held.price };
+  const focus = FOCI.find(([id]) => id === s.fo);
+  const steps = stepUps(base, all, host.limit(), focus?.[0]);
   const ups = steps.filter((x) => x.kind !== 'swap');
   const side = steps.find((x) => x.kind === 'swap');
-  const lead = ups.find((x) => x.kind === 'best') ?? ups[ups.length - 1];
-  const tags: Record<string, string> = { same: 'Same model, better spec', small: 'Smallest step up', best: 'Best step up' };
+  const lead = ups.find((x) => x.kind === 'focus') ?? ups.find((x) => x.kind === 'best') ?? ups[ups.length - 1];
+  const tags: Record<string, string> = {
+    same: 'Same phone, better spec',
+    value: 'Best value step',
+    focus: `Best for ${focus?.[2] ?? ''}`,
+    best: 'Best step up',
+    reach: 'Next real step',
+  };
   const baseName = fullName(base.head);
   // Higher prices sit higher, like rungs: the options are listed dearest first with the pick at
   // the foot. Each option is measured from the pick, and says so directly beneath its card.
-  let html = `<p class="from-pick">From the ${host.esc(baseName)}, ${base.items.length > 1 ? 'from ' : ''}${host.money(base.price)}</p>`;
-  if (!ups.length) html += `<p class="hint">Nothing up to ${host.money(host.limit())} more is clearly better than it.</p>`;
+  let html = `<p class="from-pick">From the ${host.esc(baseName)}${base.head.grade ? `, grade ${host.esc(base.head.grade)}` : ''}, ${host.money(base.price)}</p>`;
+  // One tap on what they care about re-picks the options and puts that reason first.
+  html += `<div class="frow wrap focus"><span class="flabel">What matters most?</span>${FOCI.map(([id, label]) => host.chip('focus', id, label, s.fo === id)).join('')}</div>`;
+  const far = ups.find((x) => x.kind === 'reach');
+  if (!ups.length) html += `<p class="hint">Nothing up to ${host.money(host.limit() * 3)} more is clearly better than it.</p>`;
+  else if (far) html += `<p class="hint">Nothing up to ${host.money(host.limit())} more is clearly better. The next step that is costs ${host.money(far.product.price - base.price)} more.</p>`;
+  // Said plainly when what they asked about is not on offer, so the options are not read as an answer to it.
+  else if (focus && !steps.some((x) => x.diff.up.some((p) => p.aspect === focus[0]))) html += `<p class="hint">Nothing in reach is clearly better for ${focus[2]}. These are the best all-round steps.</p>`;
   html += '<ol class="ladder options">';
   for (const st of [...ups].reverse()) {
     html += rungHtml(host, st.product, tags[st.kind], st === lead) + stepHtml(host, st.product.price - base.price, st.diff, baseName);
