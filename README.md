@@ -40,8 +40,8 @@ archive, searched by title (`src/covers.ts`). This is for personal use:
 - One film is looked up at a time, only when its button is tapped, and the answer is kept on the
   device (120 days for a scan, 14 days for "none found").
 - Only the archive's free low-resolution image is used, with a link back to its page.
-- Most scans are US editions, so the viewer says which edition is shown. When there is no scan, it
-  shows CeX's front cover and the card stops offering the button.
+- Most scans are US editions, so the viewer says which edition is shown. The viewer only opens
+  when there is a scan: with none, a short message says so and the card stops offering the button.
 
 ## Scanning labels
 

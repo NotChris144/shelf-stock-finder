@@ -776,28 +776,40 @@ function editionNote(c: Cover, it: Item): string {
   return c.region === 'UK' ? `${name}.` : `${name}. The UK spine can differ a little.`;
 }
 
-function coverShell(it: Item, note: string, body: string): string {
-  return `<header class="cover-top">
-      <div><h2>${esc(it.title)}</h2><p>${note}</p></div>
-      <button type="button" class="icon-btn" data-act="cover-close" aria-label="Close">${ICON_X}</button>
-    </header>${body}`;
+let toastTimer = 0;
+
+/** A line of news that needs no answer, shown briefly above the bottom bar. */
+function toast(text: string): void {
+  const el = $('#toast');
+  el.textContent = text;
+  el.hidden = false;
+  // As a popover it sits in the top layer, so it shows over the scanner too.
+  try {
+    if (el.matches(':popover-open')) el.hidePopover();
+    el.showPopover();
+  } catch {
+    /* no popover support: it shows in place */
+  }
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => {
+    try {
+      el.hidePopover();
+    } catch {
+      /* was never a popover */
+    }
+    el.hidden = true;
+  }, 2800);
 }
 
-/** The front cover on its own, for when there is no scan of the sleeve. */
-const frontOnly = (it: Item): string => (it.imgLarge ? `<div class="cover-stage front"><img src="${esc(it.imgLarge)}" alt="Front cover of ${esc(it.title)}"></div>` : '<div class="cover-stage front"></div>');
-
-function showCover(it: Item, c: Cover | null): void {
+function showCover(it: Item, c: Cover): void {
   const d = $<HTMLDialogElement>('#cover');
-  if (!c) {
-    d.innerHTML = coverShell(it, 'No scan of the spine was found. This is the front cover.', frontOnly(it));
-    return;
-  }
   const s = spineOf(c);
   const pct = (n: number): string => `${(n * 100).toFixed(2)}%`;
-  d.innerHTML = coverShell(
-    it,
-    esc(editionNote(c, it)),
-    `<div class="cover-stage" id="coverStage">
+  d.innerHTML = `<header class="cover-top">
+      <div><h2>${esc(it.title)}</h2><p>${esc(editionNote(c, it))}</p></div>
+      <button type="button" class="icon-btn" data-act="cover-close" aria-label="Close">${ICON_X}</button>
+    </header>
+    <div class="cover-stage" id="coverStage">
       <div class="cover-flat" style="aspect-ratio:${c.w}/${c.h}">
         <img src="${esc(c.src)}" width="${c.w}" height="${c.h}" referrerpolicy="no-referrer" alt="Back, spine and front of the ${esc(it.title)} sleeve">
         <span class="cover-mark" style="left:${pct(s.left)};width:${pct(s.width)}"></span>
@@ -810,14 +822,16 @@ function showCover(it: Item, c: Cover | null): void {
         <button type="button" data-act="cover-part" data-v="front" aria-pressed="false">Front</button>
       </div>
       <a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">Scan from dvdcover.com</a>
-    </footer>`,
-  );
+    </footer>`;
   const stage = $('#coverStage');
   const img = stage.querySelector('img')!;
-  // The archive withdrew or moved the image: fall back to the front and look again next time.
+  // The archive withdrew or moved the image: close, say so, and look it up afresh next time.
   img.addEventListener('error', () => {
     forget(it.id);
-    if (d.open) showCover(it, null);
+    if (!d.open) return;
+    if (history.state?.ui) history.back();
+    else d.close();
+    toast("That scan wouldn't load.");
   });
   const parts = [...d.querySelectorAll<HTMLElement>('[data-act="cover-part"]')];
   const mark = (): void => {
@@ -850,33 +864,52 @@ function coverTo(part: string, smooth = true): void {
   stage.scrollTo({ left, behavior: smooth && !matchMedia('(prefers-reduced-motion: reduce)').matches ? 'smooth' : 'instant' });
 }
 
-async function openCover(it: Item): Promise<void> {
-  const d = $<HTMLDialogElement>('#cover');
+/** Films being looked up right now, so a second tap does not ask twice. */
+const coverLooking = new Set<string>();
+
+/**
+ * The viewer only opens once there is a scan to show. While the archive is asked, the button
+ * itself shows the wait; no scan, or no connection, is a line of text and nothing more.
+ */
+async function openCover(it: Item, btn: HTMLElement | null): Promise<void> {
+  if (coverLooking.has(it.id)) return;
   const turn = ++coverTurn;
-  const known = remembered(it.id);
-  if (known === undefined) d.innerHTML = coverShell(it, 'Looking for the cover…', '<div class="cover-stage wait" aria-busy="true"></div>');
-  if (!d.open) {
-    d.classList.remove('fits');
-    d.showModal();
-    history.pushState({ ui: true }, '');
+  const from = location.hash;
+  let c = remembered(it.id);
+  if (c === undefined) {
+    coverLooking.add(it.id);
+    btn?.setAttribute('aria-busy', 'true');
+    try {
+      c = await findCover({ id: it.id, name: it.name, year: it.year, bluray: isBluray(it) });
+    } catch {
+      toast("Couldn't reach the cover archive. Try again.");
+      return;
+    } finally {
+      coverLooking.delete(it.id);
+      // The list may have been redrawn while waiting, so clear whichever button is there now.
+      for (const b of document.querySelectorAll(`.spine-btn[data-v="${CSS.escape(it.id)}"]`)) b.removeAttribute('aria-busy');
+    }
   }
-  try {
-    const c = await findCover({ id: it.id, name: it.name, year: it.year, bluray: isBluray(it) });
-    if (turn !== coverTurn || !d.open) return;
-    showCover(it, c);
-    // Nothing to show next time, so the card stops offering it.
-    if (!c) for (const b of document.querySelectorAll<HTMLElement>(`.spine-btn[data-v="${CSS.escape(it.id)}"]`)) {
+  if (!c) {
+    // Nothing to show next time either, so the card stops offering it.
+    for (const b of document.querySelectorAll<HTMLElement>(`.spine-btn[data-v="${CSS.escape(it.id)}"]`)) {
       b.closest('.card')?.classList.remove('has-spine');
       b.remove();
     }
-  } catch {
-    if (turn !== coverTurn || !d.open) return;
-    d.innerHTML = coverShell(
-      it,
-      "Couldn't reach the cover archive.",
-      `<div class="cover-stage wait"><button type="button" class="chip" aria-pressed="true" data-act="cover" data-v="${esc(it.id)}">Try again</button></div>`,
-    );
+    toast('No spine scan found for this one.');
+    return;
   }
+  // Moved on to something else while it was looking: the answer is kept, but nothing pops up.
+  if (turn !== coverTurn || location.hash !== from) return;
+  const d = $<HTMLDialogElement>('#cover');
+  if (!d.open) {
+    d.classList.remove('fits');
+    d.innerHTML = '';
+    d.showModal();
+    history.pushState({ ui: true }, '');
+  }
+  // Drawn once the viewer is open, so it can be measured and centred on the spine.
+  showCover(it, c);
 }
 
 function detailHtml(g: Group): string {
@@ -2061,7 +2094,7 @@ document.addEventListener('click', (ev) => {
       break;
     case 'cover': {
       const it = findItem(v);
-      if (it) void openCover(it);
+      if (it) void openCover(it, el);
       break;
     }
     case 'cover-close':

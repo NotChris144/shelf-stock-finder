@@ -175,7 +175,6 @@ export function toItem(h: Hit, idx: number, ctx: SupportCtx): Item {
     category,
     superCat: String(h.superCatFriendlyName ?? ''),
     img: img ? encodeURI(img) : '',
-    imgLarge: encodeURI(h.imageUrls?.large ?? img),
     year: Number(first(h.Year)) || 0,
     grade,
     rating: Number(h.rating) || 0,
