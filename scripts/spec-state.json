@@ -1,15 +1,16 @@
 {
  "day": "2026-11-13",
  "used": {
-  "evening": 16,
+  "evening": 26,
   "day": 20
  },
  "fresh": [
-  "motorola|motoe3rdgen",
   "amazon|firehd8",
   "samsung|taba"
  ],
- "missed": {},
+ "missed": {
+  "motorola|motoe3rdgen": "2026-11-13"
+ },
  "read": {
   "samsung|galaxya04e": "2026-11-13",
   "samsung|galaxya06": "2026-11-13",
