@@ -1,6 +1,7 @@
 import './styles.css';
 import snapshot from './data/eol-snapshot.json';
 import { PRESETS, clearCache, fetchStores, lookupIds, search } from './api.ts';
+import { findCover, forget, remembered, spineOf, type Cover } from './covers.ts';
 import { DEMO_HITS } from './demo.ts';
 import { fetchEolDb, type EolDb } from './eol.ts';
 import { clearStock, homeHtml, renderFlow, resetPickQuery, setPickQuery, type FlowHost } from './flows.ts';
@@ -588,6 +589,10 @@ function compute(): void {
 const ICON_PHONE = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>';
 const ICON_LAPTOP = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="5" width="15" height="10" rx="1.5"/><path d="M2.5 18.5h19"/></svg>';
 const ICON_BOX = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M4 8l8 4 8-4M12 12v8"/></svg>';
+/** Cases standing on a shelf, spines out. */
+const ICON_SPINE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 4h4v16h-4zM8.5 4h4v16h-4zM14.4 6.2l3.7-1 3.4 13.6-3.7 1z"/></svg>';
+
+const isFilm = (it: Item): boolean => it.superCat === 'Film & TV';
 
 function chip(act: string, value: string | number, label: string, on: boolean, extra = ''): string {
   return `<button type="button" class="chip${extra}" data-act="${act}" data-v="${esc(String(value))}" aria-pressed="${on}">${label}</button>`;
@@ -731,7 +736,9 @@ function cardHtml(g: Group, note = '', opts: { cls?: string; tag?: string; vt?: 
   const img = it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" decoding="async" width="64" height="64" onerror="this.remove()">` : '';
   const price = g.max > g.min ? `<small>from</small>${money(g.min)}` : money(g.min);
   const tag = opts.tag ? `<span class="badge tag">${esc(opts.tag)}</span>` : '';
-  return `<li class="card${opts.cls ?? ''}" data-key="${esc(g.key)}"${opts.vt ? ` style="view-transition-name:${opts.vt}"` : ''}>
+  // Films get a way to see the spine, unless an earlier look found no scan of it.
+  const spine = isFilm(it) && !demo && remembered(it.id) !== null;
+  return `<li class="card${opts.cls ?? ''}${spine ? ' has-spine' : ''}" data-key="${esc(g.key)}"${opts.vt ? ` style="view-transition-name:${opts.vt}"` : ''}>
     <button type="button" class="card-main" data-act="toggle" aria-expanded="false">
       <span class="thumb">${icon}${img}</span>
       <span class="body">
@@ -743,7 +750,133 @@ function cardHtml(g: Group, note = '', opts: { cls?: string; tag?: string; vt?: 
       </span>
       <span class="price">${price}</span>
     </button>
+    ${spine ? `<button type="button" class="spine-btn" data-act="cover" data-v="${esc(it.id)}" aria-label="Show the spine and cover of ${esc(it.title)}">${ICON_SPINE}<span>Spine</span></button>` : ''}
   </li>`;
+}
+
+// ------------------------------------------------------------------ film covers
+//
+// A shelf of films shows only spines, and CeX's picture is the front. This opens a scan of the
+// whole sleeve, centred on the spine, so there is a colour and a title style to look for.
+
+let coverTurn = 0;
+
+function findItem(id: string): Item | null {
+  for (const g of [...groups, ...scanGroups.values()]) for (const i of g.items) if (i.id === id) return i;
+  return null;
+}
+
+const isBluray = (it: Item): boolean => /blu-?ray|4k|uhd/i.test(it.category);
+
+/** One line on which edition the scan is, and how far to trust its spine. */
+function editionNote(c: Cover, it: Item): string {
+  const fmt = c.bluray ? 'Blu-ray' : 'DVD';
+  const name = [c.region, fmt, 'edition'].filter(Boolean).join(' ');
+  if (c.bluray !== isBluray(it)) return `${name}. Only this format has a scan, so the ${isBluray(it) ? 'Blu-ray' : 'DVD'} spine will look different.`;
+  return c.region === 'UK' ? `${name}.` : `${name}. The UK spine can differ a little.`;
+}
+
+function coverShell(it: Item, note: string, body: string): string {
+  return `<header class="cover-top">
+      <div><h2>${esc(it.title)}</h2><p>${note}</p></div>
+      <button type="button" class="icon-btn" data-act="cover-close" aria-label="Close">${ICON_X}</button>
+    </header>${body}`;
+}
+
+/** The front cover on its own, for when there is no scan of the sleeve. */
+const frontOnly = (it: Item): string => (it.imgLarge ? `<div class="cover-stage front"><img src="${esc(it.imgLarge)}" alt="Front cover of ${esc(it.title)}"></div>` : '<div class="cover-stage front"></div>');
+
+function showCover(it: Item, c: Cover | null): void {
+  const d = $<HTMLDialogElement>('#cover');
+  if (!c) {
+    d.innerHTML = coverShell(it, 'No scan of the spine was found. This is the front cover.', frontOnly(it));
+    return;
+  }
+  const s = spineOf(c);
+  const pct = (n: number): string => `${(n * 100).toFixed(2)}%`;
+  d.innerHTML = coverShell(
+    it,
+    esc(editionNote(c, it)),
+    `<div class="cover-stage" id="coverStage">
+      <div class="cover-flat" style="aspect-ratio:${c.w}/${c.h}">
+        <img src="${esc(c.src)}" width="${c.w}" height="${c.h}" referrerpolicy="no-referrer" alt="Back, spine and front of the ${esc(it.title)} sleeve">
+        <span class="cover-mark" style="left:${pct(s.left)};width:${pct(s.width)}"></span>
+      </div>
+    </div>
+    <footer class="cover-foot">
+      <div class="seg" role="group" aria-label="Part of the cover">
+        <button type="button" data-act="cover-part" data-v="back" aria-pressed="false">Back</button>
+        <button type="button" data-act="cover-part" data-v="spine" aria-pressed="true">Spine</button>
+        <button type="button" data-act="cover-part" data-v="front" aria-pressed="false">Front</button>
+      </div>
+      <a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">Scan from dvdcover.com</a>
+    </footer>`,
+  );
+  const stage = $('#coverStage');
+  const img = stage.querySelector('img')!;
+  // The archive withdrew or moved the image: fall back to the front and look again next time.
+  img.addEventListener('error', () => {
+    forget(it.id);
+    if (d.open) showCover(it, null);
+  });
+  const parts = [...d.querySelectorAll<HTMLElement>('[data-act="cover-part"]')];
+  const mark = (): void => {
+    const max = stage.scrollWidth - stage.clientWidth;
+    // Wide enough to show the whole sleeve at once: nothing to move between.
+    d.classList.toggle('fits', max <= 4);
+    if (stage.dataset.gliding) return;
+    const at = max <= 4 ? 'spine' : stage.scrollLeft < max * 0.25 ? 'back' : stage.scrollLeft > max * 0.75 ? 'front' : 'spine';
+    for (const b of parts) b.setAttribute('aria-pressed', String(b.dataset.v === at));
+  };
+  stage.addEventListener('scroll', mark, { passive: true });
+  coverTo('spine', false);
+  mark();
+}
+
+let coverGlide = 0;
+
+/** Bring one part of the sleeve to the middle of the screen. */
+function coverTo(part: string, smooth = true): void {
+  const stage = document.querySelector<HTMLElement>('#coverStage');
+  if (!stage) return;
+  const max = stage.scrollWidth - stage.clientWidth;
+  const left = part === 'back' ? 0 : part === 'front' ? max : max / 2;
+  // Answer the tap at once; the scroll listener keeps it right when the sleeve is dragged instead.
+  for (const b of document.querySelectorAll<HTMLElement>('#cover [data-act="cover-part"]')) b.setAttribute('aria-pressed', String(b.dataset.v === part));
+  // While it glides there, the parts it passes on the way must not light up.
+  window.clearTimeout(coverGlide);
+  stage.dataset.gliding = '1';
+  coverGlide = window.setTimeout(() => delete stage.dataset.gliding, 700);
+  stage.scrollTo({ left, behavior: smooth && !matchMedia('(prefers-reduced-motion: reduce)').matches ? 'smooth' : 'instant' });
+}
+
+async function openCover(it: Item): Promise<void> {
+  const d = $<HTMLDialogElement>('#cover');
+  const turn = ++coverTurn;
+  const known = remembered(it.id);
+  if (known === undefined) d.innerHTML = coverShell(it, 'Looking for the cover…', '<div class="cover-stage wait" aria-busy="true"></div>');
+  if (!d.open) {
+    d.classList.remove('fits');
+    d.showModal();
+    history.pushState({ ui: true }, '');
+  }
+  try {
+    const c = await findCover({ id: it.id, name: it.name, year: it.year, bluray: isBluray(it) });
+    if (turn !== coverTurn || !d.open) return;
+    showCover(it, c);
+    // Nothing to show next time, so the card stops offering it.
+    if (!c) for (const b of document.querySelectorAll<HTMLElement>(`.spine-btn[data-v="${CSS.escape(it.id)}"]`)) {
+      b.closest('.card')?.classList.remove('has-spine');
+      b.remove();
+    }
+  } catch {
+    if (turn !== coverTurn || !d.open) return;
+    d.innerHTML = coverShell(
+      it,
+      "Couldn't reach the cover archive.",
+      `<div class="cover-stage wait"><button type="button" class="chip" aria-pressed="true" data-act="cover" data-v="${esc(it.id)}">Try again</button></div>`,
+    );
+  }
 }
 
 function detailHtml(g: Group): string {
@@ -1567,18 +1700,36 @@ window.addEventListener(
   { passive: true },
 );
 
-// The phone's Back button closes whatever is open before it leaves the page.
-for (const id of ['#sheet', '#scanner']) {
-  $(id).addEventListener('close', () => {
-    if (history.state?.ui) history.back();
+// The phone's Back button closes whatever is open before it leaves the page. A cover can be
+// opened over the scanner, so Back closes one layer at a time, the top one first.
+const LAYERS = ['#cover', '#sheet', '#scanner'];
+/** The next history step is ours, undoing the entry a layer added when it opened. */
+let ownBack = false;
+for (const id of LAYERS) {
+  $(id).addEventListener('close', (ev) => {
+    const d = ev.currentTarget as HTMLElement;
+    // Closed by Back: its history entry has already gone.
+    if (d.dataset.back) return void delete d.dataset.back;
+    if (history.state?.ui) {
+      ownBack = true;
+      history.back();
+    }
   });
 }
 window.addEventListener('popstate', () => {
   closeHold();
-  for (const id of ['#sheet', '#scanner']) {
+  if (ownBack) return void (ownBack = false);
+  for (const id of LAYERS) {
     const d = $<HTMLDialogElement>(id);
-    if (d.open) d.close();
+    if (!d.open) continue;
+    d.dataset.back = '1';
+    d.close();
+    return;
   }
+});
+$('#cover').addEventListener('close', () => {
+  coverTurn++;
+  $('#cover').innerHTML = '';
 });
 
 // ------------------------------------------------------------------ dropdown menus
@@ -1907,6 +2058,19 @@ document.addEventListener('click', (ev) => {
       break;
     case 'scan':
       void openScan();
+      break;
+    case 'cover': {
+      const it = findItem(v);
+      if (it) void openCover(it);
+      break;
+    }
+    case 'cover-close':
+      // Closing is the same step as the phone's Back button, so there is one path to keep right.
+      if (history.state?.ui) history.back();
+      else $<HTMLDialogElement>('#cover').close();
+      break;
+    case 'cover-part':
+      coverTo(v);
       break;
     case 'similar':
       $<HTMLDialogElement>('#scanner').close();

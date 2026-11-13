@@ -2278,3 +2278,210 @@ body:has(main input:focus) .dock {
   font-size: 12.5px;
   line-height: 1.2;
 }
+
+/* ---------------------------------------------------------------- film covers */
+
+/* The Spine button sits under the price, so a film card's text keeps clear of that column. */
+.card {
+  position: relative;
+}
+
+.card.has-spine .card-main {
+  grid-template-columns: 64px minmax(0, 1fr) minmax(82px, auto);
+}
+
+.spine-btn {
+  position: absolute;
+  top: 44px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  font-size: 13px;
+  font-weight: 650;
+  transition: border-color 0.12s, transform 0.08s;
+}
+
+/* A roomier target than the pill looks. */
+.spine-btn::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+
+.spine-btn svg {
+  width: 17px;
+  height: 17px;
+}
+
+.spine-btn:active {
+  transform: scale(0.96);
+  border-color: var(--muted);
+}
+
+/* The sleeve laid flat, as tall as the screen allows: the spine is the thing to read, so it
+   opens in the middle with the back and front running off either side. */
+.cover {
+  width: 100%;
+  max-width: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.cover[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.cover-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: calc(12px + env(safe-area-inset-top)) var(--gutter) 6px;
+}
+
+.cover-top h2 {
+  margin: 4px 0 0;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.cover-top p {
+  margin: 3px 0 0;
+  max-width: 46ch;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.cover-top .icon-btn {
+  width: 44px;
+  height: 44px;
+}
+
+.cover-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  padding: 12px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.cover-stage::-webkit-scrollbar {
+  display: none;
+}
+
+.cover-flat {
+  position: relative;
+  flex: none;
+  height: 100%;
+  max-height: 720px;
+  margin: auto;
+}
+
+.cover-flat img {
+  display: block;
+  width: auto;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--surface-2);
+}
+
+/* Two short bars, above and below, bracket the spine. */
+.cover-mark {
+  position: absolute;
+  top: -8px;
+  bottom: -8px;
+  border-block: 3px solid var(--accent);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.cover-stage.front,
+.cover-stage.wait {
+  align-items: center;
+  justify-content: center;
+  padding: 12px var(--gutter);
+}
+
+.cover-stage.front img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  border-radius: 6px;
+}
+
+/* While looking: a spine-shaped placeholder where the spine will be. */
+.cover-stage.wait[aria-busy='true']::before {
+  content: '';
+  width: 46px;
+  height: min(78%, 600px);
+  border-radius: 3px;
+  background: var(--surface-2);
+  animation: pulse 0.9s ease-in-out infinite alternate;
+}
+
+.cover-foot {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 4px var(--gutter) calc(10px + env(safe-area-inset-bottom));
+}
+
+.cover-foot a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.seg {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.seg button {
+  min-width: 86px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 14.5px;
+  font-weight: 650;
+  color: var(--muted);
+  transition: background 0.12s, color 0.12s;
+}
+
+.seg button[aria-pressed='true'] {
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* Wide enough to see the whole sleeve at once: nothing to move between. */
+.cover.fits .seg {
+  display: none;
+}

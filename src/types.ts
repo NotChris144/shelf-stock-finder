@@ -61,6 +61,10 @@ export interface Item {
   category: string;
   superCat: string;
   img: string;
+  /** The biggest picture CeX holds, for looking at on its own. */
+  imgLarge: string;
+  /** Release year of a film or series, 0 when not given. */
+  year: number;
   grade: string;
   rating: number;
   /** Epoch ms of the last price change on CeX's system (0 when unknown). */

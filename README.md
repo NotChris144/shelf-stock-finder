@@ -29,6 +29,20 @@ Filters and settings. `npm run sellcheck` prints sample recommendations.
 Search filters adapt to the category: phones, tablets, laptops, desktops and consoles each get
 their own (`FACETS` in `src/main.ts`).
 
+## Film spines
+
+Film & TV cards have a **Spine** button. It opens a scan of the whole printed sleeve (back, spine,
+front), centred on the spine, so there is a colour and a title style to look for on the shelf.
+
+CeX only holds front covers, so the scan comes from [dvdcover.com](https://dvdcover.com), a fan
+archive, searched by title (`src/covers.ts`). This is for personal use:
+
+- One film is looked up at a time, only when its button is tapped, and the answer is kept on the
+  device (120 days for a scan, 14 days for "none found").
+- Only the archive's free low-resolution image is used, with a link back to its page.
+- Most scans are US editions, so the viewer says which edition is shown. When there is no scan, it
+  shows CeX's front cover and the card stops offering the button.
+
 ## Scanning labels
 
 The barcode button in the search box opens the scanner (`src/scan.ts`), and so does holding Search
