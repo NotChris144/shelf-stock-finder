@@ -183,6 +183,41 @@ export async function addonStock(store: string, cats: string[], ranked: string[]
   return r.map((x) => (x.hits ?? []) as Hit[]);
 }
 
+/**
+ * Everything a branch has in stock outside films and TV, for the add-on audit. CeX returns at
+ * most 1,000 items a request, so categories are packed into requests under that, all sent in
+ * one round trip, each in popularity order.
+ */
+export async function branchStock(store: string): Promise<Hit[]> {
+  const notFilm = 'superCatFriendlyName:-Film & TV';
+  const [counts] = await post([
+    { indexName: CONFIG.index, query: '', hitsPerPage: 0, facetFilters: [[`stores:${store}`], [notFilm]], filters: BASE_FILTER, facets: ['categoryFriendlyName'], maxValuesPerFacet: 1000, analytics: false },
+  ]);
+  const cats = Object.entries((counts.facets?.categoryFriendlyName ?? {}) as Record<string, number>).sort((a, b) => b[1] - a[1]);
+  const bins: { cats: string[]; n: number }[] = [];
+  for (const [c, n] of cats) {
+    const bin = bins.find((b) => b.n + n <= 1000);
+    if (bin) {
+      bin.cats.push(c);
+      bin.n += n;
+    } else bins.push({ cats: [c], n });
+  }
+  const r = await post(
+    bins.map((b) => ({
+      indexName: CONFIG.index + ORDERED.pop,
+      query: '',
+      hitsPerPage: 1000,
+      facetFilters: [[`stores:${store}`], b.cats.map((c) => `categoryFriendlyName:${c}`)],
+      filters: BASE_FILTER,
+      attributesToRetrieve: ATTRS,
+      attributesToHighlight: [],
+      analytics: false,
+      clickAnalytics: false,
+    })),
+  );
+  return r.flatMap((x) => (x.hits ?? []) as Hit[]);
+}
+
 /** Every branch name, for the store picker. */
 export async function fetchStores(): Promise<string[]> {
   const r = await post([

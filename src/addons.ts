@@ -39,6 +39,8 @@ export interface Slot {
   cap?: number;
   /** Among equals, these go first (the item's own maker: AirPods with an iPhone). */
   prefer?: RegExp;
+  /** Draws from the item's own category (another game, a speaker for another room). */
+  same?: true;
 }
 
 export interface Offer {
@@ -105,7 +107,30 @@ function portOf(it: Item): { port: Port; sure: boolean } {
   }
   const sh = it.specs?.sheet;
   if (sh) return { port: sh.usbc ? 'usbc' : 'micro', sure: true };
+  // Without a sheet: makers that have used USB-C on every phone for years are taken at their word.
+  const s = Number(it.model.match(/\bS(\d+)\b/i)?.[1] ?? 0);
+  if (it.kind === 'phone') return { port: 'usbc', sure: isGoogle(it) || /oneplus|nothing/i.test(it.brand) || (isSamsung(it) && (s >= 8 || /\bZ\s?(flip|fold)/i.test(it.model))) };
+  // Galaxy Tabs have been USB-C since the Tab S3 and the 2016 Tab A; Fire tablets moved over by 2022.
+  const year = Number(it.name.match(/\b(20[12]\d)\b/)?.[1] ?? 0);
+  if (isSamsung(it)) {
+    const old = /\btab\s*[234]\b|\btab e\b/i.test(it.model) || (year > 0 && year < 2016);
+    return { port: old ? 'micro' : 'usbc', sure: old || s >= 3 || /\btab\s*a\d/i.test(it.model) || year >= 2017 };
+  }
+  if (/amazon|kindle|fire/i.test(it.brand + it.name)) return year >= 2022 ? { port: 'usbc', sure: true } : year && year <= 2018 ? { port: 'micro', sure: true } : { port: 'usbc', sure: false };
   return { port: 'usbc', sure: false };
+}
+
+/** The charging port of headphones and earbuds, for the models whose names don't say. */
+function headphonePort(name: string): Port | '' {
+  if (/usb-?\s?c/i.test(name)) return 'usbc';
+  if (/lightning|A1602|A1938|A2190|A2031|A2032|A2083|A2084|A2564|A2565/i.test(name)) return 'lightning';
+  if (/solo ?3|studio ?3|\bqc ?35\b|quietcomfort 35|soundsport|beats ep|powerbeats ?3|soundlink (mini|color)\b/i.test(name)) return 'micro';
+  if (
+    /galaxy buds|pixel buds|W[HF]-1000XM[3-6]|WH-CH[57]20|WF-C[57]\d0|WH-ULT|solo ?4|solo buds|fit pro|studio buds|studio pro|\bqc ?45\b|quietcomfort (ultra|45|earbuds|\(2024\))|bose 700|soundcore|jbl tune [5-9]\d0|crusher evo|PX8|headphone \(1\)|moto buds|jbuds|nothing/i.test(name)
+  ) {
+    return 'usbc';
+  }
+  return '';
 }
 
 const portOfName = (s: string): Port | '' => (/lightning/i.test(s) ? 'lightning' : /micro-?\s?usb/i.test(s) ? 'micro' : /usb-?\s?c|type-?c/i.test(s) ? 'usbc' : '');
@@ -258,7 +283,19 @@ export function bandFit(watch: string, band: string): Fit {
     const b = watchMm(band);
     return !w || !b.length ? 'check' : b.includes(w) ? 'yes' : 'no';
   }
-  if (!/galaxy|samsung/i.test(watch) || !/galaxy|samsung/i.test(band)) return 'no';
+  if (!/galaxy|samsung/i.test(watch)) {
+    // Other makers (Fitbit, Garmin): a band naming the same maker, and the same model to be sure.
+    const brand = watch.match(/^([a-z]+)/i)?.[1] ?? '';
+    if (!brand || !new RegExp(`\\b${escRe(brand)}\\b`, 'i').test(band)) return 'no';
+    const model = watch.slice(brand.length).trim().split(/[\s,(]+/)[0];
+    return model && new RegExp(`\\b${escRe(model)}\\b`, 'i').test(band) ? 'yes' : 'check';
+  }
+  if (!/galaxy|samsung/i.test(band)) return 'no';
+  // A Galaxy Fit band or other tracker takes only straps named for it, never a watch's.
+  if (!/watch/i.test(watch)) {
+    const own = watch.match(/galaxy\s+(fit\s?\d?\w*|\w+)/i)?.[1];
+    return own && new RegExp(`\\b${escRe(own)}\\b`, 'i').test(band) && !/watch/i.test(band) ? 'yes' : 'no';
+  }
   const gen = (s: string): string => (/ultra/i.test(s) ? 'ultra' : s.match(/watch\s?(\d)/i)?.[1] ?? '');
   const wg = gen(watch);
   const bg = gen(band);
@@ -541,7 +578,13 @@ function ds(it: Item): Slot[] {
       why: 'A spare charger, or one in case it is needed.',
       cats: ['3DS Accessories', 'Nintendo DS Accessories', 'CeX basics - Gaming Accessories'],
       has: /charg|adaptor|adapter/i,
-      fit: (a) => (/3DS|DSi/i.test(a.name) ? (three || dsi ? 'yes' : 'no') : /DS Lite/i.test(a.name) ? (/lite/i.test(it.name) ? 'yes' : 'no') : 'check'),
+      fit: (a) => {
+        // The 3DS cradle holds only a 3DS; the 3DS adaptor also charges a DSi; a DS Lite takes its own.
+        if (/cradle/i.test(a.name)) return three ? 'yes' : 'no';
+        if (/3DS|DSi/i.test(a.name)) return three || dsi ? 'yes' : 'no';
+        if (/DS Lite/i.test(a.name)) return /lite/i.test(it.name) ? 'yes' : 'no';
+        return 'no';
+      },
     },
   ];
 }
@@ -571,6 +614,22 @@ const RETRO: Record<string, { label: string; controllers?: string[]; games: stri
   'Gameboy Advance Consoles': { label: 'Game Boy Advance', games: ['Gameboy Advance Software', 'Game Boy Color Software', 'Game Boy Software'] },
   'Master System Consoles': { label: 'Master System', games: ['Master System Software'] },
   'Dreamcast Consoles': { label: 'Dreamcast', games: ['Dreamcast Games'] },
+  'Xbox Consoles': { label: 'original Xbox', controllers: ['Xbox Controllers'], games: ['Xbox Games'] },
+  'Nintendo 64 Consoles': { label: 'N64', games: ['Nintendo 64 Software'] },
+  'NES Consoles': { label: 'NES', games: ['NES Software'] },
+  'Game Gear Consoles': { label: 'Game Gear', games: ['Game Gear Games'] },
+  'Sega Saturn Consoles': { label: 'Saturn', games: ['Sega Saturn Games'] },
+  'Mega-CD Consoles': { label: 'Mega-CD', games: ['Mega-CD Software'] },
+};
+
+/** Rare editions are sold as their own category; their everyday games are the ones to suggest. */
+const RARITIES: Record<string, string> = {
+  'Playstation3 Rarities': 'Playstation3 Games',
+  'Playstation2 Rarities': 'Playstation2 Games',
+  'Xbox 360 Rarities': 'Xbox 360 Games',
+  'DS Rarities': 'Nintendo DS Games',
+  'GameCube Rarities': 'GameCube Games',
+  'Wii Rarities': 'Wii Games',
 };
 
 // ------------------------------------------------------------------ phones and tablets
@@ -610,6 +669,10 @@ function chargerSlot(it: Item): Slot {
 
 function cableSlot(it: Item): Slot {
   const { port, sure } = portOf(it);
+  return cableSlotFor(port, sure);
+}
+
+function cableSlotFor(port: Port, sure: boolean): Slot {
   return {
     id: 'cable',
     title: 'A spare cable',
@@ -629,6 +692,8 @@ function earbudSlot(it: Item): Slot {
     why: noJack(it) ? 'It has no headphone socket, so wireless earbuds are the easy way to listen.' : 'Wireless earbuds to go with it.',
     cats: EARBUD_CATS,
     not: /generic|case only|earpods|wired/i,
+    // AirPods pair with anything, but lose most of what they do away from Apple's own devices.
+    fit: (a) => (/airpods/i.test(a.name) && !isApple(it) ? 'no' : 'yes'),
     floor: 20,
     prefer: isApple(it) ? /airpods|beats/i : isSamsung(it) ? /galaxy buds/i : isGoogle(it) ? /pixel buds/i : undefined,
   };
@@ -921,12 +986,282 @@ function drone(it: Item): Slot[] {
   ];
 }
 
+// ------------------------------------------------------------------ audio, screens, games and the rest
+
+const AUDIO_CATS = ['In-ear Headphones', 'Over-ear Headphones', 'On-ear Headphones', 'Open-ear Headphones', 'Apple AirPods, EarPods & Headphones'];
+const PLUG = /plug|power adapter|wall charger/i;
+const NOT_PLUG = /watch|kettle|magsafe 2|macbook|surface|30pin/i;
+
+function plugSlot(why: string, fit: (a: Item) => Fit = (a) => (/usb-?c|gan|prime/i.test(a.name) ? 'yes' : 'no')): Slot {
+  return { id: 'plug', title: 'A charging plug', why, cats: PLUG_CATS, has: PLUG, not: NOT_PLUG, fit, floor: 6 };
+}
+
+function headphones(it: Item): Slot[] {
+  const n = it.name;
+  const big = /over-?ear|on-?ear/i.test(it.category) || /airpods max/i.test(n);
+  const wired = /\bwired\b/i.test(n) && !/wireless/i.test(n);
+  // The charging case says which cable: a USB-C case, or a Lightning one on older AirPods.
+  const port = headphonePort(n);
+  if (wired) return [];
+  const slots: Slot[] = [plugSlot('A USB-C plug to charge them at the wall.')];
+  slots.push({
+    id: 'cable',
+    title: 'A spare cable',
+    why: port === 'lightning' ? 'A spare Lightning cable for the case.' : port === 'micro' ? 'A spare micro-USB cable.' : 'A spare USB-C cable.',
+    cats: ['CeX basics - Cables'],
+    has: /cable/i,
+    not: /hdmi|stereo|audio|hub/i,
+    fit: (a) => (port ? (portOfName(a.name) === port ? 'yes' : 'no') : portOfName(a.name) === 'usbc' ? 'check' : 'no'),
+    floor: 4,
+  });
+  if (/wireless charging case|magsafe/i.test(n)) {
+    slots.push({ id: 'wireless', title: 'A wireless charger', why: 'The case charges on a wireless pad: no cable to find.', cats: PLUG_CATS, has: /wireless|\bqi\b|magsafe charger/i, not: /power bank|microphone|gimbal|stabili|printer|pixel stand|pixelsnap|3-in-1/i });
+  }
+  if (big) {
+    slots.push({
+      id: 'audio',
+      title: 'An audio cable',
+      why: 'Most wireless headphones also play by wire: on a plane, or when the battery is flat.',
+      cats: ['CeX basics - Cables'],
+      has: /audio|stereo|3\.5\s?mm/i,
+      fit: () => (/airpods max/i.test(n) ? 'no' : 'check'),
+    });
+    slots.push({ id: 'stand', title: 'A headphone stand', why: 'Somewhere to keep them on the desk.', cats: ['PC Accessories'], has: /(headset|headphone) stand/i });
+  }
+  return slots;
+}
+
+const MAKERS: [string, RegExp][] = [
+  ['amazon', /amazon|echo|alexa|kindle|fire tv/i],
+  ['google', /google|nest|chromecast/i],
+  ['apple', /apple|homepod|homekit/i],
+  ['sonos', /sonos/i],
+  ['bose', /bose/i],
+];
+const makerOf = (s: string): string => MAKERS.find(([, re]) => re.test(s))?.[0] ?? '';
+
+function speaker(it: Item): Slot[] {
+  const n = it.name;
+  const maker = makerOf(n);
+  if (it.category === 'Smart Assistant') {
+    const own = MAKERS.find(([m]) => m === maker)?.[1];
+    return [
+      {
+        id: 'room',
+        title: 'One for another room',
+        why: 'Speakers from the same maker work together: music in every room, and an answer from any of them.',
+        cats: ['Smart Assistant'],
+        same: true,
+        fit: (a) => (own && own.test(a.name) ? 'yes' : 'no'),
+        floor: 10,
+      },
+      {
+        id: 'home',
+        title: 'Smart home',
+        why: 'Lights, plugs and cameras it can switch by voice.',
+        cats: ['Smart Lighting', 'Smart Security', 'Smart Home Monitoring'],
+        fit: (a) => (/alexa|google|homekit|works with/i.test(a.name) ? (own?.test(a.name) ? 'yes' : 'check') : 'check'),
+      },
+    ];
+  }
+  // Home speakers run off the mains; only portable, battery ones need a charging plug.
+  const mains = /sonos|soundtouch|sounddock|home speaker|\bplay ?[135]\b|loewe|homepod/i.test(n) && !/portable|roam|move\b/i.test(n);
+  const slots: Slot[] = [];
+  if (!mains) slots.push(plugSlot('A USB plug to charge it at the wall.', (a) => (watts(a.name) >= 10 ? 'yes' : 'no')));
+  slots.push({ id: 'audio', title: 'An audio cable', why: 'Plays from anything with a headphone socket, no pairing needed.', cats: ['CeX basics - Cables'], has: /audio|stereo|3\.5\s?mm/i, fit: () => 'check' });
+  return slots;
+}
+
+/** TVs, projectors, streaming boxes and disc players. */
+function screenKit(it: Item): Slot[] {
+  const tv = /televisions|projectors/i.test(it.category);
+  const slots: Slot[] = [
+    { id: 'hdmi', title: 'An HDMI cable', why: 'A 4K HDMI cable, or a longer one to reach.', cats: ['CeX basics - Cables'], has: /hdmi/i },
+    { id: 'soundbar', title: 'A soundbar', why: 'Fuller sound and clearer voices than a TV’s own speakers.', cats: ['Soundbars'], cap: 300 },
+  ];
+  if (tv) slots.push({ id: 'stream', title: 'A streaming box', why: 'Netflix, iPlayer and the rest on any screen.', cats: ['TV Media Players'], not: /no software updates|freesat|humax/i, cap: 250 });
+  return slots;
+}
+
+function monitorKit(): Slot[] {
+  return [
+    { id: 'hdmi', title: 'An HDMI cable', why: 'A spare, or a longer one to reach the computer.', cats: ['CeX basics - Cables'], has: /hdmi/i },
+    { id: 'webcam', title: 'A webcam', why: 'Sits on top of the screen for video calls.', cats: ['PC Accessories'], has: /webcam|facecam/i, floor: 5 },
+    { id: 'speakers', title: 'Speakers', why: 'Few monitors have speakers worth listening to.', cats: ['PC Speakers'] },
+  ];
+}
+
+function ereader(it: Item): Slot[] {
+  const brand = it.name.match(/\b(kindle|kobo|remarkable|boox|pocketbook)\b/i)?.[1] ?? '';
+  return [
+    {
+      id: 'case',
+      title: 'A case',
+      why: 'Keeps the screen safe in a bag.',
+      cats: ['Tablet Accessories'],
+      has: /case|folio|cover/i,
+      fit: (a) => (brand && new RegExp(brand, 'i').test(a.name) ? (namesModel(a.name, it.name.replace(/^amazon\s+/i, '')) ? 'yes' : 'check') : 'no'),
+    },
+    plugSlot('A USB plug to charge it at the wall.', (a) => (watts(a.name) >= 5 ? 'yes' : 'no')),
+  ];
+}
+
+/** More games for the same console, and its controllers, by the game's category. */
+function gameKit(it: Item): Slot[] {
+  const own = it.category;
+  const c = RARITIES[own] ?? own;
+  const platform = Object.values(P).find((p) => p.games.includes(c));
+  const old = Object.values(RETRO).find((r) => r.games.includes(c));
+  const OTHERS: Record<string, [string, string[]]> = {
+    '3DS Games': ['3DS', []],
+    'Nintendo DS Games': ['DS', []],
+    'PS Vita Games': ['PS Vita', []],
+    'Switch Games': ['Switch', ['Switch Controllers']],
+    'Switch 2 Games': ['Switch 2', ['Switch 2 Controllers']],
+    // Most boxed PC games are played with a keyboard and mouse, so no controller is offered.
+    'PC Games': ['PC', []],
+  };
+  const label = platform?.label ?? old?.label ?? OTHERS[c]?.[0] ?? '';
+  const pads = platform?.controllers ?? old?.controllers ?? OTHERS[c]?.[1] ?? [];
+  if (!label) return [];
+  const slots: Slot[] = [{ id: 'games', title: 'More games', why: `The most popular ${label} games we have in.`, cats: [c], games: true, same: true, cap: 70 }];
+  if (pads.length) slots.push({ id: 'pad', title: 'A controller', why: 'A second one, for playing together.', cats: pads, not: /NES controller|nitro deck|move motion|wheel|pedal|hotas|yoke|flight|joystick|arcade/i, floor: 15, cap: 80 });
+  return slots;
+}
+
+/** iPods, mini consoles and VR headsets: what they plug into and run on. */
+function smallKit(it: Item): Slot[] {
+  const c = it.category;
+  if (c === 'Apple iPod') {
+    // The iPod touch from its 5th generation and the nano from its 7th have Lightning; older ones the 30-pin dock connector.
+    const gen = it.name.match(/(touch|nano)\D*?(\d+)(?:st|nd|rd|th)/i);
+    const lightning = gen ? Number(gen[2]) >= (/touch/i.test(gen[1]) ? 5 : 7) : null;
+    return [
+      { id: 'earbuds', title: 'Earbuds', why: 'Something to listen with.', cats: ['Apple AirPods, EarPods & Headphones', 'In-ear Headphones'], not: /generic|case only/i, floor: 10, prefer: /airpods|earpods|beats/i },
+      lightning === false
+        ? { id: 'cable', title: 'A spare cable', why: 'A spare 30-pin cable for charging and syncing.', cats: ['Apple iPhone Accessories'], has: /30 ?pin/i }
+        : { ...cableSlotFor('lightning', lightning === true), why: 'A spare Lightning cable for charging and syncing.' },
+    ];
+  }
+  if (c === 'MicroConsoles') {
+    return [{ id: 'hdmi', title: 'An HDMI cable', why: 'A spare, or a longer one to reach the sofa.', cats: ['CeX basics - Cables'], has: /hdmi/i }, plugSlot('A USB plug, if it didn’t come with one.', (a) => (watts(a.name) >= 5 ? 'yes' : 'no'))];
+  }
+  if (c === 'VR Tech') {
+    return [
+      { id: 'bank', title: 'A power bank', why: 'A headset battery lasts about two hours; a power bank in a pocket doubles it.', cats: ['Power Banks'], not: /magsafe/i, floor: 10 },
+      plugSlot('A fast USB-C plug charges it between sessions.'),
+    ];
+  }
+  return [];
+}
+
+// ------------------------------------------------------------------ the guard
+//
+// A second line of defence, independent of the slot rules: an accessory that names a different
+// console, a different phone or tablet model, or another maker's own system is never offered,
+// whatever a rule says. The rules decide what is worth offering; the guard only knows what can't
+// be right, so a rule that is too loose shows up as something the guard stopped (see the audit
+// in src/addonAudit.ts) instead of as a wrong suggestion on the shop floor.
+
+const CONSOLE_WORDS: [string, RegExp][] = [
+  ['ps5', /\bPS5\b|playstation ?5/i],
+  ['ps4', /\bPS4\b|playstation ?4/i],
+  ['ps3', /\bPS3\b|playstation ?3/i],
+  ['ps2', /\bPS2\b|playstation ?2/i],
+  ['vita', /\bvita\b/i],
+  ['psp', /\bPSP\b/],
+  ['xseries', /xbox series|\(series\b|\/\s*series\b|\bseries\s*\//i],
+  ['xone', /\bXB1\b|xbox one/i],
+  ['x360', /xbox 360/i],
+  ['switch2', /switch ?2\b|joy-?con ?2/i],
+  ['switch', /\bswitch\b(?! ?2)|joy-?con(?! ?2)/i],
+  ['3ds', /\b(new )?[23]ds\b/i],
+  ['ds', /\bDS(i|\s?lite)?\b/],
+  ['wiiu', /\bwii ?u\b/i],
+  ['wii', /\bwii\b(?! ?u)/i],
+  ['gamecube', /gamecube/i],
+];
+const CATEGORY_CONSOLE: [RegExp, string][] = [
+  [/^Playstation5 /, 'ps5'],
+  [/^Playstation4 /, 'ps4'],
+  [/^Playstation3 /, 'ps3'],
+  [/^Playstation2 /, 'ps2'],
+  [/^PS Vita /, 'vita'],
+  [/^PSP /, 'psp'],
+  [/^Xbox Series |^Xbox Smart Delivery /, 'xseries'],
+  [/^Xbox One /, 'xone'],
+  [/^Xbox 360 /, 'x360'],
+  [/^Switch 2 /, 'switch2'],
+  [/^Switch /, 'switch'],
+  [/^3DS /, '3ds'],
+  [/^Nintendo DS /, 'ds'],
+  [/^Wii U /, 'wiiu'],
+  [/^Wii /, 'wii'],
+  [/^GameCube /, 'gamecube'],
+];
+/** What each console also accepts: its own things, and those of the console it plays from. */
+const ACCEPTS: Record<string, string[]> = { xseries: ['xone'], xone: ['xseries'], switch2: ['switch'], '3ds': ['ds'], wiiu: ['wii'], ps5: ['ps4'] };
+
+export const consoleOf = (it: Item): string => CATEGORY_CONSOLE.find(([re]) => re.test(it.category))?.[1] ?? '';
+export const consolesNamed = (name: string): string[] => CONSOLE_WORDS.filter(([, re]) => re.test(name)).map(([k]) => k);
+
+const APPLE_ONLY = /\bairtag\b|magsafe(?! 2)|apple pencil|\blightning\b|\biphone\b|\bipad\b|\b30 ?pin\b|homekit/i;
+const APPLE_ONLY_CATS = ['Apple Watch', 'Apple Watch Accessories', 'Apple iPad Accessories'];
+const SAMSUNG_ONLY = /smarttag|\bs-?\s?pen\b/i;
+const GOOGLE_ONLY = /pixel stand|pixelsnap/i;
+const WEAR_OS = /galaxy watch|pixel watch/i;
+
+/** Why this accessory can't go with this item, or '' when nothing rules it out. */
+export function guard(it: Item, slot: Slot, a: Item, fit: Fit): string {
+  if (a.id === it.id) return 'the item itself';
+  if (a.category === it.category && !slot.same) return 'the same kind of item';
+  const own = consoleOf(it);
+  const named = consolesNamed(a.name);
+  if (own && named.length && !named.includes(own) && !named.some((k) => ACCEPTS[own]?.includes(k))) {
+    // Filed under this console by CeX but named for another: CeX's listing, not a loose rule.
+    return `${consoleOf(a) === own ? 'listing: ' : ''}made for ${named.join('/')}`;
+  }
+  if (!own && named.length && (it.kind === 'phone' || it.kind === 'tablet')) return `made for ${named.join('/')}`;
+  // Games are named for their stories ("Lightning Bolt"), not for what they plug into.
+  if (slot.games || /games$|software$|rarities$/i.test(a.category)) return '';
+  const apple = isApple(it) || it.category === 'Apple Watch' || /^watch (series|ultra|se)/i.test(it.name);
+  // Something with both a Lightning and a USB-C end (a power bank, an adapter cable) isn't Apple
+  // only, and nor is a "MagSafe" case made for a Galaxy or a Pixel.
+  const otherMaker = /samsung|galaxy|pixel|oneplus|motorola/i.test(a.name);
+  const bothEnds = /lightning/i.test(a.name) && /usb-?\s?c/i.test(a.name) && !/iphone|ipad|magsafe|airtag/i.test(a.name);
+  const appleOnly = (APPLE_ONLY.test(a.name) && !bothEnds && !otherMaker) || APPLE_ONLY_CATS.includes(a.category);
+  // Cables and plugs say "Lightning" because of what they plug into; the rules match ports themselves.
+  if (appleOnly && !apple && !(slot.id === 'cable' || slot.id === 'plug')) return 'Apple only';
+  if (SAMSUNG_ONLY.test(a.name) && !isSamsung(it)) return 'Samsung only';
+  if (GOOGLE_ONLY.test(a.name) && !isGoogle(it)) return 'Google only';
+  if (WEAR_OS.test(a.name) && apple) return 'does not work with iPhone';
+  if (fit === 'check') return '';
+  // An accessory naming a model must name this one.
+  if (it.kind === 'phone' && apple && /\biphone\s+(\d|x\b|xs|xr|se\b|air)/i.test(a.name) && !namesModel(a.name, it.model)) return 'names another iPhone';
+  if (it.kind === 'tablet' && apple && /\bipad\s*(pro|air|mini|\(|\d|a1\d)/i.test(a.name) && ipadAccFit(it, a.name) === 'no') return 'names another iPad';
+  if (isSamsung(it) && (it.kind === 'phone' || it.kind === 'tablet') && /(galaxy|samsung)\s+(tab\s+)?(s|a|z\s?(flip|fold)|note)\s?\d/i.test(a.name) && !namesModel(a.name, it.model) && seriesFit(a.name, it.model) === 'no') {
+    return 'names another Galaxy';
+  }
+  if (isGoogle(it) && it.kind === 'phone' && /pixel\s+\d/i.test(a.name) && !namesModel(a.name, it.model)) return 'names another Pixel';
+  return '';
+}
+
 // ------------------------------------------------------------------ choosing
 
 /** The slots worth offering with this item, best first. Empty when it has none. */
 export function slotsFor(it: Item): Slot[] {
   const c = it.category;
+  if (AUDIO_CATS.includes(c)) return headphones(it);
+  if (c === 'Smart Assistant' || (c === 'Media Player Accessories' && /speaker|sonos|soundtouch|soundlink|pill\b|partybox|soundcore|boom/i.test(it.name))) return speaker(it);
+  if (/^(LED Televisions|OLED Televisions|Televisions|Projectors|TV Media Players|Blu-Ray Players)$/.test(c)) return screenKit(it);
+  if (c === 'PC Monitors') return monitorKit();
+  if (c === 'eReaders') return ereader(it);
+  if (/ Games$|Software$|Rarities$/.test(c)) return gameKit(it);
+  if (c === 'Apple iPod' || c === 'MicroConsoles' || c === 'VR Tech') return smallKit(it);
   switch (c) {
+    case 'Activity Trackers':
+    case 'Hybrid Smartwatches':
+      return watch(it);
     case 'Playstation5 Consoles':
       return ps5(it);
     case 'Playstation4 Consoles':
@@ -991,20 +1326,44 @@ const ROLE = { pop: 'Most popular', cheap: 'Cheapest', top: 'Top end' };
  * Fill each slot from the branch's stock. `stock` is in CeX's popularity order (its `idx`).
  * A slot with nothing that fits is left out.
  */
-export function arrange(it: Item, slots: Slot[], stock: Item[]): Shelf[] {
+/** Stock grouped by category, so each slot reads only its own categories. */
+export function byCategory(stock: Item[]): Map<string, Item[]> {
+  const m = new Map<string, Item[]>();
+  for (const a of stock) {
+    const list = m.get(a.category);
+    if (list) list.push(a);
+    else m.set(a.category, [a]);
+  }
+  return m;
+}
+
+/**
+ * Fill each slot from the branch's stock (each list in CeX's popularity order, its `idx`). A slot
+ * with nothing that fits is left out. `blocked` hears of every accessory a rule let through but
+ * the guard stopped, for the audit.
+ */
+export function arrange(it: Item, slots: Slot[], stock: Item[] | Map<string, Item[]>, blocked?: (slot: Slot, a: Item, why: string) => void): Shelf[] {
+  const index = stock instanceof Map ? stock : byCategory(stock);
   const out: Shelf[] = [];
   const seen = new Set<string>([it.id]);
   for (const slot of slots) {
     const fitted: Offer[] = [];
-    for (const a of stock) {
-      if (seen.has(a.id) || !slot.cats.includes(a.category)) continue;
-      if ((slot.has && !slot.has.test(a.name)) || slot.not?.test(a.name) || /^generic\b/i.test(a.name)) continue;
-      const fit = slot.fit ? slot.fit(a) : 'yes';
-      if (fit !== 'no') fitted.push({ item: a, fit, tag: '' });
-    }
-    if (!fitted.length) continue;
     // An add-on costs less than the thing it goes with: by default up to 60% of its price.
     const cap = slot.cap ?? Math.max(25, Math.round(it.price * 0.6));
+    for (const cat of new Set(slot.cats)) {
+      for (const a of index.get(cat) ?? []) {
+        if (seen.has(a.id)) continue;
+        if ((slot.has && !slot.has.test(a.name)) || slot.not?.test(a.name) || /^generic\b/i.test(a.name)) continue;
+        // Price is the rules' call (the slot's cap), not a mistake for the guard to catch.
+        if (a.price > cap) continue;
+        const fit = slot.fit ? slot.fit(a) : 'yes';
+        if (fit === 'no') continue;
+        const why = guard(it, slot, a, fit);
+        if (why) blocked?.(slot, a, why);
+        else fitted.push({ item: a, fit, tag: '' });
+      }
+    }
+    if (!fitted.length) continue;
     if (slot.games) {
       const list = fitted.filter((o) => o.item.price <= cap).sort((a, b) => a.item.idx - b.item.idx);
       if (!list.length) continue;

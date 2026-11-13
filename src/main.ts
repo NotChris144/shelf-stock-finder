@@ -1013,9 +1013,9 @@ async function openCover(it: Item, btn: HTMLElement | null): Promise<void> {
 const MONTH = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 /** The model's spec sheet in plain words. Only what is recorded: a missing fact is a missing row. */
-function specsHtml(it: Item): string {
+function specRows(it: Item): [string, string][] {
   const s = it.specs;
-  if (!s) return '';
+  if (!s) return [];
   const sh = s.sheet;
   const join = (parts: (string | false | 0 | undefined)[]): string => parts.filter(Boolean).join(' · ');
   const rows: [string, string][] = [];
@@ -1037,50 +1037,79 @@ function specsHtml(it: Item): string {
     ]);
     if (extras) rows.push(['Extras', extras]);
   }
-  if (s.year) rows.push(['Released', join([`${sh?.m ? `${MONTH[sh.m - 1]} ` : ''}${s.year}`, sh?.os && `came with ${sh.os}`])]);
-  if (!rows.length) return '';
-  // Naming the sheet's own device makes a wrong match visible at a glance.
-  const src = sh ? `<p class="specs-src">Spec sheet for the ${esc(sh.n)}, from <a href="https://www.gsmarena.com/x-${sh.id}.php" target="_blank" rel="noopener noreferrer">GSMArena</a></p>` : '';
-  return `<dl class="specs">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${src}`;
+  // The month and year only: what it came with is the update badge's business.
+  if (s.year) rows.push(['Released', `${sh?.m ? `${MONTH[sh.m - 1]} ` : ''}${s.year}`]);
+  return rows;
 }
 
+const DAY = 864e5;
+const daysAgo = (t: number): string => {
+  const d = Math.floor((Date.now() - t) / DAY);
+  return d <= 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`;
+};
+const cexPage = (v: Item): string => (demo ? `https://uk.webuy.com/search?stext=${encodeURIComponent(v.name)}` : `https://uk.webuy.com/product-detail?id=${encodeURIComponent(v.id)}`);
+const ICON_CHEVRON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+const ICON_OUT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 16 16 8M9.5 8H16v6.5"/></svg>';
+const DOT = '<i class="dot" aria-hidden="true"></i>';
+
+/**
+ * An opened card says only what the card itself doesn't:
+ *  - update status only when it needs explaining (ending, ended, unknown); otherwise the badge says it;
+ *  - the price only when it has just changed, so the label may need reprinting, or for a scanned
+ *    label, what it should read;
+ *  - the spec sheet, naming the chip once; how fast it is is the badge's job;
+ *  - what CeX pays for it, and a list of copies only when there is more than one to choose from;
+ *  - what to do next: add-ons, and CeX's own page.
+ */
 function detailHtml(g: Group): string {
   const it = g.head;
-  const s = it.support;
-  const why = s.status === 'na' ? '' : `<p class="why st-${s.status}"><b>${it.kind === 'laptop' || it.kind === 'desktop' ? 'System' : 'Updates'}</b>${esc(s.detail)}</p>`;
-  const speed = it.perf
-    ? `<p class="why"><b>Speed</b>${it.perf.label} — about ${it.perf.score.toLocaleString('en-GB')} points${it.perf.chip ? ` (${esc(it.perf.chip)})` : ''}. Approximate benchmark, for comparing stock.</p>`
-    : '';
-  const rows = g.items
-    .map((v) => {
-      const href = demo ? `https://uk.webuy.com/search?stext=${encodeURIComponent(v.name)}` : `https://uk.webuy.com/product-detail?id=${encodeURIComponent(v.id)}`;
-      const buy = v.cash || v.voucher ? `<span class="buy">We pay ${money(v.cash)} cash · ${money(v.voucher)} voucher</span>` : '';
-      return `<li><a href="${href}" target="_blank" rel="noopener">
-        <span class="v-name">${esc(v.variant || v.name)}${buy}</span>
-        ${v.grade ? `<span class="grade g${v.grade}">${v.grade}</span>` : ''}
-        <span class="v-price">${money(v.price)}</span>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
-      </a></li>`;
-    })
-    .join('');
+  const one = g.items.length === 1;
   const scanned = g.key.startsWith('scan:');
-  let priced = '';
-  if (it.priceChanged) {
-    const days = Math.floor((Date.now() - it.priceChanged) / 864e5);
-    const when = new Date(it.priceChanged).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-    const ago = days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
-    priced = `<p class="why${days <= 7 ? ' st-warn' : ''}"><b>Price</b>${money(it.price)} on the system, last changed ${when} (${ago}).${scanned ? ' If the label shows a different price, it needs reprinting.' : ''}</p>`;
+  const facts: string[] = [];
+  const fact = (k: string, html: string, cls = ''): void => void facts.push(`<dt>${k}</dt><dd${cls ? ` class="${cls}"` : ''}>${html}</dd>`);
+
+  const s = it.support;
+  if (s.status === 'warn' || s.status === 'ended' || s.status === 'unknown' || s.stale) {
+    fact(it.kind === 'laptop' || it.kind === 'desktop' ? 'System' : 'Updates', DOT + esc(s.detail), `st-${s.status}`);
   }
-  const sellable = it.kind === 'phone' || it.kind === 'tablet';
+  const fresh = it.priceChanged > 0 && Date.now() - it.priceChanged < 14 * DAY;
+  if (scanned) fact('Label', `${fresh ? DOT : ''}Should read ${money(it.price)}${fresh ? `. Changed ${daysAgo(it.priceChanged)}` : ''}`, fresh ? 'st-warn' : '');
+  else if (fresh) fact('Price', `${DOT}Changed ${daysAgo(it.priceChanged)}. Check the label matches.`, 'st-warn');
+  for (const [k, v] of specRows(it)) fact(k, esc(v));
+  // What CeX pays depends on the grade, not the colour, so it is said once per grade.
+  const pays = new Map<string, string>();
+  for (const v of g.items) if ((v.cash || v.voucher) && !pays.has(v.grade)) pays.set(v.grade, `${money(v.cash)} cash · ${money(v.voucher)} voucher`);
+  if (pays.size === 1 || new Set(pays.values()).size === 1) fact('We pay', [...pays.values()][0]);
+  else if (pays.size) fact('We pay', [...pays].sort(([a], [b]) => a.localeCompare(b)).map(([gr, p]) => `<span class="pay">${gr ? `Grade ${gr}: ` : ''}${p}</span>`).join(''));
+
+  const sh = it.specs?.sheet;
+  // Naming the sheet's own device makes a wrong match visible at a glance.
+  const source = sh && specRows(it).length ? `<p class="specs-src">Specs from <a href="https://www.gsmarena.com/x-${sh.id}.php" target="_blank" rel="noopener noreferrer">GSMArena’s ${esc(sh.n)} page</a></p>` : '';
+
+  // Several copies: which colour or grade at which price. Each opens its own CeX page.
+  const copies = one
+    ? ''
+    : `<ul class="variants">${g.items
+        .map((v) => {
+          const label = v.variant || (v.grade ? `Grade ${v.grade}` : v.name);
+          return `<li><a href="${cexPage(v)}" target="_blank" rel="noopener">
+        <span class="v-name">${esc(label)}</span>
+        ${v.variant && v.grade ? `<span class="grade g${v.grade}">${v.grade}</span>` : ''}
+        <span class="v-price">${money(v.price)}</span>${ICON_CHEVRON}
+      </a></li>`;
+        })
+        .join('')}</ul>`;
+
+  // One filled action at most: a step up for a scanned phone, otherwise add-ons.
   const acts: string[] = [];
-  // Anything with accessories worth offering (consoles, phones, tablets, computers, cameras, watches).
-  if (!demo && slotsFor(it).length) acts.push(`<button type="button" class="chip" aria-pressed="true" data-act="addons" data-v="${esc(it.id)}">Suggest add-ons</button>`);
-  if (scanned && (it.model || it.title)) {
-    if (sellable) acts.push(`<button type="button" class="chip" aria-pressed="true" data-act="stepup" data-v="${esc(it.id)}">Find a step up</button>`);
-    acts.push(`<button type="button" class="chip" data-act="similar" data-v="${esc(it.model || it.title)}">Find similar in stock</button>`);
-  }
-  const actions = acts.length ? `<div class="detail-acts">${acts.join('')}</div>` : '';
-  return `<div class="detail">${priced}${why}${speed}${specsHtml(it)}<ul class="variants">${rows}</ul>${actions}</div>`;
+  const stepUp = scanned && (it.kind === 'phone' || it.kind === 'tablet');
+  if (stepUp) acts.push(`<button type="button" class="chip" aria-pressed="true" data-act="stepup" data-v="${esc(it.id)}">Find a step up</button>`);
+  if (!demo && slotsFor(it).length) acts.push(`<button type="button" class="chip" aria-pressed="${!stepUp}" data-act="addons" data-v="${esc(it.id)}">Suggest add-ons</button>`);
+  if (scanned && (it.model || it.title)) acts.push(`<button type="button" class="chip" aria-pressed="false" data-act="similar" data-v="${esc(it.model || it.title)}">Find similar</button>`);
+  if (one) acts.push(`<a class="chip out" href="${cexPage(it)}" target="_blank" rel="noopener">CeX page${ICON_OUT}</a>`);
+
+  const list = facts.length ? `<dl class="specs">${facts.join('')}</dl>${source}` : '';
+  return `<div class="detail">${list}${copies}${acts.length ? `<div class="detail-acts">${acts.join('')}</div>` : ''}</div>`;
 }
 
 const isHome = (): boolean => !F.mode && !F.q.trim() && !F.preset;
@@ -2605,7 +2634,15 @@ if (import.meta.env.DEV) {
   // Simulated customers for the step-up flow (see src/sim.ts): `await shelf.sim()` in the console.
   const sim = async (limit = stepLimit): Promise<unknown> =>
     (await import('./sim.ts')).simulate([...(await flowHost.loadKind('phone')), ...(await flowHost.loadKind('tablet'))], limit);
-  Object.assign(window, { shelf: { items: () => items, hits: () => hits, openScan, sim } });
+  // Every product in stock through the add-on rules and the guard (see src/addonAudit.ts): `await shelf.audit()`.
+  const audit = async (): Promise<unknown> => {
+    const { audit: run, auditText } = await import('./addonAudit.ts');
+    const { branchStock } = await import('./api.ts');
+    const report = run((await branchStock(branch)).map((h, i) => toItem(h, i, ctx)));
+    console.log(auditText(report, branch));
+    return report;
+  };
+  Object.assign(window, { shelf: { items: () => items, hits: () => hits, openScan, sim, audit } });
 }
 if (!F.mode && matchMedia('(hover: hover) and (pointer: fine)').matches) $<HTMLInputElement>('#q').focus();
 

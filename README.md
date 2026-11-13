@@ -52,9 +52,10 @@ their own (`FACETS` in `src/main.ts`).
 **Suggest add-ons**, in any card's expanded view, lists what else on the shelf goes with that
 item (`src/addons.ts`). It covers:
 
-- consoles, old and new, and handheld PCs;
-- phones, tablets, laptops and desktops;
-- watches, cameras, action cameras and drones.
+- consoles, old and new, handheld PCs and games for every console;
+- phones, tablets, laptops, desktops and monitors;
+- watches, fitness bands, cameras, action cameras and drones;
+- headphones, speakers, TVs, streaming boxes, e-readers, iPods and VR headsets.
 
 Each kind of item has slots in the order they are worth offering. For a PS5 that is a second
 controller, games, a headset, controller charging, a stand, the Portal, a wheel and VR. Each slot
@@ -80,8 +81,25 @@ the whole bundle.
   iPhone, Galaxy Buds for a Galaxy), all three come from that maker. Games and amiibo are simply
   the best sellers. An add-on is capped at 60% of the item's price unless the slot says otherwise.
 
-The stock is read when the screen opens, in one request. `npm run addoncheck` tests the rules
-against real names from Eastbourne's stock.
+The stock is read when the screen opens, in one request.
+
+Nothing here is judged by eye or by an AI. Three checks keep the suggestions right:
+
+- **The guard** (`guard` in `src/addons.ts`) runs on every suggestion, whatever the rules say. It
+  stops any accessory that names a different console, iPhone, iPad, Galaxy or Pixel, and anything
+  that works only with another maker's devices (AirTag, MagSafe, Apple Watch, S Pen, SmartTag,
+  Pixel Stand).
+- **`npm run addoncheck`** runs 71 cases built from real names in Eastbourne's stock. It covers
+  the fits above and each mistake found so far. It runs before every deploy, and a failure stops
+  the deploy.
+- **`npm run addonaudit`** runs every product in a branch's live stock through the rules. It
+  reports:
+  - anything the guard had to stop: a loose rule, or a product CeX filed under the wrong console;
+  - the kinds of product with no add-ons yet;
+  - the slots the shelf has nothing for;
+  - which slots rely most on "Check it fits".
+
+  In the dev build, `await shelf.audit()` does the same in the console.
 
 ## Phone and tablet spec sheets
 

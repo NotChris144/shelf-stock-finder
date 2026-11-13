@@ -531,23 +531,6 @@ main {
   }
 }
 
-.why {
-  margin: 0;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--c, var(--muted)) 11%, var(--surface-2));
-  font-size: 14px;
-}
-
-.why b {
-  display: block;
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--c, var(--muted));
-  margin-bottom: 2px;
-}
-
 .variants {
   list-style: none;
   margin: 0;
@@ -582,12 +565,6 @@ main {
   display: grid;
   font-weight: 600;
   overflow-wrap: anywhere;
-}
-
-.buy {
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--muted);
 }
 
 .v-price {
@@ -2597,6 +2574,39 @@ body:has(main input:focus) .dock {
   text-underline-offset: 2px;
 }
 
+/* A fact that needs attention (updates ending, a price just changed) carries its colour on a dot
+   before the words; the words stay in the text colour so they read at arm's length. */
+.specs .dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: var(--c, var(--muted));
+  vertical-align: 1px;
+}
+
+.specs .pay {
+  display: block;
+}
+
+.specs dd[class*='st-'] {
+  font-weight: 500;
+}
+
+/* CeX's own page, a way out of the app: a quiet chip with an arrow pointing away. */
+a.chip.out {
+  color: inherit;
+  text-decoration: none;
+}
+
+a.chip.out svg {
+  width: 15px;
+  height: 15px;
+  margin-right: -3px;
+  color: var(--muted);
+}
+
 /* What the customer cares about most, above the step-up options. */
 .frow.focus {
   margin: 4px calc(-1 * var(--gutter)) 16px;
@@ -2965,7 +2975,6 @@ a,
   background: var(--fill);
 }
 
-.why,
 .specs,
 .variants {
   border-radius: 14px;

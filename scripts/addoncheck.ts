@@ -4,6 +4,7 @@
 // is a sample copied from the branch on 13 November 2026, listed in CeX's popularity order.
 import snapshot from '../src/data/eol-snapshot.json' with { type: 'json' };
 import sheets from '../src/data/specs.json' with { type: 'json' };
+import { audit } from '../src/addonAudit.ts';
 import { arrange, bandFit, ipadAccFit, lensFit, namesModel, pencilFit, seriesFit, slotsFor, strapFit } from '../src/addons.ts';
 import type { EolDb } from '../src/eol.ts';
 import { toItem } from '../src/parse.ts';
@@ -119,6 +120,23 @@ const STOCK: [string, string, number][] = [
   ['PC Mice', 'Logitech G502 HERO Wired Gaming Mouse, B', 35],
   ['CeX basics - Cables', 'CeX basics - USB-C 7-in-1 Multiport Hub', 15],
   ['PC Monitors', 'LG 24GN600-B 23.8" FHD IPS 1ms Gaming Monitor, B', 75],
+  ['Power Banks', 'Veger C11 10000 mAH 22.5W Lightning & USB- C Powerbank - White', 12],
+  ['Phone Accessories', 'Benks Kevlar Aramid Fiber Magsafe Case for Samsung Galaxy S25 Ultra - Grey', 22],
+  ['Smart Assistant', 'Amazon Echo Flex (C77A68), B', 15],
+  ['Smart Assistant', 'Google Nest Mini - Charcoal, B', 22],
+  ['Wearables Accessories', 'Samsung Galaxy Watch6 Sport Band (20mm, S/M) - Graphite, B', 4],
+  ['Playstation4 Games', 'Black Desert Prestige Edition (PS5 Only)', 20],
+  ['Playstation4 Games', 'Red Dead Redemption 2 (2 Disc) (No DLC)', 15],
+  ['Nintendo DS Games', 'Inazuma Eleven 3: Lightning Bolt', 8],
+  ['Nintendo DS Games', 'Mario Kart DS', 10],
+  ['CeX basics - Cables', 'CeX basics - Stereo Audio Cable 3.5mm 1.2m', 5],
+  ['CeX basics - Cables', 'CeX basics - Micro-USB to USB 12W Cable 1m', 5],
+  ['PC Accessories', 'Stealth XP-RGBHS-V1 RGB Gaming Headset Stand', 4],
+  ['PC Gaming Controllers', 'EasySMX ESM-9110 Wireless Gaming Controller , B', 15],
+  ['PC Games', 'Doom 3 (SN)', 5],
+  ['CeX basics - Gaming Accessories', 'CeX basics - USB-C Charger for Nintendo Switch', 18],
+  ['3DS Accessories', 'Official 3DS Charging Cradle & Power Adaptor', 15],
+  ['Soundbars', 'Denon DHT S216 2.1 Bluetooth Soundbar , B', 45],
 ];
 const stock = STOCK.map(([c, nm, p]) => item(c, nm, p));
 
@@ -285,6 +303,53 @@ const show = (label: string, o: Record<string, string[]>): void => {
   check('MacBook Air 2014: no USB-C hub', !old.hub);
 }
 check('Films get no add-ons', slotsFor(item('DVD Movies', 'The Matrix', 2)).length === 0);
+
+// ---- the kinds added later, and the guard
+{
+  const o = offered(item('Android Phones', 'Samsung Galaxy S25 Ultra 256GB Titanium Silverblue, Unlocked B', 700));
+  check('S25 Ultra: the Galaxy MagSafe case is allowed', any(o.case, /Benks/));
+  check('S25 Ultra: a Lightning & USB-C power bank is allowed', any(o.bank, /Veger/));
+  check('S25 Ultra: no AirPods', !any(o.earbuds, /AirPods/));
+}
+{
+  const o = offered(item('Playstation4 Games', 'Grand Theft Auto V (5)', 12));
+  check('PS4 game: more PS4 games, not the PS5-only one CeX filed under PS4', any(o.games, /Red Dead/) && !any(o.games, /PS5 Only/));
+  check('PS4 game: a PS4 controller', any(o.pad, /DualShock|PS4/) || !o.pad);
+}
+check('DS game: "Lightning Bolt" is a game, not an Apple accessory', any(offered(item('Nintendo DS Games', 'Pokemon Black', 15)).games, /Lightning Bolt/));
+check('PC game: more games, no controller', any(offered(item('PC Games', 'Sims 3 - Offline (SN)', 2)).games, /Doom 3/) && !offered(item('PC Games', 'Sims 3 - Offline (SN)', 2)).pad);
+{
+  const o = offered(item('Nintendo DS Consoles', 'DS Lite Console, Black, Discounted', 45));
+  check('DS Lite: not the Switch charger or the 3DS cradle', !any(o.charger, /Switch|Cradle/));
+}
+{
+  const o = offered(item('Over-ear Headphones', 'Sony WH-CH720N Wireless Over-Ear Headphones - Black, B', 65));
+  check('Sony WH-CH720N: USB-C cable (known model), audio cable to check, stand', any(o.cable, /USB-C to USB-C/) && !any(o.cable, /Micro-USB/) && any(o.audio, /Stereo.*\[check\]/) && any(o.stand, /Stand/));
+  const beats = offered(item('On-ear Headphones', 'Beats Solo3 Wireless On-Ear Headphones - (Product Red) Red, B', 60));
+  check('Beats Solo3: micro-USB cable', any(beats.cable, /Micro-USB/) && !any(beats.cable, /USB-C to/));
+}
+{
+  const o = offered(item('Media Player Accessories', 'Sonos Play 5 (S5) White, B', 55));
+  check('Sonos Play:5 runs off the mains: no charging plug', !o.plug);
+  const jbl = offered(item('Media Player Accessories', 'JBL Go 4 Portable Bluetooth Speaker - Red, B', 25));
+  check('JBL Go 4 (portable): a charging plug', any(jbl.plug, /USB/));
+}
+check('Echo Dot: another Amazon speaker, not a Google one', (() => {
+  const o = offered(item('Smart Assistant', 'Amazon Echo Dot 4th Gen (B7W64E) - Black, B', 32));
+  return any(o.room, /Echo Flex/) && !any(o.room, /Nest/);
+})());
+check('Galaxy Fit3: no Galaxy Watch straps', !offered(item('Activity Trackers', 'Samsung Galaxy Fit3 SM-R390 - Dark Gray, B', 32)).strap);
+check('Apple TV: HDMI and a soundbar', (() => {
+  const o = offered(item('TV Media Players', 'Apple TV 4K 3rd Gen 64GB (A2737) Wifi w/Siri Remote (A2854), B', 210));
+  return any(o.hdmi, /HDMI/) && any(o.soundbar, /Denon/);
+})());
+
+// ---- the audit over the whole sample: nothing a rule lets through should need the guard
+{
+  const report = audit(stock);
+  const loose = report.blocked.filter((b) => !b.why.startsWith('listing: '));
+  check('audit: no rule lets through what the guard stops', loose.length === 0, loose.map((b) => `${b.why}: ${b.offer} as ${b.slot}`).join('; '));
+}
 
 // ---- the rules on their own
 check('namesModel: 15 is not 15 Pro', !namesModel('OtterBox Symmetry Case for iPhone 15 Pro - Stardust', 'iPhone 15'));

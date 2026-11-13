@@ -24,6 +24,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # The add-on rules against real names from the branch's stock; a broken rule stops the deploy.
+      - run: npm run addoncheck
       - run: npm run build
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
