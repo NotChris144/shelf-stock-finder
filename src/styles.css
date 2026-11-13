@@ -30,12 +30,13 @@
     --line: #dfdfd9;
     --text: #15171c;
     --muted: #5d6471;
-    --accent: #d93025;
+    /* Deep enough to read at 4.5:1 or better as small text on their own tints, under shop lighting. */
+    --accent: #c8281d;
     --accent-ink: #ffffff;
-    --ok: #0b8a5c;
-    --warn: #a86400;
-    --bad: #c93636;
-    --unknown: #6a7180;
+    --ok: #066643;
+    --warn: #8a4f00;
+    --bad: #a82424;
+    --unknown: #555c69;
     --shadow: 0 12px 40px rgb(20 20 30 / 0.18);
   }
 }
@@ -2724,7 +2725,9 @@ a,
   position: absolute;
   z-index: -1;
   inset: calc(-1 * env(safe-area-inset-top)) 0 0;
-  background: color-mix(in srgb, var(--bg) 76%, transparent);
+  /* Nearly opaque, as a phone's own bars are: a row of chips sliding up behind it must not read
+     through, even where the blur isn't drawn. */
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
   -webkit-backdrop-filter: blur(24px) saturate(1.8);
   backdrop-filter: blur(24px) saturate(1.8);
   box-shadow: 0 0.5px 0 var(--hair);
@@ -3347,6 +3350,39 @@ dialog[open][data-leaving]::backdrop {
   transform: scale(0.97);
   opacity: 0.8;
   transition-duration: 0s;
+}
+
+/* On a phone the main button spans the bar, beside Clear all when there is one. */
+.sheet-go {
+  max-width: none;
+}
+
+@media (min-width: 620px) {
+  .sheet-go {
+    max-width: 320px;
+  }
+}
+
+/* A number box in a row of chips is one of them: a pill, as tall as they are. */
+.frow .num {
+  min-height: 40px;
+  border-radius: 999px;
+}
+
+.sheet .frow .num {
+  min-height: 44px;
+}
+
+/* A dialog takes focus itself when it opens; it needs no ring of its own. */
+dialog:focus-visible {
+  outline: none;
+}
+
+/* Focus rings on text buttons follow a rounded shape, not a hard box. */
+.done,
+.link,
+.bundle-clear {
+  border-radius: 10px;
 }
 
 @media (min-width: 620px) {

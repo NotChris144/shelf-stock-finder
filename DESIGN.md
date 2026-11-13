@@ -21,12 +21,12 @@ colors:
   line-light: "#dfdfd9"
   text-light: "#15171c"
   muted-light: "#5d6471"
-  accent-light: "#d93025"
+  accent-light: "#c8281d"
   accent-ink-light: "#ffffff"
-  ok-light: "#0b8a5c"
-  warn-light: "#a86400"
-  bad-light: "#c93636"
-  unknown-light: "#6a7180"
+  ok-light: "#066643"
+  warn-light: "#8a4f00"
+  bad-light: "#a82424"
+  unknown-light: "#555c69"
 typography:
   headline:
     fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
@@ -220,14 +220,14 @@ Status is always words with a colour, never a colour alone. Type is the device's
 A cool near-black and charcoal neutral ramp, one warm coral, and three status hues that are never used for decoration. Token names are the project's own; each has a light-theme counterpart with the same role.
 
 ### Primary
-- **Counter Coral** (`accent`, #ff5a4f; light `accent-light`, #d93025): the single accent. It fills a switched-on chip and the main action pill, tints the recommended rung, and appears as small marks: the dot after the wordmark, the store pin, the focus ring, the loading bar under the search field, text links, the caret and text selection.
+- **Counter Coral** (`accent`, #ff5a4f; light `accent-light`, #c8281d): the single accent. It fills a switched-on chip and the main action pill, tints the recommended rung, and appears as small marks: the dot after the wordmark, the store pin, the focus ring, the loading bar under the search field, text links, the caret and text selection.
 - **Coral Ink** (`accent-ink`, #1a0503; light #ffffff): text and icons on a coral fill.
 
 ### Secondary
-- **In-Support Green** (`ok`, #3ddc97; light #0b8a5c): still gets updates, grade A, and the tick beside a gain on the ladder.
-- **Ending Amber** (`warn`, #ffc247; light #a86400): updates ending soon, grade C, a recently changed price, the minus beside something given up, and the demo-mode notice.
-- **Ended Red** (`bad`, #ff7a7a; light #c93636): no more updates.
-- **Unknown Grey** (`unknown`, #8d95a3; light #6a7180): update status not known.
+- **In-Support Green** (`ok`, #3ddc97; light #066643): still gets updates, grade A, and the tick beside a gain on the ladder.
+- **Ending Amber** (`warn`, #ffc247; light #8a4f00): updates ending soon, grade C, a recently changed price, the minus beside something given up, and the demo-mode notice.
+- **Ended Red** (`bad`, #ff7a7a; light #a82424): no more updates.
+- **Unknown Grey** (`unknown`, #8d95a3; light #555c69): update status not known.
 
 ### Neutral
 - **Stockroom Black** (`bg`, #0c0d10; light #f4f4f1): page ground, sheet ground, and the text colour on inverted controls.

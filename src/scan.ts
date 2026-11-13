@@ -610,7 +610,11 @@ export function openScanner(dialog: HTMLDialogElement, host: ScanHost): Scanner 
     { once: true },
   );
 
-  if (!dialog.open) dialog.showModal();
+  if (!dialog.open) {
+    dialog.showModal();
+    // The scanner itself takes focus, so its first button isn't ringed on opening.
+    dialog.focus({ preventScroll: true });
+  }
   void startCamera();
   void tick();
 

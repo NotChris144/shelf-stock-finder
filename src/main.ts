@@ -1004,6 +1004,8 @@ async function openCover(it: Item, btn: HTMLElement | null): Promise<void> {
     d.classList.remove('fits');
     d.innerHTML = '';
     d.showModal();
+    // The viewer itself takes focus, so no control in it wears a focus ring nobody asked for.
+    d.focus({ preventScroll: true });
     history.pushState({ ui: true }, '');
   }
   // Drawn once the viewer is open, so it can be measured and centred on the spine.
@@ -1210,12 +1212,14 @@ async function openSheet(): Promise<void> {
       <div class="frow wrap"><span class="flabel">View</span>${chip('group', 1, 'Group colours & grades', grouped)}</div>
       <div class="frow wrap"><span class="flabel">Store</span><input class="text" list="stores" value="${esc(branch)}" data-act="store" aria-label="Store" autocomplete="off"><datalist id="stores">${stores.map((s) => `<option value="${esc(s)}">`).join('')}</datalist></div>
       <p class="fine">Update dates come from endoflife.date (refreshed ${esc(db.at)}); Apple dates are estimates. Speed ratings are approximate chip benchmarks.</p>
-      <footer class="sheet-foot">${!plain && activeCount() ? '<button type="button" class="link" data-act="reset">Clear all</button>' : '<span></span>'}<button class="sheet-go" value="close">${plain ? 'Done' : loading ? 'Searching…' : `Show ${matched.toLocaleString('en-GB')} ${matched === 1 ? 'item' : 'items'}`}</button></footer>
+      ${plain ? '' : `<footer class="sheet-foot">${activeCount() ? '<button type="button" class="link" data-act="reset">Clear all</button>' : ''}<button class="sheet-go" value="close">${loading ? 'Searching…' : `Show ${matched.toLocaleString('en-GB')} ${matched === 1 ? 'item' : 'items'}`}</button></footer>`}
     </form>`;
   };
   draw(storeList);
   if (!sheet.open) {
     sheet.showModal();
+    // The sheet itself takes focus rather than its first button, which iPhones would ring in coral.
+    sheet.focus({ preventScroll: true });
     history.pushState({ ui: true }, '');
   }
   if (!storeList.length && !demo) {
