@@ -2,8 +2,10 @@
 # One day's watch over the branch's stock, run by .github/workflows/stock.yml.
 #
 # GitHub's own timer for workflows proved unreliable: on the first morning not one of its timed
-# runs started. So a run does not wait to be woken every 15 minutes; it keeps watch itself:
-#   - a look at the stock every 15 minutes, a minute after CeX's own update (scripts/track-stock.ts)
+# runs started. So a run does not wait to be woken; it keeps watch itself:
+#   - a look at the stock every 10 minutes, a minute after each of CeX's own updates (they land
+#     on :00, :10, :20 and so on), so the record is about a minute behind CeX's website
+#     (scripts/track-stock.ts)
 #   - every half hour, a look for new phone and tablet spec sheets (scripts/update-specs.ts)
 # GitHub stops any job after six hours, so shortly before then the run starts its successor and
 # ends. After 9pm UK time the watch ends for the night. The next morning it is started by
@@ -82,14 +84,14 @@ fi
 while :; do
   echo "== $(TZ=Europe/London date +'%H:%M') UK"
   look_at_stock
-  if ((looks % 2 == 0)); then look_for_specs; fi
+  if ((looks % 3 == 0)); then look_for_specs; fi
   looks=$((looks + 1))
   if ! open_hours; then
     echo "The shop is closed: the watch is over for today."
     exit 0
   fi
   now=$(date +%s)
-  next=$(((now / 900 + 1) * 900 + 60))
+  next=$(((now / 600 + 1) * 600 + 60))
   if ((next - started > SESSION)); then
     echo "Near GitHub's six-hour limit: handing over to a new run."
     gh workflow run stock.yml --ref main || echo "Could not start the next run."

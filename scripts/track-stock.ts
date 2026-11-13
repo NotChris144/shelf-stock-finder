@@ -6,7 +6,7 @@
 // keeps the folder on the repository's `stock-data` branch.
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { Busy, compare, fetchStock, queries, record, updatedAt, type Log, type State } from '../src/tracker.ts';
+import { Busy, checkGone, compare, fetchStock, queries, record, type Log, type State } from '../src/tracker.ts';
 
 const STORE = 'Eastbourne';
 const dir = process.argv[2] ?? 'stock-data';
@@ -28,16 +28,19 @@ try {
 }
 const { total, recs } = listing;
 console.log(`Listed ${recs.length} of ${total} products in ${queries} queries.`);
-// For tech that has just gone, CeX's own update time says when it went.
-const here = new Set(recs.map((r) => r.id));
-const gone = prev ? prev.ids.filter((id) => !here.has(id) && prev.tech[id]) : [];
-let goneAt: Record<string, number> = {};
+// Each product missing from the list is asked about on its own: still listed at the branch means
+// the list had a hiccup; gone means gone, timed by CeX's own update.
+const listed = new Set(recs.map((r) => r.id));
+const missing = prev ? [...new Set([...prev.ids, ...Object.keys(prev.missing ?? {})])].filter((id) => !listed.has(id)) : [];
+let gone = { here: new Set<string>(), at: {} as Record<string, number> };
 try {
-  goneAt = await updatedAt(gone);
-} catch {
-  /* the look's own time will do */
+  gone = await checkGone(missing, STORE);
+} catch (e) {
+  // Without the check a gone product cannot be told from a hiccup, so this look records nothing.
+  console.log(`Nothing recorded: could not check ${missing.length} missing products (${e instanceof Error ? e.message : e}).`);
+  process.exit(0);
 }
-const out = compare(prev, recs, total, now, STORE, goneAt);
+const out = compare(prev, recs, total, now, STORE, gone.at, gone.here);
 if (out.skipped) {
   console.log(`Nothing recorded: ${out.skipped}.`);
   process.exit(0);
@@ -50,7 +53,7 @@ if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, 'change
 const tech = out.arrivals.filter((e) => e.r.t).length;
 console.log(
   prev
-    ? `${recs.length} products in stock at ${STORE}: ${out.arrivals.length} in (${tech} tech), ${out.sold.length} tech sold, ${Object.keys(out.state.missing).length} waiting to be confirmed gone.`
+    ? `${recs.length} products in stock at ${STORE}: ${out.arrivals.length} in (${tech} tech), ${out.sold.length} tech sold${gone.here.size ? `, ${gone.here.size} missing from the list but still there` : ''}.`
     : `First look: ${recs.length} products in stock at ${STORE}. Changes are recorded from the next look.`,
 );
 for (const e of out.arrivals.slice(0, 10)) console.log(`  in    £${e.r.p}  ${e.r.n}`);

@@ -1,14 +1,14 @@
 // Stock moves at one branch: what has come in and what has gone.
 //
 // CeX's search says what a branch has in stock now, but not when anything arrived or left, and
-// not how many of a product there are. So the whole branch is listed every 15 minutes by a
-// scheduled job (scripts/track-stock.ts) and each list is compared with the one before:
+// not how many of a product there are. So the whole branch is listed a minute after each of
+// CeX's 10-minute updates (scripts/stock-watch.sh, scripts/track-stock.ts), and each list is
+// compared with the one before:
 //   - a product that was not there before has come in (bought in, or another copy of something
 //     that had sold out);
-//   - a product that has gone, and is still gone at the next look, has left: the last one sold,
-//     or now and then moved to another store.
-// Waiting for a second look before calling something gone keeps a hiccup in the search from
-// showing as a sale.
+//   - a product missing from the list is looked up on its own: if CeX no longer lists it at the
+//     branch, it has left (the last one sold, or now and then moved to another store); if it is
+//     still there, the list had a hiccup and nothing has changed.
 //
 // When is taken from CeX itself: its search is updated in batches every 10 minutes, and each
 // product carries the time of its last update. Arriving at the branch is such an update, so that
@@ -249,7 +249,12 @@ export interface Outcome {
 }
 
 /** Compare what is in stock now with the last look. */
-export function compare(prev: State | null, recs: Rec[], total: number, now: number, store: string, goneAt: Record<string, number> = {}): Outcome {
+/**
+ * `stillHere` holds products missing from this list that CeX, asked about each on its own, still
+ * lists at the branch: a hiccup in the list, not a change. `goneAt` holds CeX's own update time
+ * for the ones that have really gone.
+ */
+export function compare(prev: State | null, recs: Rec[], total: number, now: number, store: string, goneAt: Record<string, number> = {}, stillHere: Set<string> = new Set()): Outcome {
   const tech = Object.fromEntries(recs.filter((r) => r.t).map((r) => [r.id, r]));
   const fresh: State = { store, at: now, count: recs.length, ids: recs.map((r) => r.id), tech, missing: {} };
   // A list that came back short is the search having a moment, not half the shop selling out.
@@ -260,40 +265,65 @@ export function compare(prev: State | null, recs: Rec[], total: number, now: num
 
   const now_ = new Set(fresh.ids);
   const before = new Set(prev.ids);
-  const missing = { ...prev.missing };
   const arrivals: Ev[] = [];
   const sold: Ev[] = [];
   for (const r of recs) {
     if (before.has(r.id)) continue;
-    // Gone at the last look and back now: a hiccup, not a sale and a purchase.
-    if (missing[r.id]) delete missing[r.id];
-    else arrivals.push({ ...when(r.u, prev.at, now), a: prev.at, r });
+    // Missing from an earlier list and back now: that list had a hiccup, not a sale and a purchase.
+    if (prev.missing[r.id]) continue;
+    arrivals.push({ ...when(r.u, prev.at, now), a: prev.at, r });
   }
+  // Waiting to be confirmed under the earlier rule: whatever is still missing has gone.
   for (const [id, m] of Object.entries(prev.missing)) {
-    if (now_.has(id)) continue;
-    delete missing[id];
-    if (m.r) sold.push({ t: m.s, a: m.l, r: m.r, ...(m.e ? { e: 1 as const } : {}) });
+    if (!now_.has(id) && !stillHere.has(id) && m.r) sold.push({ t: m.s, a: m.l, r: m.r, ...(m.e ? { e: 1 as const } : {}) });
   }
   for (const id of prev.ids) {
     if (now_.has(id)) continue;
-    const w = when(goneAt[id], prev.at, now);
-    missing[id] = { s: w.t, l: prev.at, ...(w.e ? { e: 1 as const } : {}), ...(prev.tech[id] ? { r: prev.tech[id] } : {}) };
+    // Missing from this list but still at the branch when asked directly: keep it as it was.
+    if (stillHere.has(id)) {
+      fresh.ids.push(id);
+      if (prev.tech[id]) fresh.tech[id] = prev.tech[id];
+      continue;
+    }
+    const r = prev.tech[id];
+    if (r) sold.push({ ...when(goneAt[id], prev.at, now), a: prev.at, r });
   }
-  fresh.missing = missing;
+  fresh.count = fresh.ids.length;
   return { state: fresh, arrivals, sold };
 }
 
 const DAY = 864e5;
 
+/** Gone and back within this long is a hold, a reservation or a return, not a sale and a buy-in. */
+export const HOLD = 12 * 3600_000;
+
+/**
+ * Pair up anything that left and came back within `HOLD`: neither the sale nor the arrival
+ * happened, so both are dropped.
+ */
+export function settle<A extends { t: number; id: string }, S extends { t: number; id: string }>(arrivals: A[], sold: S[]): { arrivals: A[]; sold: S[] } {
+  let left = sold;
+  const kept = arrivals.filter((a) => {
+    const s = left.find((e) => e.id === a.id && e.t <= a.t && a.t - e.t <= HOLD);
+    if (!s) return true;
+    left = left.filter((e) => e !== s);
+    return false;
+  });
+  return { arrivals: kept, sold: left };
+}
+
 /** Add what happened to the record, keeping a week of arrivals and a fortnight of sales. */
 export function record(log: Log | null, out: Outcome, store: string, now: number): Log {
   const base: Log = log && log.store === store ? log : { store, started: now, at: now, arrivals: [], sold: [] };
   const keep = (list: Ev[], days: number, most: number): Ev[] => list.filter((e) => now - e.t <= days * DAY).sort((x, y) => y.t - x.t).slice(0, most);
+  const tag = (e: Ev): Ev & { id: string } => ({ ...e, id: e.r.id });
+  const plain = ({ id: _id, ...e }: Ev & { id: string }): Ev => e;
+  const both = settle([...out.arrivals, ...base.arrivals].map(tag), [...out.sold, ...base.sold].map(tag));
   return {
     ...base,
     at: now,
-    arrivals: keep([...out.arrivals, ...base.arrivals], 7, 800),
-    sold: keep([...out.sold, ...base.sold], 14, 400),
+    arrivals: keep(both.arrivals.map(plain), 7, 800),
+    sold: keep(both.sold.map(plain), 14, 400),
     seen: [...Object.keys(out.state.tech), ...Object.keys(out.state.missing).filter((id) => out.state.missing[id].r)],
   };
 }
@@ -322,16 +352,25 @@ export async function recsOf(ids: string[]): Promise<Rec[]> {
   return (r.hits ?? []).map(toRec);
 }
 
-/** When CeX last updated each of the given products: for one that has just left, that is when it went. */
-export async function updatedAt(ids: string[]): Promise<Record<string, number>> {
-  const out: Record<string, number> = {};
+/**
+ * For products missing from a list: which CeX still lists at the branch (`here`, so the list
+ * had a hiccup), and when CeX last updated each (`at`: for one that has really gone, that is when).
+ */
+export async function checkGone(ids: string[], store: string): Promise<{ here: Set<string>; at: Record<string, number> }> {
+  const here = new Set<string>();
+  const at: Record<string, number> = {};
   for (let i = 0; i < ids.length; i += 100) {
     const part = ids.slice(i, i + 100);
-    const [r] = await post([{ indexName: CONFIG.index, query: '', hitsPerPage: part.length, filters: byId(part), attributesToRetrieve: ['boxId', 'timestamp'], attributesToHighlight: [], analytics: false }]);
-    for (const h of r.hits ?? []) {
+    const base = { indexName: CONFIG.index, query: '', hitsPerPage: part.length, attributesToRetrieve: ['boxId', 'timestamp'], attributesToHighlight: [], analytics: false };
+    const [still, all] = await post([
+      { ...base, filters: `(${byId(part)}) AND ${FILTER}`, facetFilters: [[`stores:${store}`]] },
+      { ...base, filters: byId(part) },
+    ]);
+    for (const h of still.hits ?? []) here.add(String(h.boxId));
+    for (const h of all.hits ?? []) {
       const u = stamp(h.timestamp);
-      if (u) out[String(h.boxId)] = u;
+      if (u) at[String(h.boxId)] = u;
     }
   }
-  return out;
+  return { here, at };
 }

@@ -1,8 +1,8 @@
 name: Stock activity
 
-# Keeps watch over Eastbourne's stock through the day (scripts/stock-watch.sh): a look every 15
-# minutes, recording what has come in and what has gone (scripts/track-stock.ts), and every half
-# hour a look for new spec sheets (scripts/update-specs.ts).
+# Keeps watch over Eastbourne's stock through the day (scripts/stock-watch.sh): a look a minute
+# after each of CeX's 10-minute updates, recording what has come in and what has gone
+# (scripts/track-stock.ts), and every half hour a look for new spec sheets (scripts/update-specs.ts).
 #
 # GitHub's timer only starts the day's watch. It proved unreliable, so it is asked several
 # times each morning, and once a watch is running it carries itself on: shortly before GitHub's

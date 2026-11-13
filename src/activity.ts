@@ -11,7 +11,7 @@
 // cycle of being taken into stock; the job then records it for good.
 
 import type { FlowHost } from './flows.ts';
-import { recsOf, techNow, toHit, type Log } from './tracker.ts';
+import { recsOf, settle, techNow, toHit, type Log } from './tracker.ts';
 import type { Group, Item } from './types.ts';
 
 const LOG_URL = 'https://raw.githubusercontent.com/NotChris144/shelf-stock-finder/stock-data/log.json';
@@ -36,9 +36,9 @@ let pending: Promise<Log | null> | null = null;
 
 /** The record, or null when there is none yet. Rejects when it could not be reached. */
 export function loadLog(fresh = false): Promise<Log | null> {
-  if (cached && !fresh && Date.now() - cached.at < MIN) return Promise.resolve(cached.log);
-  // A new address each minute, so a cached copy along the way is never more than a minute old.
-  pending ??= fetch(`${LOG_URL}?v=${Math.floor(Date.now() / MIN)}`, { cache: 'no-store' })
+  if (cached && !fresh && Date.now() - cached.at < MIN / 2) return Promise.resolve(cached.log);
+  // A new address each time, so no copy cached along the way is ever served instead.
+  pending ??= fetch(`${LOG_URL}?v=${Date.now()}`, { cache: 'no-store' })
     .then(async (res) => (res.ok ? ((await res.json()) as Log) : res.status === 404 ? null : Promise.reject(new Error(`HTTP ${res.status}`))))
     .then((log) => {
       cached = { at: Date.now(), log };
@@ -82,6 +82,15 @@ async function arrivingNow(host: FlowHost, log: Log | null, again = false): Prom
     fresh_ = { at: fresh_?.at ?? 0, key: log.at, entries: fresh_?.key === log.at ? fresh_.entries : [], ok: false };
   }
   return fresh_;
+}
+
+/** The record's sales against what CeX has just been seen to list again (see `settle` in tracker.ts). */
+function settleLive(log: Log, direct: Entry[]): { arrivals: Entry[]; sold: Log['sold'] } {
+  const s = settle(
+    direct.map((d) => ({ ...d, id: d.it.id })),
+    log.sold.map((e) => ({ ...e, id: e.r.id })),
+  );
+  return { arrivals: s.arrivals, sold: s.sold };
 }
 
 // ------------------------------------------------------------------ sample data
@@ -198,8 +207,10 @@ export async function drawActivity(host: FlowHost, kind: ActivityKind, filter: s
   // Real from the first change, whether the job recorded it or CeX was asked directly.
   const live = isLive(log) || direct.entries.length > 0;
   if (live) {
-    const recorded = (kind === 'in' ? log!.arrivals : log!.sold).map((e): Entry => ({ t: e.t, a: e.a, e: Boolean(e.e), it: host.toItem(toHit(e.r)) }));
-    entries = kind === 'in' ? [...direct.entries, ...recorded].sort((x, y) => y.t - x.t) : recorded;
+    // Something seen back on the shelf since it "sold" was on hold, not sold: neither is shown.
+    const back = settleLive(log!, direct.entries);
+    const recorded = (kind === 'in' ? log!.arrivals : back.sold).map((e): Entry => ({ t: e.t, a: e.a, e: Boolean(e.e), it: host.toItem(toHit(e.r)) }));
+    entries = kind === 'in' ? [...back.arrivals, ...recorded].sort((x, y) => y.t - x.t) : recorded;
   } else {
     try {
       entries = (await sampleData(host))[kind];
@@ -260,8 +271,8 @@ export async function drawActivity(host: FlowHost, kind: ActivityKind, filter: s
   if (day) html += '</ul>';
   html += `<p class="fine">${
     kind === 'in'
-      ? `Tech is checked with CeX every two minutes while this screen is open, and shows within CeX’s own 10-minute update of being taken into stock. Everything else is checked every 15 minutes while the shop is open. An item shows the first time it appears in ${host.esc(log?.store ?? 'the branch')}’s stock online; another copy of something already on the shelf doesn’t show, because CeX lists one entry per product.`
-      : `Phones, tablets, computers, consoles and electronics. An item shows here when the last one leaves ${host.esc(log?.store ?? 'the branch')}’s stock online, which is nearly always a sale and now and then a move to another store.`
+      ? `Checked a minute after each of CeX’s own 10-minute updates while the shop is open, so this is about a minute behind CeX’s website. An item shows the first time it appears in ${host.esc(log?.store ?? 'the branch')}’s stock online; another copy of something already on the shelf doesn’t show, because CeX lists one entry per product.`
+      : `Phones, tablets, computers, consoles and electronics, checked a minute after each of CeX’s 10-minute updates. An item shows here when the last one leaves ${host.esc(log?.store ?? 'the branch')}’s stock online, which is nearly always a sale and now and then a move to another store.`
   }</p>`;
   body.innerHTML = html;
   schedule(host, kind, filter, body);
@@ -277,12 +288,12 @@ function checkedText(log: Log, now: number, branch: string, asked = 0): string {
   return asked ? `${where} · Tech checked ${since(asked)}, the rest ${since(log.at)}` : `${where} · Checked ${since(log.at)}`;
 }
 
-/** While a screen is open, look again every two minutes. */
+/** While a screen is open, look again every minute: the record is updated a minute after each of CeX's 10-minute updates. */
 function schedule(host: FlowHost, kind: ActivityKind, filter: string, body: HTMLElement): void {
   window.clearTimeout(refresh);
   refresh = window.setTimeout(() => {
     if (body.isConnected && drawn === `${kind}|${filter}` && document.visibilityState === 'visible') void drawActivity(host, kind, filter, body, true);
-  }, 2 * MIN);
+  }, MIN);
 }
 
 // ------------------------------------------------------------------ on the start screen
@@ -315,7 +326,8 @@ export async function fillActivity(host: FlowHost, root: HTMLElement): Promise<v
       el.classList.add('is-sample');
       continue;
     }
-    const n = el.dataset.count === 'in' ? today(log.arrivals) + today(direct.entries) : today(log.sold);
+    const back = settleLive(log, direct.entries);
+    const n = el.dataset.count === 'in' ? today(log.arrivals) + today(back.arrivals) : today(back.sold);
     el.textContent = n ? `${n} today` : 'None today';
     el.classList.remove('is-sample');
   }

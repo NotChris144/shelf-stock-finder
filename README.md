@@ -93,8 +93,10 @@ electronics).
 
 CeX's search says what a branch has now, not when it arrived or left, and not how many of each. So
 a GitHub job (`.github/workflows/stock.yml`, `scripts/stock-watch.sh`) keeps watch through the day:
-every 15 minutes from 8am to 9pm UK time it lists everything Eastbourne has in stock (about 8,000
-products, in 13 queries) and compares it with the last list (`src/tracker.ts`).
+from 8am to 9pm UK time it lists everything Eastbourne has in stock (about 8,000 products, in 13
+queries) a minute after each of CeX's own 10-minute updates, and compares it with the last list
+(`src/tracker.ts`). The app picks the record up every minute, so a change shows about a minute or two
+after it reaches CeX's website.
 
 GitHub's own timer only starts the day's watch, and proved unreliable (on the first morning none of
 its runs started), so it is asked several times each morning, and a running watch carries itself on:
@@ -106,9 +108,11 @@ What each look finds:
 
 - A product that was not there before has come in. Another copy of something already on the shelf
   doesn't show, because CeX lists one entry per product.
-- A product that has gone, and is still gone at the next look, has left: the last one sold, or now
-  and then moved to another store. Waiting for a second look keeps a hiccup in the search from
-  showing as a sale.
+- A product missing from the list is asked about on its own. If CeX no longer lists it at the
+  branch it has left (the last one sold, or now and then moved to another store); if it is still
+  there, the list had a hiccup and nothing has changed.
+- Something that leaves and comes back within 12 hours was on hold, reserved or returned, not sold
+  and bought in, so neither is shown.
 - The first look only sets the starting point.
 - Times come from CeX itself. Its search is updated in batches every 10 minutes and each product
   carries the time of its last update, so an arrival or sale is timed by that (kept within the gap
