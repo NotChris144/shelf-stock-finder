@@ -4,15 +4,23 @@
 // are read from GSMArena's device pages, one page per model, and saved to src/data/specs.json.
 // The app itself never asks GSMArena anything: it reads the saved file.
 //
+// It runs itself on GitHub every half hour (.github/workflows/specs.yml) and goes by the shop's clock:
+//   9am to 6pm  day      looks at what CeX shows in stock and reads the sheet of any model that has
+//                        just arrived without one
+//   6pm to 9pm  evening  works through the models that still have no sheet; once there are none,
+//                        re-reads a few of the oldest sheets
+// By hand:
 //   npm run specs              look up models in scripts/spec-models.json that have no sheet yet
 //   npm run specs -- --cex     first add whatever the store stocks now to that list
 //   npm run specs -- --all     re-read every sheet, not just the missing ones
 //   npm run specs -- --max=30  ask for at most 30 pages this run (default 18)
+//   npm run specs -- --retry   try again the models GSMArena had no match for
 //
-// GSMArena allows roughly 50 page requests in a short spell, then refuses that address for ten
-// hours. So each run asks for only a few pages, several seconds apart, keeps every page it has
-// read in .cache/specs, and stops at the first refusal, saving what it has. Run it again another
-// day to carry on. A model it cannot match to exactly one device gets no sheet: nothing is guessed.
+// GSMArena refused an address for ten hours after roughly 50 page requests in a short spell, so
+// that is treated as the day's allowance: 60% for the evening's backlog, 40% kept for arrivals
+// during the day, a few pages a run, several seconds apart. It stops at the first refusal and
+// keeps what it has. A model it cannot match to exactly one device gets no sheet: nothing is
+// guessed, and it is not asked about again for a month.
 
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -30,9 +38,23 @@ const CLIENT = 'Mozilla/5.0 (compatible; spec-sheet-reader/1.0)';
 const GAP = 7000;
 const STORE = 'Eastbourne';
 
+const STATE = ROOT + 'scripts/spec-state.json';
+/** Page requests a day. GSMArena refused an address after roughly 50 in a short spell. */
+const ALLOWANCE = 50;
+/** How the day's allowance is split: the backlog after closing, and arrivals while open. */
+const SHARE = { evening: 0.6, day: 0.4 };
+/** Most pages in one automatic run, so no run comes near the limit on its own. */
+const PER_RUN = 10;
+/** Shop hours, in its own time. The evening run has the three hours after closing. */
+const OPEN = 9;
+const CLOSE = 18;
+/** Days before asking again about a model GSMArena had no match for, and before re-reading a sheet. */
+const RETRY_MISS = 30;
+const REFRESH = 120;
+
 const args = new Set(process.argv.slice(2));
-/** Pages to ask for in one run, kept well under what gets an address refused. */
-const MAX = Number([...args].find((a) => a.startsWith('--max='))?.slice(6) ?? 18);
+/** Pages this run may still ask for; set once the day's allowance has been looked at. */
+let budget = 0;
 mkdirSync(CACHE, { recursive: true });
 
 type ModelList = Record<string, string[]>;
@@ -50,7 +72,7 @@ let lastAsk = 0;
 let asked = 0;
 
 async function ask(path: string): Promise<Response> {
-  if (asked >= MAX) throw new Stop(`reached this run's limit of ${MAX} pages`);
+  if (asked >= budget) throw new Stop(`reached this run's limit of ${budget} pages`);
   const wait = lastAsk + GAP + Math.random() * 2000 - Date.now();
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   lastAsk = Date.now();
@@ -281,87 +303,175 @@ function readSheet(html: string, id: number): Sheet | null {
   return s;
 }
 
-// ---------------------------------------------------------------- what CeX stocks
+// ---------------------------------------------------------------- what the store stocks
 
-/** Add the phone and tablet models the store has in stock now to the list. */
-async function addFromCex(models: Models): Promise<number> {
+interface Stocked {
+  kind: keyof Models;
+  maker: string;
+  model: string;
+}
+
+/** The phone and tablet models the store has on its shelves right now, in one request to CeX. */
+async function inStock(): Promise<Stocked[]> {
   const groups: [keyof Models, string, string[]][] = [
     ['phones', 'Phone Model', ['categoryFriendlyName:Android Phones', 'productLineName:iPhones']],
     ['tablets', 'Model Name', ['categoryFriendlyName:Tablets - Android', 'categoryFriendlyName:Tablets - Windows']],
   ];
-  const ask = async (requests: unknown[]): Promise<{ facets?: Record<string, Record<string, number>> }[]> => {
-    const res = await fetch(`${CONFIG.endpoint}?x-algolia-application-id=${CONFIG.appId}&x-algolia-api-key=${CONFIG.apiKey}`, { method: 'POST', body: JSON.stringify({ requests }) });
-    if (!res.ok) throw new Error(`CeX search: HTTP ${res.status}`);
-    return (await res.json()).results;
-  };
-  const req = (filters: string[][], facet: string): unknown => ({
+  const requests = groups.map(([, field, cats]) => ({
     indexName: CONFIG.index,
-    params: new URLSearchParams({ query: '', hitsPerPage: '0', facets: JSON.stringify([facet]), maxValuesPerFacet: '1000', facetFilters: JSON.stringify(filters) }).toString(),
-  });
-  let added = 0;
-  for (const [kind, field, cats] of groups) {
-    const here = [`stores:${STORE}`];
-    const [byMaker] = await ask([req([here, cats], 'Manufacturer')]);
-    for (const maker of Object.keys(byMaker.facets?.Manufacturer ?? {})) {
-      const [r] = await ask([req([here, cats, [`Manufacturer:${maker}`]], field)]);
-      const list = (models[kind][maker] ??= []);
-      for (const model of Object.keys(r.facets?.[field] ?? {})) {
-        if (!list.includes(model)) {
-          list.push(model);
-          added++;
-        }
-      }
+    params: new URLSearchParams({ query: '', hitsPerPage: '1000', attributesToRetrieve: JSON.stringify(['Manufacturer', field]), facetFilters: JSON.stringify([[`stores:${STORE}`], cats]) }).toString(),
+  }));
+  const res = await fetch(`${CONFIG.endpoint}?x-algolia-application-id=${CONFIG.appId}&x-algolia-api-key=${CONFIG.apiKey}`, { method: 'POST', body: JSON.stringify({ requests }) });
+  if (!res.ok) throw new Error(`CeX search: HTTP ${res.status}`);
+  const results = (await res.json()).results as { hits?: Record<string, unknown>[] }[];
+  const first = (v: unknown): string => (Array.isArray(v) ? String(v[0] ?? '') : v == null ? '' : String(v)).trim();
+  const out = new Map<string, Stocked>();
+  groups.forEach(([kind, field], i) => {
+    for (const h of results[i]?.hits ?? []) {
+      const maker = first(h.Manufacturer);
+      const model = first(h[field]);
+      if (maker && model) out.set(`${kind}|${maker}|${model}`, { kind, maker, model });
     }
-  }
-  return added;
+  });
+  return [...out.values()];
 }
+
+// ---------------------------------------------------------------- the day's allowance
+
+/**
+ * What the script remembers between runs, in scripts/spec-state.json.
+ *   used   – page requests made today, by when they were made
+ *   fresh  – models that came into stock without a sheet and have not been looked up yet
+ *   missed – models GSMArena has no exact match for, and the day that was last checked
+ *   read   – the day each sheet was read
+ */
+interface State {
+  day: string;
+  used: Record<string, number>;
+  fresh: string[];
+  missed: Record<string, string>;
+  read: Record<string, string>;
+}
+
+type Mode = 'day' | 'evening' | 'manual';
+
+/** The date and hour in the shop's own time zone, whatever clock the machine running this keeps. */
+function shopTime(): { day: string; hour: number } {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).map((p) => [p.type, p.value]),
+  );
+  return { day: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour) };
+}
+
+const daysSince = (date: string | undefined, today: string): number => (date ? (Date.parse(today) - Date.parse(date)) / 864e5 : Infinity);
+const keyOf = (maker: string, model: string): string => `${maker.toLowerCase().replace(/\s+/g, '')}|${norm(model)}`;
 
 // ---------------------------------------------------------------- run
 
-const models = JSON.parse(readFileSync(MODELS, 'utf8')) as Models;
-if (args.has('--cex')) {
-  const added = await addFromCex(models);
-  writeFileSync(MODELS, JSON.stringify(models, null, 2) + '\n');
-  console.log(`Added ${added} models from CeX ${STORE} stock`);
+const now = shopTime();
+const asked0 = [...args].find((a) => a.startsWith('--mode='))?.slice(7);
+let mode: Mode | null = asked0 === 'day' || asked0 === 'evening' ? asked0 : 'manual';
+// Left to itself it goes by the shop's clock: new arrivals while open, the backlog after closing.
+if (args.has('--auto')) mode = now.hour >= OPEN && now.hour < CLOSE ? 'day' : now.hour >= CLOSE && now.hour < CLOSE + 3 ? 'evening' : null;
+if (!mode) {
+  console.log(`${now.hour}:00 in the shop: nothing to do outside ${OPEN}:00 to ${CLOSE + 3}:00.`);
+  process.exit(0);
 }
+
+const models = JSON.parse(readFileSync(MODELS, 'utf8')) as Models;
 const file: SheetFile = existsSync(OUT) ? JSON.parse(readFileSync(OUT, 'utf8')) : { at: '', source: 'GSMArena', sheets: {} };
-const todo: { key: string; maker: string; model: string }[] = [];
-for (const kind of ['phones', 'tablets'] as const) {
-  for (const [maker, list] of Object.entries(models[kind])) {
-    for (const model of list) {
-      const key = `${maker.toLowerCase().replace(/\s+/g, '')}|${norm(model)}`;
-      if (args.has('--all') || !file.sheets[key]) todo.push({ key, maker, model });
+const state: State = { day: now.day, used: {}, fresh: [], missed: {}, read: {}, ...(existsSync(STATE) ? JSON.parse(readFileSync(STATE, 'utf8')) : {}) };
+const before = { models: JSON.stringify(models), state: JSON.stringify(state) };
+// A new day, a new allowance.
+if (state.day !== now.day) {
+  state.day = now.day;
+  state.used = {};
+}
+
+// What has come into stock since last time. A manual run only asks CeX when told to.
+if (mode !== 'manual' || args.has('--cex')) {
+  try {
+    let added = 0;
+    for (const s of await inStock()) {
+      const list = (models[s.kind][s.maker] ??= []);
+      if (!list.includes(s.model)) {
+        list.push(s.model);
+        added++;
+      }
+      // In stock with no sheet: first in the queue, unless GSMArena was found not to have it.
+      const k = keyOf(s.maker, s.model);
+      if (!file.sheets[k] && !state.fresh.includes(k) && daysSince(state.missed[k], now.day) > RETRY_MISS) state.fresh.push(k);
     }
+    console.log(`CeX ${STORE}: ${added} models not seen before, ${state.fresh.length} in stock without a sheet`);
+  } catch (e) {
+    console.log(`Could not read CeX stock (${e instanceof Error ? e.message : e}); carrying on with the saved list.`);
   }
 }
-console.log(`${todo.length} models to look up, ${Object.keys(file.sheets).length} sheets already saved`);
+
+// How many pages this run may ask for: its share of the day's allowance, a few at a time.
+const share = mode === 'manual' ? Infinity : Math.floor(ALLOWANCE * SHARE[mode]) - (state.used[mode] ?? 0);
+const cap = [...args].find((a) => a.startsWith('--max='))?.slice(6);
+budget = Math.max(0, Math.min(share, cap !== undefined && /^\d+$/.test(cap) ? Number(cap) : mode === 'manual' ? 18 : PER_RUN));
+
+interface Job {
+  key: string;
+  maker: string;
+  model: string;
+}
+const every: Job[] = [];
+for (const kind of ['phones', 'tablets'] as const) {
+  for (const [maker, list] of Object.entries(models[kind])) for (const model of list) every.push({ key: keyOf(maker, model), maker, model });
+}
+const waiting = every.filter((j) => !file.sheets[j.key] && (args.has('--retry') || daysSince(state.missed[j.key], now.day) > RETRY_MISS));
+const isFresh = (j: Job): boolean => state.fresh.includes(j.key);
+let todo: Job[];
+if (args.has('--all')) todo = every;
+// While the shop is open, only what has just arrived; the backlog waits for the evening.
+else if (mode === 'day') todo = waiting.filter(isFresh);
+else todo = [...waiting.filter(isFresh), ...waiting.filter((j) => !isFresh(j))];
+// Nothing waiting after closing: re-read a few of the oldest sheets, which picks up tests GSMArena has added since.
+if (!todo.length && mode === 'evening') {
+  todo = every
+    .filter((j) => file.sheets[j.key] && daysSince(state.read[j.key] ?? file.at, now.day) > REFRESH)
+    .sort((x, y) => (state.read[x.key] ?? '').localeCompare(state.read[y.key] ?? ''))
+    .slice(0, 3);
+}
+console.log(`${mode}: ${todo.length} to look up, ${Object.keys(file.sheets).length} sheets saved, up to ${budget} pages this run (${mode === 'manual' ? 'no daily share' : `${state.used[mode] ?? 0} of ${Math.floor(ALLOWANCE * SHARE[mode])} used today`})`);
 
 const unmatched: string[] = [];
 let read = 0;
 try {
-  if (todo.length) await loadQuickList();
-  for (const t of todo) {
+  if (todo.length && budget > 0) await loadQuickList();
+  for (const t of budget > 0 ? todo : []) {
     const d = await findDevice(t.maker, t.model);
-    if (!d) {
-      unmatched.push(`${t.maker} ${t.model}`);
-      continue;
-    }
-    const html = await page(d.path ?? `${addressOf(`${d.maker} ${d.name}`)}-${d.id}.php`, `d-${d.id}.html`, 120);
-    const sheet = readSheet(html, d.id);
+    const html = d ? await page(d.path ?? `${addressOf(`${d.maker} ${d.name}`)}-${d.id}.php`, `d-${d.id}.html`, mode === 'evening' && file.sheets[t.key] ? 1 : 120) : '';
+    const sheet = d ? readSheet(html, d.id) : null;
+    state.fresh = state.fresh.filter((k) => k !== t.key);
     if (!sheet) {
-      unmatched.push(`${t.maker} ${t.model} (page ${d.id} unreadable)`);
+      // Remembered, so the allowance is not spent asking again every day.
+      state.missed[t.key] = now.day;
+      unmatched.push(`${t.maker} ${t.model}${d ? ` (page ${d.id} unreadable)` : ''}`);
       continue;
     }
     file.sheets[t.key] = sheet;
+    state.read[t.key] = now.day;
+    delete state.missed[t.key];
     read++;
-    if (read % 20 === 0) console.log(`  ${read} read, ${asked} pages fetched`);
   }
 } catch (e) {
   if (!(e instanceof Stop)) throw e;
-  console.log(`Stopped: ${e.message}. ${todo.length - read - unmatched.length} models still to look up; run again another day to carry on.`);
+  console.log(`Stopped: ${e.message}.`);
 }
-file.at = new Date().toISOString().slice(0, 10);
-file.sheets = Object.fromEntries(Object.entries(file.sheets).sort(([a], [b]) => a.localeCompare(b)));
-writeFileSync(OUT, JSON.stringify(file, null, 1) + '\n');
-console.log(`Saved ${Object.keys(file.sheets).length} sheets (${read} new) after ${asked} page requests`);
-if (unmatched.length) console.log(`No exact match for ${unmatched.length}:\n  ${unmatched.join('\n  ')}`);
+if (mode !== 'manual') state.used[mode] = (state.used[mode] ?? 0) + asked;
+
+// Only what changed is written, so a run that found nothing leaves no trace to commit.
+if (read) {
+  file.at = now.day;
+  file.sheets = Object.fromEntries(Object.entries(file.sheets).sort(([a], [b]) => a.localeCompare(b)));
+  writeFileSync(OUT, JSON.stringify(file, null, 1) + '\n');
+}
+if (JSON.stringify(models) !== before.models) writeFileSync(MODELS, JSON.stringify(models, null, 2) + '\n');
+if (JSON.stringify(state) !== before.state) writeFileSync(STATE, JSON.stringify(state, null, 1) + '\n');
+const left = every.filter((j) => !file.sheets[j.key] && daysSince(state.missed[j.key], now.day) > RETRY_MISS).length;
+console.log(`Read ${read} sheets with ${asked} page requests. ${Object.keys(file.sheets).length} saved, ${left} still to look up.`);
+if (unmatched.length) console.log(`No exact match on GSMArena for ${unmatched.length}:\n  ${unmatched.join('\n  ')}`);

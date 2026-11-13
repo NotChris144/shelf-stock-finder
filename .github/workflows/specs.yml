@@ -1,0 +1,80 @@
+name: Spec sheets
+
+# Keeps the phone and tablet spec sheets up to date without anyone running anything.
+#
+#   Shop hours (9am to 6pm UK)   looks at what CeX shows in stock and reads the sheet of any
+#                                model that has just arrived without one
+#   After closing (6pm to 9pm)   works through the models that still have no sheet
+#
+# The script goes by UK time and keeps to a daily allowance of GSMArena pages (see the top of
+# scripts/update-specs.ts). A run that finds nothing new commits nothing.
+
+on:
+  schedule:
+    # Every half hour from 08:07 to 20:37 UTC, which covers 9am to 9pm UK in winter and summer.
+    - cron: '7,37 8-20 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'evening = models with no sheet yet; day = only models that have just come into stock'
+        type: choice
+        options: [evening, day]
+        default: evening
+      max:
+        description: 'Most GSMArena pages to ask for'
+        default: '3'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: specs
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      # Pages already read are kept between runs, so the allowance is not spent reading them twice.
+      - uses: actions/cache@v6
+        with:
+          path: .cache/specs
+          key: specs-pages-${{ github.run_id }}
+          restore-keys: specs-pages-
+      - name: Read spec sheets
+        env:
+          MODE: ${{ inputs.mode }}
+          MAX: ${{ inputs.max }}
+        run: |
+          if [ -n "$MODE" ]; then
+            node scripts/update-specs.ts "--mode=$MODE" "--max=$MAX"
+          else
+            node scripts/update-specs.ts --auto
+          fi
+      - name: Save what changed
+        id: save
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/data/specs.json scripts/spec-models.json scripts/spec-state.json
+          if git diff --cached --quiet; then
+            echo "Nothing new."
+            exit 0
+          fi
+          if ! git diff --cached --quiet -- src/data/specs.json; then
+            echo "sheets=1" >> "$GITHUB_OUTPUT"
+          fi
+          git commit -q -m "Update spec sheets"
+          git pull -q --rebase origin main
+          git push -q origin HEAD:main
+      # A push made by this job does not start the deploy by itself, so it is asked for.
+      - name: Put new sheets on the site
+        if: steps.save.outputs.sheets == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --ref main

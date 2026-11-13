@@ -53,15 +53,32 @@ CeX's records name a phone but hold nothing about its camera, battery, screen or
 from [GSMArena](https://www.gsmarena.com)'s device pages, read ahead of time by a script and saved
 in `src/data/specs.json`; the app only ever reads that file.
 
+It keeps itself up to date. A GitHub job (`.github/workflows/specs.yml`) runs every half hour and
+goes by UK time:
+
+- **9am to 6pm**: it asks CeX what the store has in stock, and reads the sheet of any phone or
+  tablet model that has just arrived without one.
+- **6pm to 9pm**: it works through the models that still have no sheet. Once there are none, it
+  re-reads a few of the oldest sheets.
+
+GSMArena refused an address for ten hours after roughly 50 page requests in a short spell, so 50 is
+treated as the day's allowance: 60% for the evening, 40% kept for arrivals in the day, at most ten
+pages a run, several seconds apart. The count, the queue of new arrivals and the models GSMArena has
+no match for are kept in `scripts/spec-state.json`. A run that finds nothing commits nothing; one
+that adds a sheet commits it and redeploys the site. Pull before pushing, as the job commits to
+`main`.
+
+By hand:
+
 ```
 npm run specs              # look up models in scripts/spec-models.json that have no sheet yet
 npm run specs -- --cex     # first add whatever the store stocks now to that list
 npm run specs -- --max=30  # ask for at most 30 pages this run (default 18)
+npm run specs -- --retry   # try again the models GSMArena had no match for
 ```
 
-- GSMArena refuses an address for ten hours after roughly 50 page requests in a short spell, so a
-  run asks for a few pages, several seconds apart, and stops at the first refusal. Run it again
-  another day to carry on; pages already read are kept in `.cache/specs`.
+- A run stops at the first refusal and keeps what it has; pages already read are kept in
+  `.cache/specs`.
 - A sheet is saved under CeX's own maker and model name, and only when that name matches exactly
   one GSMArena device. Anything else gets no sheet rather than a guess.
 - An opened card lists the sheet and names the device it came from. A model with no sheet falls
