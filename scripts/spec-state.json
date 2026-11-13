@@ -1,12 +1,12 @@
 {
  "day": "2026-11-13",
  "used": {
-  "evening": 6
+  "evening": 6,
+  "day": 10
  },
  "fresh": [
   "apple|iphone15",
   "apple|iphone14",
-  "apple|iphone12",
   "apple|iphone11",
   "apple|iphone13",
   "apple|iphonese2ndgen",
@@ -51,27 +51,18 @@
   "apple|iphonexsmax",
   "honor|magic7lite",
   "google|pixel9pro",
-  "samsung|galaxys8plus",
   "motorola|edge70",
-  "samsung|galaxyzfold5",
   "motorola|motog8",
   "google|pixel10pro",
   "apple|iphone4s",
-  "samsung|galaxys7",
   "tcl|k70",
   "oneplus|13",
   "motorola|motog24",
   "google|pixel11proxl",
-  "samsung|galaxys24fe",
   "apple|iphone18pro",
-  "samsung|galaxyzflip3",
-  "samsung|galazys26fe",
-  "samsung|galaxyzflip7",
-  "samsung|galaxyzflip7fe",
   "oppo|findx9",
   "honor|magicv6",
   "oneplus|9",
-  "samsung|galaxyzfold8ultra",
   "redmi|a7pro",
   "oukitel|wp53",
   "google|pixel11",
@@ -132,6 +123,16 @@
   "samsung|galaxya54": "2026-11-13",
   "samsung|galaxys10": "2026-11-13",
   "samsung|galaxys20plus": "2026-11-13",
-  "samsung|galaxys22plus": "2026-11-13"
+  "samsung|galaxys22plus": "2026-11-13",
+  "samsung|galaxys24fe": "2026-11-13",
+  "samsung|galaxys7": "2026-11-13",
+  "samsung|galaxys8plus": "2026-11-13",
+  "samsung|galaxyzflip3": "2026-11-13",
+  "samsung|galaxyzflip7": "2026-11-13",
+  "samsung|galaxyzflip7fe": "2026-11-13",
+  "samsung|galaxyzfold5": "2026-11-13",
+  "samsung|galaxyzfold8ultra": "2026-11-13",
+  "samsung|galazys26fe": "2026-11-13",
+  "apple|iphone12": "2026-11-13"
  }
 }
