@@ -2033,20 +2033,131 @@ body:has(main input:focus) .dock {
   opacity: 0.75;
 }
 
-/* The real select covers the chip, so a tap opens the phone's own picker. */
-.chip.pick select {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-  font-size: 16px;
+.chip.pick[aria-expanded='true'] {
+  border-color: var(--text);
 }
 
-.chip.pick:focus-within {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+.chip.pick[aria-pressed='true'][aria-expanded='true'] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* ---------------------------------------------------------------- menus (instead of the browser's own lists) */
+
+.menu {
+  position: fixed;
+  z-index: 30;
+  min-width: 220px;
+  max-width: min(300px, calc(100vw - 24px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  transform-origin: 24px 0;
+  animation: menu-in 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.menu.up {
+  transform-origin: 24px 100%;
+  animation-name: menu-up;
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+}
+
+@keyframes menu-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+}
+
+.menu-head {
+  margin: 0;
+  padding: 8px 10px 6px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--muted);
+}
+
+.menu-item {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px 0 8px;
+  border-radius: 12px;
+  text-align: left;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.menu-item:hover,
+.menu-item:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--text) 9%, var(--surface));
+}
+
+.menu-item:active {
+  background: color-mix(in srgb, var(--text) 14%, var(--surface));
+}
+
+.menu-item[aria-checked='true'] .menu-label {
+  font-weight: 750;
+}
+
+.menu-tick {
+  display: grid;
+  place-items: center;
+}
+
+.menu-tick svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.6;
+  color: var(--accent);
+}
+
+.menu-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-meta {
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.menu-item[aria-checked='true'] .menu-meta {
+  color: var(--accent);
+}
+
+.menu-item.quiet {
+  min-height: 40px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.menu-sep {
+  height: 1px;
+  margin: 4px 8px;
+  border: 0;
+  background: var(--line);
 }
 
 .summary {

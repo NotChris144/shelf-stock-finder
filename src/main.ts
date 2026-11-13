@@ -599,10 +599,9 @@ function bars(tier: number): string {
 
 const CARET = '<svg class="caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>';
 
-/** A chip that opens the phone's own picker: the label shows the choice, and the chip lights when one is made. */
-function picker(act: string, label: string, on: boolean, options: [string, string][], current: string, aria: string): string {
-  const opts = options.map(([v, l]) => `<option value="${esc(v)}"${v === current ? ' selected' : ''}>${esc(l)}</option>`).join('');
-  return `<label class="chip pick" aria-pressed="${on}"><span>${esc(label)}</span>${CARET}<select data-act="${act}" aria-label="${aria}">${opts}</select></label>`;
+/** A chip that opens one of the app's own menus. `key` says which (see openPicker). */
+function picker(key: string, label: string, on: boolean, aria: string): string {
+  return `<button type="button" class="chip pick" data-act="menu" data-v="${esc(key)}" aria-haspopup="menu" aria-expanded="false" aria-pressed="${on}" title="${esc(aria)}">${esc(label)}${CARET}</button>`;
 }
 
 function filterControls(inSheet: boolean): string {
@@ -617,30 +616,31 @@ function filterControls(inSheet: boolean): string {
   ]
     .map(([t, l]) => chip('perf', t, `${bars(t as number)}${l}`, F.perf === t))
     .join('');
-  const sorts = SORTS.filter(([v]) => (v === 'life' ? isMobile(sh) : v === 'perf' || v === 'value' ? isDevice(sh) : true));
-  const sort = `<label class="select"><span class="sr">Sort by</span><select data-act="sort">${sorts.map(
-    ([v, l]) => `<option value="${v}"${F.sort === v ? ' selected' : ''}>${l}</option>`,
-  ).join('')}</select></label>`;
   const updates = chip('up', 1, 'Still gets updates', F.up === 1) + chip('up', 2, '2+ years left', F.up === 2);
   const device = isDevice(sh);
   const mobile = isMobile(sh);
   const groups = facetGroups();
   const fx = (o: Facet): string => chip('fx', o.id, o.label, F.fx.includes(o.id));
+  const sortName = SORTS.find(([v]) => v === F.sort)?.[1] ?? 'Best match';
+  const speedName: Record<number, string> = { 3: 'Good+', 4: 'Fast+', 5: 'Top speed' };
   if (!inSheet) {
-    // One swipeable row. Sort, price and speed are each one chip over the phone's own picker,
-    // which is quicker to use and far shorter than a chip per value.
-    const sortName = SORTS.find(([v]) => v === F.sort)?.[1] ?? 'Sort';
-    const prices: [string, string][] = [['0', 'Any price'], ...steps.map((p): [string, string] => [String(p), `Under £${p}`])];
-    if (F.max && !steps.includes(F.max)) prices.push([String(F.max), `Under £${F.max}`]);
-    const speeds: [string, string][] = [['0', 'Any speed'], ['3', 'Good or faster'], ['4', 'Fast or faster'], ['5', 'Top speed only']];
-    const speedName: Record<number, string> = { 3: 'Good+', 4: 'Fast+', 5: 'Top speed' };
-    const quick = groups.flatMap((g) => g.options.filter((o) => g.quick?.includes(o.id)).map(fx)).join('');
+    // One swipeable row. Sort, price and speed are each one chip with a menu, far shorter than a
+    // chip per value. Android opens a menu of the makers in stock, since that is the only system
+    // where brand is a separate choice.
+    const brandChip = (o: Facet): string => {
+      const on = F.fx.includes(o.id);
+      const label = on && F.brands.length === 1 ? F.brands[0] : on && F.brands.length > 1 ? `${F.brands.length} brands` : o.label;
+      return picker(`brand:${o.id}`, label, on, `${o.label} brand`);
+    };
+    const quick = groups
+      .flatMap((g) => g.options.filter((o) => g.quick?.includes(o.id)).map((o) => (o.id === 'and' || o.id === 'andt' ? brandChip(o) : fx(o))))
+      .join('');
     return `<div class="frow bar">
-      ${picker('sort', F.sort === 'rel' ? 'Sort' : sortName, F.sort !== 'rel', sorts, F.sort, 'Sort by')}
-      ${picker('maxSel', F.max ? `Under £${F.max}` : 'Price', F.max > 0, prices, String(F.max), 'Highest price')}
+      ${picker('sort', F.sort === 'rel' ? 'Sort' : sortName, F.sort !== 'rel', 'Sort by')}
+      ${picker('price', F.max ? `Under £${F.max}` : 'Price', F.max > 0, 'Highest price')}
       ${mobile || device || quick ? '<span class="sep"></span>' : ''}
       ${mobile ? chip('up', F.up || 1, F.up === 2 ? '2+ years left' : 'Still updated', F.up > 0) : ''}
-      ${device ? picker('perfSel', speedName[F.perf] ?? 'Speed', F.perf > 0, speeds, String(F.perf), 'Lowest speed') : ''}
+      ${device ? picker('speed', speedName[F.perf] ?? 'Speed', F.perf > 0, 'Lowest speed') : ''}
       ${quick}
     </div>`;
   }
@@ -649,11 +649,13 @@ function filterControls(inSheet: boolean): string {
     ${mobile ? `<div class="frow wrap"><span class="flabel">Updates</span>${updates}</div>` : ''}
     ${device ? `<div class="frow wrap"><span class="flabel">Speed</span>${speed}</div>` : ''}
     ${groups.map((g) => `<div class="frow wrap"><span class="flabel">${g.name}</span>${g.options.map(fx).join('')}</div>`).join('')}
-    <div class="frow wrap"><span class="flabel">Sort</span>${sort}</div>`;
+    <div class="frow wrap"><span class="flabel">Sort</span>${picker('sort', sortName, F.sort !== 'rel', 'Sort by')}</div>`;
 }
 
 function activeCount(): number {
-  return (F.max ? 1 : 0) + (F.up ? 1 : 0) + (F.perf ? 1 : 0) + (F.sort !== 'rel' ? 1 : 0) + F.brands.length + F.grades.length + F.fx.length;
+  // "Android: Samsung" is one choice, not two.
+  const brandOnSystem = F.brands.length > 0 && F.fx.some((id) => id === 'and' || id === 'andt') ? 1 : 0;
+  return (F.max ? 1 : 0) + (F.up ? 1 : 0) + (F.perf ? 1 : 0) + (F.sort !== 'rel' ? 1 : 0) + F.brands.length + F.grades.length + F.fx.length - brandOnSystem;
 }
 
 let tipShown = false;
@@ -671,7 +673,11 @@ function renderChrome(): void {
   // Keep the chosen category in view when it sits past the edge of the strip.
   const on = $('#presets').querySelector<HTMLElement>('[aria-pressed="true"]');
   if (on) $('#presets').scrollLeft = Math.max(0, on.offsetLeft - 24);
+  // Redrawing the row must not throw it back to the start: the chip just used stays where it was.
+  const keep = document.querySelector<HTMLElement>('#filters .frow.bar')?.scrollLeft ?? 0;
   $('#filters').innerHTML = filterControls(false);
+  const bar = document.querySelector<HTMLElement>('#filters .frow.bar');
+  if (bar) bar.scrollLeft = keep;
   const plain = isHome() || Boolean(F.mode);
   const n = plain ? 0 : activeCount();
   $('#dockFiltersLabel').textContent = plain ? 'Settings' : n ? `Filters · ${n}` : 'Filters';
@@ -824,6 +830,7 @@ function render(): void {
   renderChrome();
   renderStatus();
   renderResults();
+  if (menuAnchor && !menuAnchor.isConnected) closeMenu();
 }
 
 const pager = new IntersectionObserver(
@@ -1016,7 +1023,8 @@ function activePills(): string {
   const inRow = new Set(facetGroups().flatMap((g) => g.quick ?? []));
   const pills: string[] = [];
   for (const g of facetGroups()) for (const o of g.options) if (F.fx.includes(o.id) && !inRow.has(o.id)) pills.push(chip('fx', o.id, `${o.label}${ICON_X}`, true));
-  for (const b of F.brands) pills.push(chip('brand', b, `${esc(b)}${ICON_X}`, true));
+  // The Android chip names the brand already.
+  if (!F.fx.some((id) => id === 'and' || id === 'andt')) for (const b of F.brands) pills.push(chip('brand', b, `${esc(b)}${ICON_X}`, true));
   for (const g of F.grades) pills.push(chip('grade', g, `Grade ${g}${ICON_X}`, true));
   if (!pills.length) return '';
   return `<div class="chips wrap active" aria-label="Other active filters">${pills.join('')}</div>`;
@@ -1248,6 +1256,185 @@ window.addEventListener('popstate', () => {
   }
 });
 
+// ------------------------------------------------------------------ dropdown menus
+
+interface MenuItem {
+  v: string;
+  label: string;
+  /** Right-hand detail: a count, a starting price. */
+  meta?: string;
+  on?: boolean;
+  /** A divider instead of an item. */
+  sep?: boolean;
+  quiet?: boolean;
+}
+
+let menuEl: HTMLDivElement | null = null;
+let menuAnchor: HTMLElement | null = null;
+
+function closeMenu(focusAnchor = false): void {
+  if (!menuEl) return;
+  menuEl.remove();
+  menuEl = null;
+  menuAnchor?.setAttribute('aria-expanded', 'false');
+  if (focusAnchor) menuAnchor?.focus();
+  menuAnchor = null;
+  document.removeEventListener('pointerdown', menuOutside, true);
+  document.removeEventListener('keydown', menuKeys, true);
+  window.removeEventListener('scroll', menuScroll, true);
+  window.removeEventListener('resize', menuResize);
+}
+
+const menuOutside = (ev: Event): void => {
+  const t = ev.target as Node;
+  if (!menuEl?.contains(t) && !menuAnchor?.contains(t)) closeMenu();
+};
+const menuScroll = (ev: Event): void => {
+  if (!menuEl?.contains(ev.target as Node)) closeMenu();
+};
+const menuResize = (): void => closeMenu();
+
+function menuKeys(ev: KeyboardEvent): void {
+  if (!menuEl) return;
+  if (ev.key === 'Escape' || ev.key === 'Tab') {
+    if (ev.key === 'Escape') ev.preventDefault();
+    closeMenu(ev.key === 'Escape');
+    return;
+  }
+  if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp' && ev.key !== 'Home' && ev.key !== 'End') return;
+  ev.preventDefault();
+  const all = [...menuEl.querySelectorAll<HTMLElement>('.menu-item')];
+  const at = all.indexOf(document.activeElement as HTMLElement);
+  const next =
+    ev.key === 'Home' ? 0 : ev.key === 'End' ? all.length - 1 : ev.key === 'ArrowDown' ? (at + 1) % all.length : (at - 1 + all.length) % all.length;
+  all[next]?.focus();
+}
+
+/** A menu under (or above) the chip that opened it, styled like the rest of the app instead of the browser's own list. */
+function openMenu(anchor: HTMLElement, title: string, list: MenuItem[], pick: (v: string) => void): void {
+  closeMenu();
+  // Inside an open dialog the menu has to live in that dialog, or the dialog would cover it.
+  const host = anchor.closest('dialog[open]') ?? document.body;
+  const el = document.createElement('div');
+  el.className = 'menu';
+  el.setAttribute('role', 'menu');
+  el.setAttribute('aria-label', title);
+  el.innerHTML =
+    `<p class="menu-head">${esc(title)}</p>` +
+    list
+      .map((i) =>
+        i.sep
+          ? '<hr class="menu-sep">'
+          : `<button type="button" class="menu-item${i.quiet ? ' quiet' : ''}" role="menuitemradio" aria-checked="${Boolean(i.on)}" data-menu-v="${esc(i.v)}"><span class="menu-tick">${i.on ? ICON_TICK : ''}</span><span class="menu-label">${esc(i.label)}</span>${i.meta ? `<span class="menu-meta">${esc(i.meta)}</span>` : ''}</button>`,
+      )
+      .join('');
+  host.append(el);
+  const a = anchor.getBoundingClientRect();
+  const room = { below: window.innerHeight - a.bottom - 100, above: a.top - 20 };
+  const above = el.offsetHeight > room.below && room.above > room.below;
+  el.style.maxHeight = `${Math.max(160, above ? room.above : room.below)}px`;
+  el.classList.toggle('up', above);
+  const w = el.offsetWidth;
+  el.style.left = `${Math.round(Math.min(Math.max(12, a.left), window.innerWidth - w - 12))}px`;
+  el.style.top = `${Math.round(above ? a.top - 8 - el.offsetHeight : a.bottom + 8)}px`;
+  el.addEventListener('click', (ev) => {
+    const b = (ev.target as HTMLElement).closest<HTMLElement>('[data-menu-v]');
+    if (!b) return;
+    ev.stopPropagation();
+    const v = b.dataset.menuV ?? '';
+    closeMenu();
+    pick(v);
+  });
+  menuEl = el;
+  menuAnchor = anchor;
+  anchor.setAttribute('aria-expanded', 'true');
+  document.addEventListener('pointerdown', menuOutside, true);
+  document.addEventListener('keydown', menuKeys, true);
+  window.addEventListener('scroll', menuScroll, true);
+  window.addEventListener('resize', menuResize);
+  (el.querySelector<HTMLElement>('[aria-checked="true"]') ?? el.querySelector<HTMLElement>('.menu-item'))?.focus({ preventScroll: true });
+}
+
+/** What a change would leave on screen, without making it. Null where the loaded items cannot say. */
+function preview(patch: Partial<Filters>): { n: number; from: number } | null {
+  if (loading || !items.length || total > hits.length) return null;
+  const saved = { ...F, fx: [...F.fx], brands: [...F.brands], grades: [...F.grades] };
+  const kept = { groups, matched, hiddenUnknown };
+  Object.assign(F, patch);
+  compute();
+  const out = { n: matched, from: groups.length ? Math.min(...groups.map((g) => g.min)) : 0 };
+  Object.assign(F, saved);
+  ({ groups, matched, hiddenUnknown } = kept);
+  return out;
+}
+
+const countText = (p: { n: number } | null): string | undefined => (p ? p.n.toLocaleString('en-GB') : undefined);
+
+const sortsFor = (sh: Shelf): [Sort, string][] =>
+  SORTS.filter(([v]) => (v === 'life' ? isMobile(sh) : v === 'perf' || v === 'value' ? isDevice(sh) : true));
+
+/** The menus behind the picker chips. `key` is the chip's data-v. */
+function openPicker(key: string, anchor: HTMLElement): void {
+  const sh = shelf();
+  if (key === 'sort') {
+    const list = sortsFor(sh).map(([v, l]): MenuItem => ({ v, label: l, on: F.sort === v }));
+    return openMenu(anchor, 'Sort by', list, (v) => apply({ sort: v as Sort }, true));
+  }
+  if (key === 'price') {
+    const steps = [...BUDGET_STEPS[sh]];
+    if (F.max && !steps.includes(F.max)) steps.push(F.max);
+    steps.sort((x, y) => x - y);
+    // Prices above the current limit were never fetched, so they cannot be counted.
+    const counted = (p: number): string | undefined => (F.max && p > F.max ? undefined : countText(preview({ max: p })));
+    const list: MenuItem[] = [
+      { v: '0', label: 'Any price', on: !F.max },
+      ...steps.map((p): MenuItem => ({ v: String(p), label: `Under £${p}`, meta: counted(p), on: F.max === p })),
+    ];
+    return openMenu(anchor, 'Price', list, (v) => apply({ max: Number(v) || 0 }, true));
+  }
+  if (key === 'speed') {
+    const list: MenuItem[] = [
+      { v: '0', label: 'Any speed', on: !F.perf },
+      ...([
+        [3, 'Good or faster'],
+        [4, 'Fast or faster'],
+        [5, 'Top speed only'],
+      ] as [number, string][]).map(([t, l]): MenuItem => ({ v: String(t), label: l, meta: countText(preview({ perf: t })), on: F.perf === t })),
+    ];
+    return openMenu(anchor, 'Speed', list, (v) => apply({ perf: Number(v) || 0 }));
+  }
+  if (key.startsWith('brand:')) {
+    const id = key.slice(6);
+    const sys = systemOptions();
+    const opt = sys.find((o) => o.id === id);
+    if (!opt) return;
+    const others = F.fx.filter((x) => !sys.some((o) => o.id === x));
+    const withSys = [...others, id];
+    const on = F.fx.includes(id);
+    // Makers in stock for this system, busiest first, with what each would show and its cheapest item.
+    const makers = [...new Set(items.filter((it) => it.brand && opt.test(it)).map((it) => it.brand))]
+      .map((b) => ({ b, p: preview({ fx: withSys, brands: [b] }) }))
+      .filter((x) => !x.p || x.p.n > 0)
+      .sort((x, y) => (y.p?.n ?? 0) - (x.p?.n ?? 0) || x.b.localeCompare(y.b));
+    const any = preview({ fx: withSys, brands: [] });
+    const list: MenuItem[] = [
+      { v: '*', label: `Any ${opt.label} brand`, meta: countText(any), on: on && !F.brands.length },
+      { v: '', label: '', sep: true },
+      ...makers.map(({ b, p }): MenuItem => ({
+        v: b,
+        label: b,
+        meta: p ? `${p.n.toLocaleString('en-GB')} · from £${p.from}` : undefined,
+        on: on && F.brands.length === 1 && F.brands[0] === b,
+      })),
+    ];
+    if (on) list.push({ v: '', label: '', sep: true }, { v: 'off', label: `Show all ${PRESETS.find((p) => p.id === F.preset)?.label.toLowerCase() ?? 'items'}`, quiet: true });
+    return openMenu(anchor, `${opt.label} brand`, list, (v) => {
+      if (v === 'off') apply({ fx: others, brands: [] });
+      else apply({ fx: withSys, brands: v === '*' ? [] : [v] });
+    });
+  }
+}
+
 // ------------------------------------------------------------------ actions
 
 /** `push` marks a move the Back button should undo (a new screen), as opposed to a refinement of this one. */
@@ -1372,6 +1559,10 @@ document.addEventListener('click', (ev) => {
       apply({ ...DEFAULTS, q: v }, true, true);
       window.scrollTo({ top: 0 });
       break;
+    case 'menu':
+      if (menuAnchor === el) closeMenu();
+      else openPicker(v, el);
+      break;
     case 'more':
       if (swallowTap) break;
       void openSheet();
@@ -1401,8 +1592,6 @@ document.addEventListener('click', (ev) => {
 document.addEventListener('change', (ev) => {
   const el = ev.target as HTMLInputElement | HTMLSelectElement;
   if (el.dataset.act === 'sort') apply({ sort: el.value as Sort }, true);
-  if (el.dataset.act === 'maxSel') apply({ max: Number(el.value) || 0 }, true);
-  if (el.dataset.act === 'perfSel') apply({ perf: Number(el.value) || 0 });
   if (el.dataset.act === 'maxInput') apply({ max: Math.max(0, Number(el.value) || 0) }, true);
   if (el.dataset.act === 'budInput') apply({ bud: Math.max(0, Number(el.value) || 0) }, true);
   if (el.dataset.act === 'limitInput') {
