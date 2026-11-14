@@ -11,7 +11,7 @@
 // cycle of being taken into stock; the job then records it for good.
 
 import type { FlowHost } from './flows.ts';
-import { recsOf, settle, techNow, toHit, type Log } from './tracker.ts';
+import { recsOf, settle, techNow, toHit, when, type Log } from './tracker.ts';
 import type { Group, Item } from './types.ts';
 
 const LOG_URL = 'https://raw.githubusercontent.com/NotChris144/shelf-stock-finder/stock-data/log.json';
@@ -73,8 +73,9 @@ async function arrivingNow(host: FlowHost, log: Log | null, again = false): Prom
     const ids = (await techNow(log.store)).filter((id) => !seen.has(id));
     const recs = (await recsOf(ids.slice(0, 60))).filter((r) => r.t);
     const entries = recs.map((r): Entry => {
-      const exact = r.u !== undefined && r.u > log.at && r.u <= now;
-      return { t: exact ? r.u! : now, a: log.at, e: exact, it: host.toItem(toHit(r)) };
+      // The same rule as the record's: CeX's stamp, allowing for its lag in showing a change.
+      const w = when(r.u, log.at, now);
+      return { t: w.t, a: log.at, e: Boolean(w.e), it: host.toItem(toHit(r)) };
     });
     fresh_ = { at: now, key: log.at, entries, ok: true };
   } catch {

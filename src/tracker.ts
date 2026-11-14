@@ -91,9 +91,17 @@ function stamp(v: unknown): number | undefined {
   return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : undefined;
 }
 
-/** CeX's time for a change, if it falls between the two looks; otherwise the later look is all that is known. */
-function when(u: number | undefined, after: number, by: number): { t: number; e?: 1 } {
-  return u !== undefined && u > after && u <= by ? { t: u, e: 1 } : { t: by };
+/**
+ * How far before a look CeX's stamp on a change can fall while the change is still to come. CeX
+ * stamps a change at one of its 10-minute updates but now and then makes it visible only at the
+ * next: an item stamped 17:20 can be missing from a 17:21 look and appear at 17:31. Its stamp,
+ * not the look that first saw it, is when it happened.
+ */
+export const LAG = 10 * 60_000;
+
+/** CeX's time for a change, if it falls between the two looks (allowing for the lag); otherwise the later look is all that is known. */
+export function when(u: number | undefined, after: number, by: number): { t: number; e?: 1 } {
+  return u !== undefined && u > after - LAG && u <= by ? { t: u, e: 1 } : { t: by };
 }
 
 const TECH = new Set(['Phones', 'Computing', 'Electronics']);
@@ -318,7 +326,10 @@ export function record(log: Log | null, out: Outcome, store: string, now: number
   const keep = (list: Ev[], days: number, most: number): Ev[] => list.filter((e) => now - e.t <= days * DAY).sort((x, y) => y.t - x.t).slice(0, most);
   const tag = (e: Ev): Ev & { id: string } => ({ ...e, id: e.r.id });
   const plain = ({ id: _id, ...e }: Ev & { id: string }): Ev => e;
-  const both = settle([...out.arrivals, ...base.arrivals].map(tag), [...out.sold, ...base.sold].map(tag));
+  // Arrivals recorded before CeX's lag was allowed for were timed by the look that first saw them;
+  // their own stamp, kept with them, says when they really came in.
+  const retimed = base.arrivals.map((e): Ev => (!e.e && e.r.u !== undefined && e.r.u > e.a - LAG && e.r.u <= e.t ? { ...e, t: e.r.u, e: 1 } : e));
+  const both = settle([...out.arrivals, ...retimed].map(tag), [...out.sold, ...base.sold].map(tag));
   return {
     ...base,
     at: now,
