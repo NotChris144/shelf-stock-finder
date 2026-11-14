@@ -1,8 +1,7 @@
 {
- "day": "2026-11-13",
+ "day": "2026-11-14",
  "used": {
-  "evening": 30,
-  "day": 20
+  "day": 10
  },
  "fresh": [
   "amazon|firehd8",
@@ -62,7 +61,9 @@
   "apple|iphone15": "2026-11-13",
   "apple|iphone17pro": "2026-11-13",
   "apple|iphone8": "2026-11-13",
-  "apple|iphone11": "2026-11-13"
+  "apple|iphone11": "2026-11-13",
+  "samsung|galaxyzfold6": "2026-11-14",
+  "tcl|605": "2026-11-14"
  },
  "stocked": [
   "amazon|alexatablet8",
@@ -115,7 +116,6 @@
   "google|pixel11proxl",
   "google|pixel4a",
   "google|pixel6",
-  "google|pixel6a",
   "google|pixel6pro",
   "google|pixel7",
   "google|pixel9a",
@@ -189,10 +189,12 @@
   "samsung|galaxyzflip7",
   "samsung|galaxyzflip7fe",
   "samsung|galaxyzfold5",
+  "samsung|galaxyzfold6",
   "samsung|galaxyzfold7",
   "samsung|galaxyzfold8ultra",
   "samsung|galazys26fe",
   "samsung|taba",
+  "tcl|605",
   "tcl|k70"
  ]
 }

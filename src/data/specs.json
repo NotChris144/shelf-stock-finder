@@ -1,5 +1,5 @@
 {
- "at": "2026-11-13",
+ "at": "2026-11-14",
  "source": "GSMArena",
  "sheets": {
   "apple|iphone11": {
@@ -1443,6 +1443,38 @@
    "lufs": -25.9,
    "gb5": 4824
   },
+  "samsung|galaxyzfold6": {
+   "n": "Samsung Galaxy Z Fold6",
+   "id": 13147,
+   "y": 2024,
+   "scr": 7.6,
+   "mah": 4400,
+   "mp": 50,
+   "chip": "Snapdragon 8 Gen 3",
+   "m": 7,
+   "pan": "OLED",
+   "hz": 120,
+   "res": "1856x2160",
+   "w": 25,
+   "wl": 15,
+   "uw": 1,
+   "tz": 3,
+   "sf": 4,
+   "ram": [
+    12
+   ],
+   "g5": 1,
+   "ip": "IP48",
+   "nfc": 1,
+   "wt": 239,
+   "usbc": 1,
+   "os": "Android 14",
+   "up": "Android 17",
+   "act": 691,
+   "nits": 1630,
+   "lufs": -26.5,
+   "gb6": 6757
+  },
   "samsung|galaxyzfold7": {
    "n": "Samsung Galaxy Z Fold7",
    "id": 13826,
@@ -1538,6 +1570,32 @@
    "nits": 1268,
    "lufs": -26.6,
    "gb6": 8035
+  },
+  "tcl|605": {
+   "n": "TCL 605",
+   "id": 13970,
+   "y": 2025,
+   "scr": 6.7,
+   "mah": 5200,
+   "mp": 50,
+   "chip": "Helio G81",
+   "m": 3,
+   "pan": "LCD",
+   "hz": 90,
+   "res": "720x1600",
+   "w": 18,
+   "sf": 5,
+   "ram": [
+    4,
+    8
+   ],
+   "ip": "IP54",
+   "sd": 1,
+   "jack": 1,
+   "nfc": 1,
+   "wt": 190,
+   "usbc": 1,
+   "os": "Android 15"
   }
  }
 }
