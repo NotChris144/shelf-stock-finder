@@ -1,7 +1,7 @@
 {
  "day": "2026-11-14",
  "used": {
-  "day": 13
+  "day": 16
  },
  "fresh": [],
  "missed": {
@@ -62,7 +62,10 @@
   "apple|iphone8": "2026-11-13",
   "apple|iphone11": "2026-11-13",
   "samsung|galaxyzfold6": "2026-11-14",
-  "tcl|605": "2026-11-14"
+  "tcl|605": "2026-11-14",
+  "apple|iphonese": "2026-11-14",
+  "apple|iphone7": "2026-11-14",
+  "google|pixel8": "2026-11-14"
  },
  "stocked": [
   "amazon|alexatablet8",
@@ -99,9 +102,11 @@
   "apple|iphone17promax",
   "apple|iphone18pro",
   "apple|iphone4s",
+  "apple|iphone7",
   "apple|iphone7plus",
   "apple|iphone8",
   "apple|iphone8plus",
+  "apple|iphonese",
   "apple|iphonese2ndgen",
   "apple|iphonese3rdgen",
   "apple|iphonex",
@@ -117,9 +122,9 @@
   "google|pixel6",
   "google|pixel6pro",
   "google|pixel7",
+  "google|pixel8",
   "google|pixel9a",
   "google|pixel9pro",
-  "google|pixel9proxl",
   "honor|magic7lite",
   "honor|magic8lite",
   "honor|magicv6",

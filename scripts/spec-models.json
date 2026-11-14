@@ -80,7 +80,9 @@
       "iPhone 16",
       "iPhone 4S",
       "iPhone 7 Plus",
-      "iPhone SE 3rd Gen"
+      "iPhone SE 3rd Gen",
+      "iPhone SE",
+      "iPhone 7"
     ],
     "Motorola": [
       "Edge 70",
@@ -101,7 +103,8 @@
       "Pixel 6A",
       "Pixel 7",
       "Pixel 9 Pro XL",
-      "Pixel 9a"
+      "Pixel 9a",
+      "Pixel 8"
     ],
     "Redmi": [
       "A7 Pro"

@@ -290,6 +290,28 @@
    "lufs": -28.9,
    "gb6": 9923
   },
+  "apple|iphone7": {
+   "n": "Apple iPhone 7",
+   "id": 8064,
+   "y": 2016,
+   "scr": 4.7,
+   "mah": 1960,
+   "mp": 12,
+   "chip": "Apple A10 Fusion",
+   "m": 9,
+   "pan": "LCD",
+   "res": "750x1334",
+   "sf": 7,
+   "ram": [
+    2
+   ],
+   "ip": "IP67",
+   "nfc": 1,
+   "wt": 138,
+   "os": "iOS 10.0.1",
+   "up": "iOS 15.8.5",
+   "end": 61
+  },
   "apple|iphone8": {
    "n": "Apple iPhone 8",
    "id": 8573,
@@ -312,6 +334,61 @@
    "wt": 148,
    "os": "iOS 11",
    "end": 66
+  },
+  "apple|iphonese": {
+   "n": "Apple iPhone SE",
+   "id": 7969,
+   "y": 2016,
+   "scr": 4,
+   "mah": 1624,
+   "mp": 12,
+   "chip": "Apple A9",
+   "m": 3,
+   "pan": "LCD",
+   "res": "640x1136",
+   "sf": 1.2,
+   "ram": [
+    2
+   ],
+   "jack": 1,
+   "nfc": 1,
+   "wt": 113,
+   "os": "iOS 9.3.2",
+   "up": "iOS 15.8.5",
+   "end": 73
+  },
+  "google|pixel8": {
+   "n": "Google Pixel 8",
+   "id": 12546,
+   "y": 2023,
+   "scr": 6.2,
+   "mah": 4575,
+   "mp": 50,
+   "chip": "Google Tensor G3",
+   "m": 10,
+   "pan": "OLED",
+   "hz": 120,
+   "res": "1080x2400",
+   "w": 27,
+   "wl": 18,
+   "uw": 1,
+   "sf": 10.5,
+   "ram": [
+    8
+   ],
+   "g5": 1,
+   "ip": "IP68",
+   "nfc": 1,
+   "wt": 187,
+   "usbc": 1,
+   "os": "Android 14",
+   "up": "Android 17",
+   "act": 677,
+   "end": 83,
+   "nits": 1446,
+   "lufs": -26,
+   "gb5": 3526,
+   "gb6": 4404
   },
   "samsung|galaxya04e": {
    "n": "Samsung Galaxy A04e",
