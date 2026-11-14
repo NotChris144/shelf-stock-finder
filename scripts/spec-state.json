@@ -4,7 +4,8 @@
   "day": 20
  },
  "fresh": [
-  "huawei|p10lite"
+  "huawei|p10lite",
+  "huawei|mate20x"
  ],
  "missed": {
   "motorola|motoe3rdgen": "2026-11-13",
@@ -134,6 +135,7 @@
   "honor|magic7lite",
   "honor|magic8lite",
   "honor|magicv6",
+  "huawei|mate20x",
   "huawei|mediapadt310",
   "huawei|p10lite",
   "huawei|psmart2019",
