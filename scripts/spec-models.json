@@ -82,7 +82,8 @@
       "iPhone 7 Plus",
       "iPhone SE 3rd Gen",
       "iPhone SE",
-      "iPhone 7"
+      "iPhone 7",
+      "iPhone Air"
     ],
     "Motorola": [
       "Edge 70",
@@ -107,7 +108,8 @@
       "Pixel 8"
     ],
     "Redmi": [
-      "A7 Pro"
+      "A7 Pro",
+      "13C"
     ],
     "Oppo": [
       "Find X9",
@@ -128,6 +130,10 @@
     "TCL": [
       "K70",
       "605"
+    ],
+    "Huawei": [
+      "P Smart (2019)",
+      "P10 Lite"
     ]
   },
   "tablets": {

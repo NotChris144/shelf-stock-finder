@@ -1,9 +1,11 @@
 {
  "day": "2026-11-14",
  "used": {
-  "day": 16
+  "day": 20
  },
- "fresh": [],
+ "fresh": [
+  "huawei|p10lite"
+ ],
  "missed": {
   "motorola|motoe3rdgen": "2026-11-13",
   "samsung|taba": "2026-11-14",
@@ -65,7 +67,10 @@
   "tcl|605": "2026-11-14",
   "apple|iphonese": "2026-11-14",
   "apple|iphone7": "2026-11-14",
-  "google|pixel8": "2026-11-14"
+  "google|pixel8": "2026-11-14",
+  "apple|iphoneair": "2026-11-14",
+  "redmi|13c": "2026-11-14",
+  "huawei|psmart2019": "2026-11-14"
  },
  "stocked": [
   "amazon|alexatablet8",
@@ -106,6 +111,7 @@
   "apple|iphone7plus",
   "apple|iphone8",
   "apple|iphone8plus",
+  "apple|iphoneair",
   "apple|iphonese",
   "apple|iphonese2ndgen",
   "apple|iphonese3rdgen",
@@ -129,6 +135,8 @@
   "honor|magic8lite",
   "honor|magicv6",
   "huawei|mediapadt310",
+  "huawei|p10lite",
+  "huawei|psmart2019",
   "microsoft|surface",
   "microsoft|surfacepro8",
   "motorola|edge70",
@@ -140,6 +148,7 @@
   "oneplus|9",
   "oppo|a17",
   "oppo|findx9",
+  "redmi|13c",
   "redmi|a7pro",
   "samsung|galaxya04e",
   "samsung|galaxya06",

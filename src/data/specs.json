@@ -335,6 +335,34 @@
    "os": "iOS 11",
    "end": 66
   },
+  "apple|iphoneair": {
+   "n": "Apple iPhone Air",
+   "id": 13502,
+   "y": 2025,
+   "scr": 6.5,
+   "mah": 3149,
+   "mp": 48,
+   "chip": "Apple A19 Pro",
+   "m": 9,
+   "pan": "OLED",
+   "hz": 120,
+   "res": "1260x2736",
+   "wl": 15,
+   "sf": 18,
+   "ram": [
+    12
+   ],
+   "g5": 1,
+   "ip": "IP68",
+   "nfc": 1,
+   "wt": 165,
+   "usbc": 1,
+   "os": "iOS 26",
+   "up": "iOS 27.2",
+   "act": 764,
+   "nits": 998,
+   "lufs": -29.8
+  },
   "apple|iphonese": {
    "n": "Apple iPhone SE",
    "id": 7969,
@@ -389,6 +417,57 @@
    "lufs": -26,
    "gb5": 3526,
    "gb6": 4404
+  },
+  "huawei|psmart2019": {
+   "n": "Huawei P smart 2019",
+   "id": 9409,
+   "y": 2019,
+   "scr": 6.21,
+   "mah": 3400,
+   "mp": 13,
+   "chip": "Kirin 710",
+   "m": 1,
+   "pan": "LCD",
+   "res": "1080x2340",
+   "w": 10,
+   "sf": 16,
+   "ram": [
+    3,
+    4
+   ],
+   "sd": 1,
+   "jack": 1,
+   "nfc": 1,
+   "wt": 160,
+   "os": "Android 9.0 (Pie)",
+   "end": 88
+  },
+  "redmi|13c": {
+   "n": "Xiaomi Redmi 13C",
+   "id": 12689,
+   "y": 2023,
+   "scr": 6.74,
+   "mah": 5000,
+   "mp": 50,
+   "chip": "Helio G85",
+   "m": 11,
+   "pan": "LCD",
+   "hz": 90,
+   "res": "720x1600",
+   "w": 18,
+   "sf": 8,
+   "ram": [
+    4,
+    6,
+    8
+   ],
+   "sd": 1,
+   "jack": 1,
+   "nfc": 1,
+   "wt": 192,
+   "usbc": 1,
+   "os": "Android 13",
+   "up": "Android 15"
   },
   "samsung|galaxya04e": {
    "n": "Samsung Galaxy A04e",
