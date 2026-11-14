@@ -1,12 +1,10 @@
 {
  "day": "2026-11-14",
  "used": {
-  "day": 20
+  "day": 20,
+  "evening": 10
  },
- "fresh": [
-  "huawei|p10lite",
-  "huawei|mate20x"
- ],
+ "fresh": [],
  "missed": {
   "motorola|motoe3rdgen": "2026-11-13",
   "samsung|taba": "2026-11-14",
@@ -71,7 +69,10 @@
   "google|pixel8": "2026-11-14",
   "apple|iphoneair": "2026-11-14",
   "redmi|13c": "2026-11-14",
-  "huawei|psmart2019": "2026-11-14"
+  "huawei|psmart2019": "2026-11-14",
+  "huawei|p10lite": "2026-11-14",
+  "huawei|mate20x": "2026-11-14",
+  "apple|iphone12pro": "2026-11-14"
  },
  "stocked": [
   "amazon|alexatablet8",
