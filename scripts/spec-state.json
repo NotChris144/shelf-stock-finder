@@ -1,7 +1,8 @@
 {
  "day": "2026-11-15",
  "used": {
-  "day": 3
+  "day": 3,
+  "evening": 10
  },
  "fresh": [],
  "missed": {
@@ -92,7 +93,17 @@
   "apple|iphonexs": "2026-11-14",
   "apple|iphonexsmax": "2026-11-14",
   "apple|iphone11pro": "2026-11-14",
-  "motorola|motog06": "2026-11-15"
+  "motorola|motog06": "2026-11-15",
+  "apple|iphone15promax": "2026-11-15",
+  "apple|iphone16": "2026-11-15",
+  "apple|iphone4s": "2026-11-15",
+  "apple|iphone7plus": "2026-11-15",
+  "apple|iphonese3rdgen": "2026-11-15",
+  "motorola|edge70": "2026-11-15",
+  "motorola|motog24": "2026-11-15",
+  "motorola|motog34": "2026-11-15",
+  "motorola|motog8": "2026-11-15",
+  "google|pixel11pro": "2026-11-15"
  },
  "stocked": [
   "amazon|alexatablet8",
