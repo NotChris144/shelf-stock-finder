@@ -1,8 +1,7 @@
 {
- "day": "2026-11-14",
+ "day": "2026-11-15",
  "used": {
-  "day": 20,
-  "evening": 30
+  "day": 3
  },
  "fresh": [],
  "missed": {
@@ -92,7 +91,8 @@
   "apple|iphonexr": "2026-11-14",
   "apple|iphonexs": "2026-11-14",
   "apple|iphonexsmax": "2026-11-14",
-  "apple|iphone11pro": "2026-11-14"
+  "apple|iphone11pro": "2026-11-14",
+  "motorola|motog06": "2026-11-15"
  },
  "stocked": [
   "amazon|alexatablet8",
@@ -164,12 +164,12 @@
   "microsoft|surfacepro8",
   "motorola|edge70",
   "motorola|motoe3rdgen",
+  "motorola|motog06",
   "motorola|motog24",
   "motorola|motog34",
   "motorola|motog8",
   "oneplus|13",
   "oneplus|9",
-  "oppo|a17",
   "oppo|findx9",
   "redmi|13c",
   "redmi|a7pro",

@@ -1,5 +1,5 @@
 {
- "at": "2026-11-14",
+ "at": "2026-11-15",
  "source": "GSMArena",
  "sheets": {
   "apple|iphone11": {
@@ -1087,6 +1087,32 @@
    "wt": 160,
    "os": "Android 9.0 (Pie)",
    "end": 88
+  },
+  "motorola|motog06": {
+   "n": "Motorola Moto G06",
+   "id": 14115,
+   "y": 2025,
+   "scr": 6.88,
+   "mah": 5200,
+   "mp": 50,
+   "chip": "Helio G81 Ultra",
+   "m": 9,
+   "pan": "LCD",
+   "hz": 120,
+   "res": "720x1640",
+   "w": 10,
+   "sf": 8,
+   "ram": [
+    4,
+    8
+   ],
+   "ip": "IP64",
+   "sd": 1,
+   "jack": 1,
+   "nfc": 1,
+   "wt": 194,
+   "usbc": 1,
+   "os": "Android 15"
   },
   "redmi|13c": {
    "n": "Xiaomi Redmi 13C",
