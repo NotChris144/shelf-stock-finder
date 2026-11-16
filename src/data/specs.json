@@ -1,5 +1,5 @@
 {
- "at": "2026-11-15",
+ "at": "2026-11-16",
  "source": "GSMArena",
  "sheets": {
   "apple|iphone11": {
@@ -1596,6 +1596,30 @@
    "lufs": -26.1,
    "gb6": 9871
   },
+  "honor|x5cplus": {
+   "n": "Honor X5c Plus",
+   "id": 14156,
+   "y": 2025,
+   "scr": 6.74,
+   "mah": 5260,
+   "mp": 50,
+   "chip": "Helio G81",
+   "m": 9,
+   "pan": "LCD",
+   "hz": 90,
+   "res": "720x1600",
+   "w": 15,
+   "sf": 5,
+   "ram": [
+    4,
+    6
+   ],
+   "sd": 1,
+   "jack": 1,
+   "wt": 186,
+   "usbc": 1,
+   "os": "Android 15"
+  },
   "huawei|mate20x": {
    "n": "Huawei Mate 20 X",
    "id": 9369,
@@ -1781,6 +1805,32 @@
    "wt": 179,
    "usbc": 1,
    "os": "Android 13 or Android 14"
+  },
+  "motorola|motog37": {
+   "n": "Motorola Moto G37",
+   "id": 14646,
+   "y": 2026,
+   "scr": 6.67,
+   "mah": 5200,
+   "mp": 50,
+   "chip": "Dimensity 6300",
+   "m": 4,
+   "pan": "LCD",
+   "hz": 120,
+   "res": "720x1604",
+   "w": 20,
+   "sf": 8,
+   "ram": [
+    4
+   ],
+   "g5": 1,
+   "ip": "IP64",
+   "sd": 1,
+   "jack": 1,
+   "nfc": 1,
+   "wt": 191,
+   "usbc": 1,
+   "os": "Android 16"
   },
   "motorola|motog8": {
    "n": "Motorola Moto G8",
@@ -2191,6 +2241,39 @@
    "usbc": 1,
    "os": "Android 13",
    "up": "Android 15"
+  },
+  "samsung|galaxya15": {
+   "n": "Samsung Galaxy A15",
+   "id": 12637,
+   "y": 2023,
+   "scr": 6.5,
+   "mah": 5000,
+   "mp": 50,
+   "chip": "Helio G99",
+   "m": 12,
+   "pan": "OLED",
+   "hz": 90,
+   "res": "1080x2340",
+   "w": 25,
+   "uw": 1,
+   "sf": 13,
+   "ram": [
+    4,
+    6,
+    8
+   ],
+   "sd": 1,
+   "jack": 1,
+   "nfc": 1,
+   "wt": 200,
+   "usbc": 1,
+   "os": "Android 14",
+   "up": "Android 16",
+   "act": 928,
+   "nits": 808,
+   "lufs": -25.5,
+   "gb5": 1928,
+   "gb6": 1936
   },
   "samsung|galaxya16": {
    "n": "Samsung Galaxy A16",

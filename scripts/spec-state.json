@@ -1,8 +1,7 @@
 {
- "day": "2026-11-15",
+ "day": "2026-11-16",
  "used": {
-  "day": 3,
-  "evening": 30
+  "day": 5
  },
  "fresh": [],
  "missed": {
@@ -123,7 +122,10 @@
   "honor|magic8lite": "2026-11-15",
   "oneplus|9": "2026-11-15",
   "oneplus|13": "2026-11-15",
-  "oukitel|wp53": "2026-11-15"
+  "oukitel|wp53": "2026-11-15",
+  "samsung|galaxya15": "2026-11-16",
+  "motorola|motog37": "2026-11-16",
+  "honor|x5cplus": "2026-11-16"
  },
  "stocked": [
   "amazon|alexatablet8",
@@ -165,7 +167,6 @@
   "apple|iphone8",
   "apple|iphone8plus",
   "apple|iphoneair",
-  "apple|iphonese",
   "apple|iphonese2ndgen",
   "apple|iphonese3rdgen",
   "apple|iphonex",
@@ -187,6 +188,7 @@
   "honor|magic7lite",
   "honor|magic8lite",
   "honor|magicv6",
+  "honor|x5cplus",
   "huawei|mate20x",
   "huawei|mediapadt310",
   "huawei|p10lite",
@@ -198,6 +200,7 @@
   "motorola|motog06",
   "motorola|motog24",
   "motorola|motog34",
+  "motorola|motog37",
   "motorola|motog8",
   "oneplus|13",
   "oneplus|9",
@@ -205,12 +208,11 @@
   "redmi|13c",
   "redmi|a7pro",
   "samsung|galaxya04e",
-  "samsung|galaxya06",
-  "samsung|galaxya07",
   "samsung|galaxya11",
   "samsung|galaxya12",
   "samsung|galaxya13",
   "samsung|galaxya14",
+  "samsung|galaxya15",
   "samsung|galaxya16",
   "samsung|galaxya17",
   "samsung|galaxya18",
