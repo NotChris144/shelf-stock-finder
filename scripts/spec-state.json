@@ -1,13 +1,15 @@
 {
  "day": "2026-11-16",
  "used": {
-  "day": 5
+  "day": 5,
+  "evening": 4
  },
  "fresh": [],
  "missed": {
   "motorola|motoe3rdgen": "2026-11-13",
   "samsung|taba": "2026-11-14",
-  "amazon|firehd8": "2026-11-14"
+  "amazon|firehd8": "2026-11-14",
+  "samsung|galaxytab3": "2026-11-16"
  },
  "read": {
   "samsung|galaxya04e": "2026-11-13",
@@ -125,7 +127,9 @@
   "oukitel|wp53": "2026-11-15",
   "samsung|galaxya15": "2026-11-16",
   "motorola|motog37": "2026-11-16",
-  "honor|x5cplus": "2026-11-16"
+  "honor|x5cplus": "2026-11-16",
+  "samsung|galaxya52s": "2026-11-16",
+  "tcl|k70": "2026-11-16"
  },
  "stocked": [
   "amazon|alexatablet8",
@@ -219,6 +223,7 @@
   "samsung|galaxya21s",
   "samsung|galaxya25",
   "samsung|galaxya35",
+  "samsung|galaxya52s",
   "samsung|galaxya54",
   "samsung|galaxys10",
   "samsung|galaxys20fe",

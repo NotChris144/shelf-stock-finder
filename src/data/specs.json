@@ -2486,6 +2486,40 @@
    "gb5": 2740,
    "gb6": 2931
   },
+  "samsung|galaxya52s": {
+   "n": "Samsung Galaxy A52s 5G",
+   "id": 11039,
+   "y": 2021,
+   "scr": 6.5,
+   "mah": 4500,
+   "mp": 64,
+   "chip": "Snapdragon 778G 5G",
+   "m": 8,
+   "pan": "OLED",
+   "hz": 120,
+   "res": "1080x2400",
+   "w": 25,
+   "uw": 1,
+   "sf": 32,
+   "ram": [
+    4,
+    6,
+    8
+   ],
+   "g5": 1,
+   "ip": "IP67",
+   "sd": 1,
+   "jack": 1,
+   "nfc": 1,
+   "wt": 189,
+   "usbc": 1,
+   "os": "Android 11",
+   "up": "Android 14",
+   "end": 113,
+   "nits": 800,
+   "lufs": -27.5,
+   "gb5": 2801
+  },
   "samsung|galaxya54": {
    "n": "Samsung Galaxy A54",
    "id": 12070,
@@ -3361,6 +3395,30 @@
    "wt": 190,
    "usbc": 1,
    "os": "Android 15"
+  },
+  "tcl|k70": {
+   "n": "TCL K70",
+   "id": 14465,
+   "y": 2026,
+   "scr": 6.75,
+   "mah": 5200,
+   "mp": 50,
+   "chip": "Helio G100",
+   "m": 2,
+   "pan": "LCD",
+   "hz": 120,
+   "res": "720x1570",
+   "sf": 8,
+   "ram": [
+    4
+   ],
+   "ip": "IP64",
+   "sd": 1,
+   "jack": 1,
+   "nfc": 1,
+   "wt": 190,
+   "usbc": 1,
+   "os": "Android 16"
   }
  }
 }
