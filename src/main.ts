@@ -1070,15 +1070,17 @@ const known = new Map<string, Item>();
 const ICON_CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 const ICON_PLUS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg>';
 
-/** The way in: a chip on an opened card, or a round button on one copy's row. */
-function basketBtn(it: Item, as: 'chip' | 'copy'): string {
+const ICON_BAG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 8.5h13l-1.2 11a1 1 0 0 1-1 .9H7.7a1 1 0 0 1-1-.9z"/><path d="M9 8.5V7a3 3 0 0 1 6 0v1.5"/></svg>';
+
+/** The way in: a tile in an opened card's action bar, or a round button on one copy's row. */
+function basketBtn(it: Item, as: 'tile' | 'copy'): string {
   const on = basket.has(it.id);
-  return `<button type="button" class="${as === 'chip' ? 'chip basket-chip' : 'v-add'}" data-act="basket-add" data-v="${esc(it.id)}" data-on="${on}">${basketBtnInner(on, as)}</button>`;
+  return `<button type="button" class="${as === 'tile' ? 'act' : 'v-add'}" data-act="basket-add" data-v="${esc(it.id)}" data-on="${on}" aria-pressed="${on}">${basketBtnInner(on, as)}</button>`;
 }
 
-function basketBtnInner(on: boolean, as: 'chip' | 'copy'): string {
+function basketBtnInner(on: boolean, as: 'tile' | 'copy'): string {
   if (as === 'copy') return `${on ? ICON_CHECK : ICON_PLUS}<span class="sr">${on ? 'In the basket, tap to take it out' : 'Add to basket'}</span>`;
-  return on ? `${ICON_CHECK}In basket` : 'Add to basket';
+  return on ? `${ICON_CHECK}<span>In basket</span>` : `${ICON_BAG}<span>Basket</span>`;
 }
 
 const basketSum = (): string => `${basket.count()} ${basket.count() === 1 ? 'item' : 'items'}, ${money(basket.total())}`;
@@ -1104,7 +1106,8 @@ function syncBasket(): void {
     const on = basket.has(b.dataset.v ?? '');
     if (b.dataset.on === String(on)) continue;
     b.dataset.on = String(on);
-    b.innerHTML = basketBtnInner(on, b.classList.contains('v-add') ? 'copy' : 'chip');
+    b.setAttribute('aria-pressed', String(on));
+    b.innerHTML = basketBtnInner(on, b.classList.contains('v-add') ? 'copy' : 'tile');
   }
   basketChanged(flowHost);
   if ($<HTMLDialogElement>('#basket').open) drawBasket();
@@ -1152,7 +1155,7 @@ function drawBasket(): void {
         ? `<ul class="list basket-list">${rows}</ul>
       <p class="b-total"><span>${n} ${n === 1 ? 'item' : 'items'}</span><strong>${money(basket.total())}</strong></p>
       <button type="button" class="link b-clear" data-act="basket-clear">Empty the basket</button>`
-        : '<p class="b-empty">Nothing in it yet. Open any item and tap Add to basket.</p>'
+        : '<p class="b-empty">Nothing in it yet. Open any item and tap Basket.</p>'
     }
   </form>`;
   for (const key of wasOpen) {
@@ -1206,12 +1209,15 @@ basket.onChange(syncBasket);
 // search can be set beside one found in the next.
 
 
+/** Two phones side by side. */
+const ICON_COMPARE = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="7" height="15" rx="2"/><rect x="13.5" y="4.5" width="7" height="15" rx="2"/></svg>';
+
 function compareBtn(it: Item): string {
   const on = comparing.has(it.id);
-  return `<button type="button" class="chip basket-chip cmp-chip" data-act="cmp-add" data-v="${esc(it.id)}" data-on="${on}">${compareBtnInner(on)}</button>`;
+  return `<button type="button" class="act" data-act="cmp-add" data-v="${esc(it.id)}" data-on="${on}" aria-pressed="${on}">${compareBtnInner(on)}</button>`;
 }
 
-const compareBtnInner = (on: boolean): string => (on ? `${ICON_CHECK}Comparing` : 'Compare');
+const compareBtnInner = (on: boolean): string => (on ? `${ICON_CHECK}<span>Comparing</span>` : `${ICON_COMPARE}<span>Compare</span>`);
 const shortName = (it: Item): string => `${it.title}${it.storage ? ' ' + it.storage.split(' ')[0] : ''}`;
 
 function toggleComparing(id: string): void {
@@ -1249,6 +1255,7 @@ function syncCompare(): void {
     const on = comparing.has(b.dataset.v ?? '');
     if (b.dataset.on === String(on)) continue;
     b.dataset.on = String(on);
+    b.setAttribute('aria-pressed', String(on));
     b.innerHTML = compareBtnInner(on);
   }
   if ($<HTMLDialogElement>('#compare').open) drawCompare();
@@ -1566,7 +1573,9 @@ function fillCame(): void {
  *  - when it came in, for anything on the shelf here;
  *  - the spec sheet, naming the chip once; how fast it is is the badge's job;
  *  - a list of copies only when there is more than one to choose from;
- *  - what to do next: add-ons, and CeX's own page.
+ *  - under the facts, where they came from, and CeX's own page;
+ *  - what to do next, as one bar of equal tiles: the switches first (basket, compare), the screens
+ *    they lead to after, and the one main action last, in coral, under the thumb.
  */
 function detailHtml(g: Group): string {
   const it = g.head;
@@ -1592,7 +1601,10 @@ function detailHtml(g: Group): string {
 
   const sh = it.specs?.sheet;
   // Naming the sheet's own device makes a wrong match visible at a glance.
-  const source = sh && specRows(it).length ? `<p class="specs-src">Specs from <a href="https://www.gsmarena.com/x-${sh.id}.php" target="_blank" rel="noopener noreferrer">GSMArena’s ${esc(sh.n)} page</a></p>` : '';
+  const source = sh && specRows(it).length ? `<span>Specs from <a href="https://www.gsmarena.com/x-${sh.id}.php" target="_blank" rel="noopener noreferrer">GSMArena’s ${esc(sh.n)} page</a></span>` : '';
+  // A way out of the app, so it sits with the references rather than among the actions.
+  const out = one ? `<a class="foot-out" href="${cexPage(it)}" target="_blank" rel="noopener">CeX page${ICON_OUT}</a>` : '';
+  const foot = source || out ? `<p class="detail-foot">${source}${out}</p>` : '';
 
   // Several copies: which colour or grade at which price. Each opens its own CeX page.
   const copies = one
@@ -1608,20 +1620,31 @@ function detailHtml(g: Group): string {
         })
         .join('')}</ul>`;
 
-  // One filled action at most: a step up for a scanned phone, otherwise add-ons.
+  // Switches first, then the screens they lead to, then the main action: a step up for a scanned
+  // phone, otherwise add-ons. One coral tile at most.
   const acts: string[] = [];
   // Several copies: each goes in the basket from its own row above.
-  if (one) acts.push(basketBtn(it, 'chip'));
+  if (one) acts.push(basketBtn(it, 'tile'));
   // The model, whichever copy: with several, the cheapest stands for them.
   if (comparable(it)) acts.push(compareBtn(it));
   const stepUp = scanned && (it.kind === 'phone' || it.kind === 'tablet');
-  if (stepUp) acts.push(`<button type="button" class="chip" aria-pressed="true" data-act="stepup" data-v="${esc(it.id)}">Find a step up</button>`);
-  if (!demo && slotsFor(it).length) acts.push(`<button type="button" class="chip" aria-pressed="${!stepUp}" data-act="addons" data-v="${esc(it.id)}">Suggest add-ons</button>`);
-  if (scanned && (it.model || it.title)) acts.push(`<button type="button" class="chip" aria-pressed="false" data-act="similar" data-v="${esc(it.model || it.title)}">Find similar</button>`);
-  if (one) acts.push(`<a class="chip out" href="${cexPage(it)}" target="_blank" rel="noopener">CeX page${ICON_OUT}</a>`);
+  if (scanned && (it.model || it.title)) acts.push(actTile('similar', it.model || it.title, ICON_SEARCH, 'Similar', 'Find similar'));
+  if (!demo && slotsFor(it).length) acts.push(actTile('addons', it.id, ICON_ADDONS, 'Add-ons', 'Suggest add-ons', !stepUp));
+  if (stepUp) acts.push(actTile('stepup', it.id, ICON_STEP, 'Step up', 'Find a step up', true));
 
-  const list = facts.length ? `<dl class="specs">${facts.join('')}</dl>${source}` : '';
-  return `<div class="detail">${list}${copies}${acts.length ? `<div class="detail-acts">${acts.join('')}</div>` : ''}</div>`;
+  const list = facts.length ? `<dl class="specs">${facts.join('')}</dl>` : '';
+  const bar = acts.length ? `<div class="acts" data-n="${acts.length}" style="--n:${acts.length}">${acts.join('')}</div>` : '';
+  return `<div class="detail">${list}${foot}${copies}${bar}</div>`;
+}
+
+/** An item and more beside it. */
+const ICON_ADDONS = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="9" height="15" rx="2.2"/><path d="M17.5 8.5v7M14 12h7"/></svg>';
+/** Stairs, rising. */
+const ICON_STEP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5h4.5V15H13v-4.5h4.5V6H20"/></svg>';
+
+/** One tile in an opened card's action bar: an icon over a short word, with the full words for a screen reader. */
+function actTile(act: string, v: string, icon: string, label: string, full: string, main = false): string {
+  return `<button type="button" class="act${main ? ' main' : ''}" data-act="${act}" data-v="${esc(v)}" aria-label="${esc(full)}">${icon}<span>${label}</span></button>`;
 }
 
 const isHome = (): boolean => !F.mode && !F.q.trim() && !F.preset;

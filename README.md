@@ -66,8 +66,8 @@ their own (`FACETS` in `src/main.ts`).
 
 ### Add-ons
 
-**Suggest add-ons**, in any card's expanded view, lists what else on the shelf goes with that
-item (`src/addons.ts`). It covers:
+**Add-ons**, a tile at the foot of any card's expanded view ("Suggest add-ons" to a screen reader),
+lists what else on the shelf goes with that item (`src/addons.ts`). It covers:
 
 - consoles, old and new, handheld PCs and games for every console;
 - phones, tablets, laptops, desktops and monitors;
@@ -124,7 +124,7 @@ Nothing here is judged by eye or by an AI. Three checks keep the suggestions rig
 What the customer at the counter is having, and what it comes to (`src/basket.ts`).
 
 - **Putting things in:**
-  - An opened card has **Add to basket**.
+  - An opened card has a **Basket** tile. It turns light and reads **In basket** once it is in.
   - Where a card holds several copies, each copy's row has a round **+** of its own.
   - Add-ons go in from the add-ons screen.
   - Tapping the same button again takes it out.
@@ -140,6 +140,22 @@ What the customer at the counter is having, and what it comes to (`src/basket.ts
   longer listed in stock at the branch is dimmed and says so. It stays in the total, as it may be
   in hand.
 - **Kept on the phone:** a reload or a spell in a pocket loses nothing. It is emptied by hand.
+
+## An opened card
+
+Tapping a card opens it in place. Under the card's own line it shows only what the line doesn't:
+update status when it needs explaining, a just-changed price, when it came in, and the spec
+sheet. Under the facts, one quiet line says where they came from, with **CeX page** at its right.
+Where a card holds several copies, a list of them follows.
+
+The card ends in one row of equal tiles, an icon over a word, so the buttons never wrap and each
+is always in the same place:
+
+- **Basket** and **Compare** first. Each is a switch: on, it turns light with a tick and reads
+  **In basket** or **Comparing**.
+- **Similar** (scanned items only) and **Add-ons** next.
+- The main action last, under the thumb, in coral: **Add-ons**, or **Step up** for a scanned
+  phone or tablet.
 
 ## Compare
 
