@@ -1,7 +1,7 @@
 import './styles.css';
 import snapshot from './data/eol-snapshot.json';
 import sheetFile from './data/specs.json';
-import { PRESETS, addonStock, clearCache, fetchStores, lookupIds, sampleStock, search } from './api.ts';
+import { PRESETS, addonStock, clearCache, fetchStores, lookupIds, sampleStock, search, searchAnywhere } from './api.ts';
 import { fillActivity, forgetLog } from './activity.ts';
 import { slotsFor } from './addons.ts';
 import { basket } from './basket.ts';
@@ -1261,7 +1261,9 @@ function syncCompare(): void {
  */
 function drawCompare(): void {
   const d = $<HTMLDialogElement>('#compare');
-  const top = d.scrollTop;
+  if (finding) return drawFinder();
+  // Back from the finder: the comparison starts at its top, where the new model shows.
+  const top = d.querySelector('.cmp-find') ? 0 : d.scrollTop;
   const list = comparing.list();
   const its = list.map((e) => toItem(e.hit, 0, ctx));
   const n = its.length;
@@ -1279,7 +1281,7 @@ function drawCompare(): void {
   const heads = its
     .map((it, i) => {
       const gone = list[i].gone;
-      return `<div class="cmp-head${gone ? ' gone' : ''}"><span class="cmp-name">${esc(names[i])}</span><span class="cmp-price">${money(it.price)}</span>${gone ? '<span class="cmp-gone">Not in stock here now</span>' : ''}</div>`;
+      return `<div class="cmp-head${gone ? ' gone' : ''}"><span class="cmp-name">${esc(names[i])}</span><span class="cmp-price">${money(it.price)}</span>${gone ? '<span class="cmp-gone">Not in stock here</span>' : ''}</div>`;
     })
     .join('');
 
@@ -1305,22 +1307,178 @@ function drawCompare(): void {
     })
     .join('');
 
+  const tools = [n > 1 && chip('cmp-diff', 1, 'Only differences', only), n < COMPARE_MAX && ADD_MODEL].filter(Boolean).join('');
   d.innerHTML = `<form method="dialog" class="sheet-in cmp">
     <header class="sheet-bar"><h2>Compare</h2><button class="done" value="close">Done</button></header>
     ${
       n
         ? `<div class="cmp-pics"${cols}>${pics}</div>
       <div class="cmp-heads"${cols}>${heads}</div>
-      ${n > 1 ? `<div class="frow wrap cmp-tools">${chip('cmp-diff', 1, 'Only differences', only)}</div>` : ''}
-      ${n === 1 ? '<p class="cmp-hint">Open another phone, tablet or computer and tap Compare to set it beside this one. It can be from another search.</p>' : ''}
+      ${tools ? `<div class="frow wrap cmp-tools">${tools}</div>` : ''}
+      ${n === 1 ? '<p class="cmp-hint">Open another phone, tablet or computer and tap Compare, or use Add a model for one this shop hasn’t got.</p>' : ''}
       ${only && !shown ? '<p class="cmp-hint">They match on everything recorded.</p>' : body}
       <p class="fine">Tested figures were measured by GSMArena. Speed ratings are approximate, and update dates for Apple devices are estimates.</p>
       <button type="button" class="link b-clear" data-act="cmp-clear">Clear the comparison</button>`
-        : '<p class="b-empty">Nothing to compare yet. Open any phone, tablet or computer and tap Compare.</p>'
+        : `<p class="b-empty">Nothing to compare yet. Open any phone, tablet or computer and tap Compare.</p><div class="frow wrap cmp-tools">${ADD_MODEL}</div>`
     }
   </form>`;
   d.scrollTop = top;
 }
+
+// ---- adding a model the shop hasn't got
+//
+// Customers now and then ask how something compares with a phone that isn't on the shelf. The
+// finder searches all of CeX for phones, tablets and computers, says of each whether this shop has
+// it, and puts the chosen one straight into the comparison. It lives inside Compare, the only place
+// it is needed, so the main search stays about what is in stock.
+
+const ICON_BACK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>';
+const ADD_MODEL = `<button type="button" class="chip ghost cmp-add-model" data-act="cmp-find">${ICON_PLUS}Add a model</button>`;
+
+/** One model found on CeX: the copy to compare (the cheapest on the shelf here, else the cheapest anywhere), and how many there are to choose from. */
+interface Found {
+  it: Item;
+  here: boolean;
+  from: number;
+  copies: number;
+}
+
+let finding = false;
+let findQ = '';
+let found: Found[] = [];
+let findState: 'idle' | 'loading' | 'done' | 'error' = 'idle';
+let findTurn = 0;
+let findTimer = 0;
+let findCtl: AbortController | null = null;
+
+/** The field at the top, results beneath it. Drawn once; typing only redraws the results. */
+function drawFinder(): void {
+  const d = $<HTMLDialogElement>('#compare');
+  if (d.querySelector('.cmp-find')) return void refreshFound();
+  d.innerHTML = `<div class="sheet-in cmp cmp-find">
+    <header class="sheet-bar"><button type="button" class="back" data-act="cmp-find-close" aria-label="Back to the comparison">${ICON_BACK}</button><h2>Add a model</h2></header>
+    <div class="search flow-field cmp-q">${ICON_SEARCH}<input id="cmpQ" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Search all of CeX" placeholder="Search all of CeX" value="${esc(findQ)}"></div>
+    <div id="cmpFound" aria-live="polite">${foundHtml()}</div>
+  </div>`;
+  d.scrollTop = 0;
+}
+
+function refreshFound(): void {
+  const box = document.getElementById('cmpFound');
+  if (box) box.innerHTML = foundHtml();
+}
+
+function foundHtml(): string {
+  if (demo) return '<p class="cmp-hint">Searching all of CeX needs a live connection, so it is off in demo mode.</p>';
+  if (findState === 'idle') return '<p class="cmp-hint">Any phone, tablet or computer CeX sells, whether this shop has it or not.</p>';
+  if (findState === 'error') return '<p class="cmp-hint">Couldn’t reach CeX. Check the connection and try again.</p>';
+  if (findState === 'loading' && !found.length) return '<p class="cmp-hint">Searching…</p>';
+  if (!found.length) return '<p class="cmp-hint">Nothing on CeX matches that.</p>';
+  return `<ul class="cmp-found">${found
+    .map((f) => {
+      const on = comparing.has(f.it.id);
+      const icon = f.it.kind === 'phone' || f.it.kind === 'tablet' ? ICON_PHONE : ICON_LAPTOP;
+      const img = f.it.img ? `<img src="${esc(f.it.img)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : '';
+      return `<li><button type="button" class="cmp-hit${f.here ? ' here' : ''}" data-act="cmp-pick" data-v="${esc(f.it.id)}" aria-pressed="${on}">
+        <span class="cmp-hit-img">${icon}${img}</span>
+        <span class="cmp-hit-name">${esc(shortName(f.it))}</span>
+        <span class="cmp-hit-meta"><span class="cmp-hit-stock">${f.here ? 'In stock here' : 'Not in stock here'}</span> · ${f.copies > 1 ? 'from ' : ''}${money(f.from)}</span>
+        <span class="cmp-hit-add">${on ? ICON_CHECK : ICON_PLUS}</span>
+      </button></li>`;
+    })
+    .join('')}</ul>`;
+}
+
+/** Ask CeX, once typing pauses. Each colour and grade of a model at one size is one row. */
+async function findModels(q: string): Promise<void> {
+  const turn = ++findTurn;
+  findCtl?.abort();
+  findCtl = null;
+  if (demo || q.trim().length < 2) {
+    findState = 'idle';
+    found = [];
+    return refreshFound();
+  }
+  findCtl = new AbortController();
+  findState = 'loading';
+  refreshFound();
+  try {
+    const r = await searchAnywhere(q, branch, findCtl.signal);
+    if (turn !== findTurn) return;
+    // Each model in the order CeX ranks it, with all its copies.
+    const by = new Map<string, { it: Item; here: boolean }[]>();
+    r.hits.forEach((h, i) => {
+      const it = toItem(h, i, ctx);
+      if (!comparable(it)) return;
+      const list = by.get(it.gkey) ?? [];
+      list.push({ it, here: r.here.has(it.id) });
+      by.set(it.gkey, list);
+    });
+    // The shop's own copies when it has any, so the price is the one on its shelf; else all of CeX's.
+    found = [...by.values()].slice(0, 20).map((list) => {
+      const mine = list.filter((c) => c.here);
+      const pool = mine.length ? mine : list;
+      const head = pool.reduce((a, b) => (b.it.price < a.it.price ? b : a));
+      return { it: head.it, here: head.here, from: head.it.price, copies: pool.length };
+    });
+    findState = 'done';
+  } catch (e) {
+    if (turn !== findTurn || (e as Error).name === 'AbortError') return;
+    found = [];
+    findState = 'error';
+  }
+  refreshFound();
+}
+
+function openFinder(): void {
+  finding = true;
+  drawCompare();
+  // In the same tap, so a phone brings its keyboard up.
+  document.getElementById('cmpQ')?.focus();
+}
+
+function closeFinder(): void {
+  finding = false;
+  findCtl?.abort();
+  drawCompare();
+}
+
+function pickFound(id: string): void {
+  const f = found.find((x) => x.it.id === id);
+  if (!f) return;
+  if (comparing.has(id)) return void comparing.remove(id);
+  if (comparing.full()) return void toast(`Compare takes ${COMPARE_MAX} at a time. Take one out first.`);
+  // Straight back to the comparison, with the new model in it.
+  finding = false;
+  comparing.add(f.it, !f.here);
+}
+
+document.addEventListener('input', (ev) => {
+  const el = ev.target as HTMLInputElement;
+  if (el.id !== 'cmpQ') return;
+  findQ = el.value;
+  clearTimeout(findTimer);
+  findTimer = window.setTimeout(() => void findModels(findQ), 250);
+});
+
+document.addEventListener('keydown', (ev) => {
+  const el = ev.target as HTMLInputElement;
+  if (el.id !== 'cmpQ' || ev.key !== 'Enter') return;
+  ev.preventDefault();
+  clearTimeout(findTimer);
+  // Put the keyboard away so the whole list shows.
+  el.blur();
+  void findModels(el.value);
+});
+
+// Closed from the finder: next time it opens on the comparison, with a clean search.
+$('#compare').addEventListener('close', () => {
+  finding = false;
+  findQ = '';
+  found = [];
+  findState = 'idle';
+  findCtl?.abort();
+});
 
 /** When the comparison was last checked against CeX. */
 let compareChecked = 0;
@@ -2826,6 +2984,15 @@ document.addEventListener('click', (ev) => {
     case 'cmp-diff':
       store.set('cmpDiff', !store.get('cmpDiff', false));
       drawCompare();
+      break;
+    case 'cmp-find':
+      openFinder();
+      break;
+    case 'cmp-find-close':
+      closeFinder();
+      break;
+    case 'cmp-pick':
+      pickFound(v);
       break;
     case 'extend':
       extend(flowHost, F, $('#results'), v);

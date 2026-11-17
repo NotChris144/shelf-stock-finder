@@ -4469,3 +4469,124 @@ body.cmp-on .hold-tip {
 .cmp {
   padding-bottom: calc(24px + env(safe-area-inset-bottom));
 }
+
+/* "Add a model": quiet, beside Only differences, since it is wanted now and then. */
+.cmp-add-model svg {
+  width: 16px;
+  height: 16px;
+  margin-left: -3px;
+}
+
+/* The finder takes the sheet's full height, so its field sits high, clear of the keyboard. */
+#compare:has(.cmp-find) {
+  height: 90dvh;
+}
+
+.cmp-find .sheet-bar {
+  justify-content: flex-start;
+  gap: 2px;
+  margin-left: -10px;
+}
+
+.search.cmp-q {
+  margin: 0 var(--gutter);
+}
+
+.cmp-found {
+  margin: 0 var(--gutter);
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+  border-radius: 14px;
+  background: var(--fill);
+}
+
+.cmp-found li + li {
+  border-top: 0.5px solid var(--hair);
+}
+
+.cmp-hit {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 34px;
+  grid-template-areas: 'img name add' 'img meta add';
+  column-gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 10px 10px 10px 12px;
+  text-align: left;
+  transition: background 0.2s;
+}
+
+.cmp-hit:active {
+  background: var(--fill);
+  transition-duration: 0s;
+}
+
+.cmp-hit-img {
+  grid-area: img;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--thumb);
+  color: #9aa2af;
+}
+
+.cmp-hit-img svg {
+  width: 22px;
+  height: 22px;
+}
+
+.cmp-hit-img img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 4%;
+  object-fit: contain;
+  background: var(--thumb);
+}
+
+.cmp-hit-name {
+  grid-area: name;
+  align-self: end;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.cmp-hit-meta {
+  grid-area: meta;
+  align-self: start;
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The shop has it after all: worth noticing. */
+.cmp-hit.here .cmp-hit-stock {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.cmp-hit-add {
+  grid-area: add;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--fill);
+}
+
+.cmp-hit-add svg {
+  width: 18px;
+  height: 18px;
+}
+
+.cmp-hit[aria-pressed='true'] .cmp-hit-add {
+  background: var(--text);
+  color: var(--bg);
+}

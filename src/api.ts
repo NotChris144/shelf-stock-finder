@@ -141,6 +141,26 @@ export async function lookupIds(ids: string[], store: string): Promise<{ hits: H
   };
 }
 
+/**
+ * Phones, tablets and computers anywhere on CeX, not just on one branch's shelves, so a model the
+ * shop hasn't got can be set beside one it has. `here` says which of them `store` has in stock.
+ */
+export async function searchAnywhere(q: string, store: string, signal?: AbortSignal): Promise<{ hits: Hit[]; here: Set<string> }> {
+  const kinds = PRESETS.filter((p) => ['phones', 'tablets', 'laptops', 'desktops'].includes(p.id)).flatMap((p) => p.ff);
+  const base = { indexName: CONFIG.index, query: q.trim(), hitsPerPage: 60, page: 0, filters: BASE_FILTER, attributesToHighlight: [], analytics: false, clickAnalytics: false };
+  const r = await post(
+    [
+      { ...base, facetFilters: [kinds], attributesToRetrieve: ATTRS },
+      { ...base, facetFilters: [[`stores:${store}`], kinds], attributesToRetrieve: ['boxId'] },
+    ],
+    signal,
+  );
+  return {
+    hits: (r[0].hits ?? []) as Hit[],
+    here: new Set(((r[1].hits ?? []) as Hit[]).map((h) => String(h.boxId))),
+  };
+}
+
 /** A dozen of the most popular products in each department of a branch, for sample screens. */
 export async function sampleStock(store: string): Promise<Hit[]> {
   const depts = ['Phones', 'Computing', 'Gaming', 'Electronics', 'Film & TV'];

@@ -163,6 +163,14 @@ Models side by side, fact by fact, sized for a phone (`src/compare.ts`).
   - A fact nobody recorded is a dash. Nothing is estimated.
   - **Only differences** hides the rows where they all read the same.
   - A cross on each picture takes that model out, and **Clear the comparison** empties it.
+- **Models the shop hasn't got:** **Add a model**, beside Only differences, searches all of CeX
+  for phones, tablets and computers, whether this shop has them or not. Each colour and grade of
+  a model at one size is one row, marked **In stock here** or **Not in stock here**, with the
+  price of the shop's own copy when it has one and CeX's cheapest otherwise. Tapping a row puts
+  it straight into the comparison, where its price says it isn't in stock here. It lives only
+  inside Compare, so the main search stays about what is on the shelf. A model the shop has
+  never stocked often has only the basic facts (screen size, battery, camera, year), since spec
+  sheets are read for models that come into stock.
 - **Checked on opening:** prices are read again from CeX at most once a minute, and anything no
   longer in stock at the branch says so under its price.
 

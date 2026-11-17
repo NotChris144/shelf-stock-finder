@@ -51,10 +51,10 @@ export const comparing = {
   has: (id: string): boolean => entries.some((e) => e.id === id),
   count: (): number => entries.length,
   full: (): boolean => entries.length >= COMPARE_MAX,
-  /** Newest on the right. */
-  add(it: Item): void {
+  /** Newest on the right. `gone` for a model found on CeX that this branch hasn't got. */
+  add(it: Item, gone = false): void {
     if (this.has(it.id) || this.full() || !it.raw) return;
-    entries = [...entries, { id: it.id, hit: it.raw }];
+    entries = [...entries, { id: it.id, hit: it.raw, ...(gone ? { gone: true } : {}) }];
     changed();
   },
   remove(id: string): void {
