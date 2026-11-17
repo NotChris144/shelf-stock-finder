@@ -298,7 +298,7 @@ const family = (it: Item): string => `${it.kind}|${it.brand.toLowerCase() === 'a
 // The 4G and 5G versions of a model are different phones inside, so the network stays in the name.
 const modelKey = (it: Item): string => `${it.brand.toLowerCase()}|${norm(it.model)}`;
 
-export type StepKind = 'same' | 'value' | 'least' | 'focus' | 'best' | 'reach' | 'swap' | 'more' | 'beyond';
+export type StepKind = 'same' | 'value' | 'least' | 'focus' | 'best' | 'reach' | 'swap' | 'more' | 'beyond' | 'lower';
 export interface Step {
   kind: StepKind;
   product: Product;
@@ -387,7 +387,7 @@ export interface Options {
   more: Step[];
   /** One or two that are a much bigger improvement for a little past the limit. */
   beyond: Step[];
-  /** Better on balance for the same money or less, nearest the pick's price first. */
+  /** Every phone of its kind for the same money or less, nearest the pick's price first ('swap' where it is better on balance). */
   cheaper: Step[];
   /**
    * Nothing within the limit improves what they asked about, so the ladder holds the best
@@ -481,11 +481,19 @@ export function stepOptions(base: Product, all: Product[], limit: number, focus?
 
   const swap = judged.filter((x) => !x.same && asked(x) && x.delta <= 0 && x.p.price >= base.price * 0.75 && x.gain >= 0.35).sort(byGain)[0];
   add('swap', swap);
-  // Better on balance for the same money or less, nearest their price first: shown only when asked for.
-  const cheaper = judged
-    .filter((x) => !x.same && asked(x) && x.delta <= 0 && x.p.price >= base.price * 0.6 && x.gain >= 0.35)
-    .sort((x, y) => y.p.price - x.p.price || y.gain - x.gain)
-    .map((x): Step => ({ kind: x === swap ? 'swap' : 'more', product: x.p, diff: x.d, gain: x.gain }));
+  // Every phone of the same kind and system for the same money or less, nearest their price
+  // first, as long as something is on record about it. Going down is about the saving, so these
+  // are not filtered for being better; each states what it gives up. The few that are better on
+  // balance anyway are marked so.
+  const better = new Set(judged.filter((x) => !x.same && x.delta <= 0 && x.gain >= 0.35).map((x) => x.p.key));
+  const fam = family(base.head);
+  const cheaper = all
+    .filter((p) => p.key !== base.key && family(p.head) === fam && p.price <= base.price && (p.head.perf !== null || p.head.specs !== null))
+    .sort((x, y) => y.price - x.price)
+    .map((p): Step => {
+      const d = diffProducts(base, p, focus);
+      return { kind: better.has(p.key) ? 'swap' : 'lower', product: p, diff: d, gain: uplift(d, focus) };
+    });
   return fallback ? { ladder, more, beyond, cheaper, fallback: true } : { ladder, more, beyond, cheaper };
 }
 

@@ -7,7 +7,7 @@ import { slotsFor } from './addons.ts';
 import { findCover, forget, remembered, spineOf, type Cover } from './covers.ts';
 import { DEMO_HITS } from './demo.ts';
 import { fetchEolDb, type EolDb } from './eol.ts';
-import { FOCI, clearAddons, clearStock, homeHtml, moreAddons, renderFlow, resetPickQuery, setPickQuery, stretch, toggleAddon, type FlowHost } from './flows.ts';
+import { FOCI, clearAddons, clearStock, extend, fold, homeHtml, moreAddons, renderFlow, resetPickQuery, setPickQuery, toggleAddon, toggleCompare, type FlowHost } from './flows.ts';
 import { getsUpdates, type FitType } from './sell.ts';
 import { cameraText, useSheets, waterTight, type SheetFile } from './specs.ts';
 import { toItem } from './parse.ts';
@@ -2438,8 +2438,14 @@ document.addEventListener('click', (ev) => {
     case 'addon-clear':
       clearAddons(flowHost);
       break;
-    case 'stretch':
-      stretch(flowHost, F, $('#results'), v);
+    case 'extend':
+      extend(flowHost, F, $('#results'), v);
+      break;
+    case 'fold':
+      fold(flowHost, F, $('#results'), v);
+      break;
+    case 'compare':
+      toggleCompare(flowHost, F, $('#results'));
       break;
     case 'pick':
       apply({ ...DEFAULTS, mode: 'up', pick: v }, true, true);

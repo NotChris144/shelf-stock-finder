@@ -135,7 +135,7 @@ export function homeHtml(host: FlowHost): string {
 // ------------------------------------------------------------------ shared pieces
 
 /** What a price difference buys. `than` names the item it is measured from when that is not the rung above. */
-function stepHtml(host: FlowHost, delta: number, d: Diff, than = '', most: [number, number] = [5, 3]): string {
+function stepHtml(host: FlowHost, delta: number, d: Diff, than = '', most: [number, number] = [5, 3], lossesFirst = false): string {
   // Measured from a named item the line is already long, so it stops at the name; the ticks below finish the thought.
   const head = than
     ? delta > 0
@@ -153,7 +153,7 @@ function stepHtml(host: FlowHost, delta: number, d: Diff, than = '', most: [numb
     ? d.gains.slice(0, most[0]).map((g) => `<li>${ICON_CHECK}<span>${host.esc(g)}</span></li>`).join('')
     : '<li class="none"><span>No clear advantage in the details we hold.</span></li>';
   const losses = d.losses.slice(0, most[1]).map((l) => `<li class="lose">${ICON_MINUS}<span><span class="sr">Gives up: </span>${host.esc(l)}</span></li>`).join('');
-  return `<li class="step"><p class="step-head">${head}</p><ul class="gains">${gains}${losses}</ul></li>`;
+  return `<li class="step"><p class="step-head">${head}</p><ul class="gains">${lossesFirst ? losses + gains : gains + losses}</ul></li>`;
 }
 
 function rungHtml(host: FlowHost, p: Product, tag: string, pick = false): string {
@@ -282,7 +282,7 @@ async function drawUp(host: FlowHost, s: FlowState, body: HTMLElement): Promise<
     focus: `Best for ${asked}`,
     best: focus ? 'Best all-round' : 'Best step up',
     reach: 'Next real step',
-    swap: 'Worth a look',
+    swap: 'Better for less',
   };
   const baseName = fullName(base.head);
   const more$ = (p: Product): string => `${host.money(p.price - base.price)} more`;
@@ -294,120 +294,144 @@ async function drawUp(host: FlowHost, s: FlowState, body: HTMLElement): Promise<
     .filter((st) => !seen.has(st.product.key) && Boolean(seen.add(st.product.key)))
     .sort((x, y) => x.product.price - y.product.price || y.gain - x.gain);
   const lead = rungs.find((x) => x.kind === 'focus') ?? rungs.find((x) => x.kind === 'best') ?? rungs.filter((x) => !over(x)).at(-1);
-  // At first only the smallest steps; the dearer ones wait above the top grip, the cheaper ones
-  // below the bottom grip.
-  const upOpen = topFor === s.pick;
-  const downOpen = bottomFor === s.pick;
-  const visible = upOpen ? rungs : rungs.slice(0, SHOWN);
-  const hidden = rungs.slice(SHOWN);
+  // A different pick starts again from the smallest steps, with nothing cheaper showing.
+  if (shownFor !== s.pick) {
+    shownFor = s.pick;
+    shownUp = SHOWN;
+    shownDown = 0;
+    compareOpen = false;
+  }
+  const up = rungs.slice(0, shownUp);
+  const down = cheaper.slice(0, shownDown);
 
   let html = `<p class="from-pick">From the ${host.esc(baseName)}${base.head.grade ? `, grade ${host.esc(base.head.grade)}` : ''}, ${host.money(base.price)}</p>`;
   // One tap on what they care about shows only options that improve it. Each chip says how many
   // there are within the limit, so the ones worth asking about are plain before they are tapped.
   const counts = focusCounts(base, all, limit, FOCI.map(([id]) => id));
   html += `<div class="frow wrap focus"><span class="flabel">What matters most?</span>${FOCI.map(([id, label]) => host.chip('focus', id, `${label} <em>${counts[id]}</em>`, s.fo === id, counts[id] ? '' : ' none')).join('')}</div>`;
+  html += limitHtml(host, 'How far above their price to look');
   // Said plainly when what they asked about is not on offer, so the options are not read as an answer to it.
   if (fallback) html += `<p class="hint">Nothing up to ${host.money(limit)} more is better for ${asked}. These are the best all-round steps, and none is worse for it.</p>`;
   else if (!rungs.length) html += `<p class="hint">Nothing up to ${host.money(limit * 3)} more is ${focus ? `better for ${asked}` : 'clearly better than it'}.</p>`;
   else if (over(rungs[0])) html += `<p class="hint">Nothing up to ${host.money(limit)} more is ${focus ? `better for ${asked}` : 'clearly better'}. The nearest step that is costs ${more$(rungs[0].product)}.</p>`;
-
-  if (hidden.length) {
-    const top = hidden[hidden.length - 1];
-    const sub = upOpen
-      ? `Showing all ${rungs.length}, up to ${more$(top.product)}`
-      : `${hidden.length} more, up to ${more$(top.product)}${lead && hidden.includes(lead) ? `, with the ${tags[lead.kind].toLowerCase()}` : ''}`;
-    html += gripHtml('top', upOpen, sub);
+  // The table waits to be asked for, so the ladder is what the eye meets.
+  if (up.length) {
+    html += `<div class="compare-row"><button type="button" class="chip ghost" data-act="compare" aria-expanded="${compareOpen}">${compareOpen ? 'Hide the comparison' : 'Compare side by side'}</button></div>`;
+    if (compareOpen) {
+      const cols = [base, ...up.slice(0, SHOWN).map((x) => x.product)];
+      html += tableHtml(host, cols, ['Your pick', ...up.slice(0, SHOWN).map((x) => more$(x.product))], lead ? cols.indexOf(lead.product) : -1);
+    }
   }
-  // Higher prices sit higher, like rungs: dearest at the top, the pick at the foot, and anything
-  // cheaper beneath it. Each option is measured from the pick, and says so beneath its card.
-  html += '<ol class="ladder options">';
-  const down = [...visible].reverse();
-  down.forEach((st, i) => {
+
+  // Higher prices sit higher, like rungs: dearest at the top, the pick in the middle and anything
+  // cheaper beneath it. The ladder is the last thing on the page, so it carries on past either end:
+  // keep scrolling up past the top for dearer phones, down past the bottom for cheaper ones.
+  html += '<ol class="ladder options" id="ladder">';
+  const leftUp = rungs.length - up.length;
+  if (leftUp || shownUp > SHOWN) {
+    const top = rungs[rungs.length - 1];
+    html += endHtml('up', leftUp, shownUp > SHOWN, leftUp ? `${leftUp} more, up to ${top ? more$(top.product) : ''}${lead && !up.includes(lead) ? `, with the ${tags[lead.kind].toLowerCase()}` : ''}` : 'All the dearer options are showing');
+  }
+  const desc = [...up].reverse();
+  desc.forEach((st, i) => {
     const tag = tags[st.kind] ?? (over(st) ? 'Over your limit' : '');
     html += rungHtml(host, st.product, tag, st === lead) + stepHtml(host, st.product.price - base.price, st.diff, baseName, st === lead ? undefined : BRIEF);
     // Where the limit falls: between the last rung past it and the first within it.
-    if (over(st) && down[i + 1] && !over(down[i + 1])) html += `<li class="rung-note limit-line">Above here: more than ${host.money(limit)} over their pick</li>`;
+    if (over(st) && desc[i + 1] && !over(desc[i + 1])) html += `<li class="rung-note limit-line">Above here: more than ${host.money(limit)} over their pick</li>`;
   });
   html += rungHtml(host, base, 'Your pick');
-  if (downOpen) {
-    for (const st of cheaper) html += rungHtml(host, st.product, tags[st.kind] ?? '') + stepHtml(host, st.product.price - base.price, st.diff, baseName, BRIEF);
+  // Going down is about the saving, so what each gives up is said first.
+  for (const st of down) html += rungHtml(host, st.product, tags[st.kind] ?? '') + stepHtml(host, st.product.price - base.price, st.diff, baseName, [2, 3], true);
+  const leftDown = cheaper.length - down.length;
+  if (leftDown || shownDown) {
+    const bottom = cheaper[cheaper.length - 1];
+    html += endHtml('down', leftDown, shownDown > 0, leftDown ? `${leftDown} more, down to ${bottom ? host.money(bottom.product.price) : ''}` : 'All the cheaper options are showing');
   }
   html += '</ol>';
-  if (cheaper.length) html += gripHtml('bottom', downOpen, downOpen ? `Showing ${cheaper.length} for the same money or less` : `${cheaper.length} for the same money or less`);
-
-  // Side by side: the pick and the smallest steps, as shown at first.
-  const cols = [base, ...rungs.slice(0, SHOWN).map((x) => x.product)];
-  html += tableHtml(host, cols, ['Your pick', ...rungs.slice(0, SHOWN).map((x) => more$(x.product))], lead ? cols.indexOf(lead.product) : -1);
-  html += limitHtml(host, 'Staff setting: suggest options up to this much more');
   swap(body, html);
 }
 
-// ------------------------------------------------------------------ stretching the ladder
+// ------------------------------------------------------------------ the ladder carries on
 //
-// The ladder shows the smallest steps first and stretches at either end on purpose: the grip at
-// its top pulls up for the dearer options, the grip at its foot pulls down for the cheaper ones,
-// and either pushed back folds them away again. A pull has some give: the grip follows the finger
-// with growing resistance, says "Release" once it has gone far enough, and springs back if let go
-// sooner. A tap (or a click, or the keyboard) does the same.
+// The ladder shows the smallest steps first and carries on past either end, the way a list does:
+// scrolled up past the top it stretches, and let go there it brings in the next few dearer phones;
+// scrolled down past the bottom, the next few cheaper ones. The stretch has some give: it grows
+// with ever more resistance, says "Release" once it has gone far enough, and settles back if let go
+// sooner. Each end works on its own, and "Fold back" returns it to how it started. A tap on an end
+// (or a click, or the keyboard) brings in the next few too.
 
-/** How many steps above the pick are shown before the ladder is stretched. */
+/** How many steps above the pick show at first, and how many each pull brings in. */
 const SHOWN = 3;
+const STEP = 3;
 /** Reasons listed under a step that is not the recommended one: three gains and the main loss. */
 const BRIEF: [number, number] = [3, 1];
 
-/** The pick whose dearer (top) or cheaper (bottom) options are showing, '' for none. */
-let topFor = '';
-let bottomFor = '';
+/** For the pick being shown: how many dearer and cheaper options are in, and whether the table is open. */
+let shownFor = '';
+let shownUp = SHOWN;
+let shownDown = 0;
+let compareOpen = false;
 
-export function stretch(host: FlowHost, s: FlowState, root: HTMLElement, end: string): void {
-  if (end === 'top') topFor = topFor === s.pick ? '' : s.pick;
-  else bottomFor = bottomFor === s.pick ? '' : s.pick;
+const redraw = (host: FlowHost, s: FlowState, root: HTMLElement): void => {
   const body = root.querySelector<HTMLElement>('#flowBody');
   if (body) void drawUp(host, s, body);
+};
+
+/** Bring in the next few at one end (`up` dearer, `down` cheaper). */
+export function extend(host: FlowHost, s: FlowState, root: HTMLElement, end: string): void {
+  if (end === 'up') shownUp += STEP;
+  else shownDown += STEP;
+  redraw(host, s, root);
+}
+
+/** Put one end back as it started. */
+export function fold(host: FlowHost, s: FlowState, root: HTMLElement, end: string): void {
+  if (end === 'up') shownUp = SHOWN;
+  else shownDown = 0;
+  redraw(host, s, root);
+}
+
+export function toggleCompare(host: FlowHost, s: FlowState, root: HTMLElement): void {
+  compareOpen = !compareOpen;
+  redraw(host, s, root);
 }
 
 const ICON_UP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>';
 const ICON_DOWN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
 
-function gripHtml(end: 'top' | 'bottom', open: boolean, sub: string): string {
-  const top = end === 'top';
-  const what = top ? 'dearer' : 'cheaper';
-  // Away from the ladder stretches it; back towards it folds it away.
-  const touch = open ? `Push ${top ? 'down' : 'up'} to fold away` : `Pull ${top ? 'up' : 'down'} for ${what} options`;
-  const click = open ? `Hide ${what} options` : `Show ${what} options`;
-  const arrow = top !== open ? ICON_UP : ICON_DOWN;
-  const grip = '<span class="pull-grip" aria-hidden="true"></span>';
-  return `<button type="button" class="pull pull-${end}${open ? ' open' : ''}" data-act="stretch" data-v="${end}" data-away="${top ? 'up' : 'down'}" aria-expanded="${open}">
-    ${top ? grip : ''}<span class="pull-label">${arrow}<span class="pull-touch" data-idle="${touch}">${touch}</span><span class="pull-click">${click}</span></span>
-    <span class="pull-sub">${sub}</span>${top ? '' : grip}
-  </button>`;
+function endHtml(end: 'up' | 'down', left: number, folds: boolean, sub: string): string {
+  const what = end === 'up' ? 'dearer' : 'cheaper';
+  const next = Math.min(STEP, left);
+  const say = end === 'up' ? 'Keep scrolling up for dearer phones' : 'Keep scrolling down for cheaper phones';
+  const more = left
+    ? `<button type="button" class="end-more" data-act="extend" data-v="${end}">${end === 'up' ? ICON_UP : ICON_DOWN}<span class="end-touch" data-idle="${say}">${say}</span><span class="end-click">Show ${next} ${what}</span></button>`
+    : '';
+  const back = folds ? `<button type="button" class="link end-fold" data-act="fold" data-v="${end}">Fold back</button>` : '';
+  return `<li class="ladder-end ${end}" data-left="${left}" data-next="${next}"><div class="end-in">${more}<span class="end-sub">${sub}</span>${back}</div></li>`;
 }
 
-/** How far a grip moves for a finger travel of `dy`: freely at first, then ever more stiffly. */
+/** How far an end stretches for a finger travel of `dy`: freely at first, then ever more stiffly. */
 const resist = (dy: number): number => 260 * (1 - 1 / ((dy * 0.55) / 260 + 1));
-/** How far a grip has to travel before letting go acts (about 170px of finger). */
+/** How far an end has to stretch before letting go brings more in (about 170px of finger). */
 const PULL_OPEN = 68;
 
-let dragging: { el: HTMLElement; sign: number; y0: number; d: number } | null = null;
+let lastTouchY = 0;
+let stretching: { el: HTMLElement; end: 'up' | 'down'; y0: number; d: number } | null = null;
+const atPageBottom = (): boolean => window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
 
-function pullTo(el: HTMLElement, d: number, sign: number): void {
-  el.style.transform = d ? `translateY(${(d * sign).toFixed(1)}px)` : '';
-  el.style.setProperty('--pull', String(Math.min(1, d / PULL_OPEN)));
-  el.classList.toggle('ready', d >= PULL_OPEN);
-  const label = el.querySelector<HTMLElement>('.pull-touch');
-  if (!label) return;
-  const open = el.getAttribute('aria-expanded') === 'true';
-  label.textContent = d >= PULL_OPEN ? (open ? 'Release to fold away' : `Release for ${el.classList.contains('pull-top') ? 'dearer' : 'cheaper'} options`) : (label.dataset.idle ?? '');
+function stretchTo(el: HTMLElement, d: number): void {
+  el.style.setProperty('--stretch', `${d.toFixed(1)}px`);
+  const ready = d >= PULL_OPEN;
+  el.classList.toggle('ready', ready);
+  const label = el.querySelector<HTMLElement>('.end-touch');
+  if (label) label.textContent = ready ? `Release for ${el.dataset.next} ${el.classList.contains('up') ? 'dearer' : 'cheaper'}` : (label.dataset.idle ?? '');
 }
 
 window.addEventListener(
   'touchstart',
   (e) => {
-    const el = (e.target as Element | null)?.closest<HTMLElement>('.pull');
-    if (!el || e.touches.length !== 1) return void (dragging = null);
-    // Pulled away from the ladder it stretches; pushed back towards it, it folds away.
-    const away = el.dataset.away === 'up' ? -1 : 1;
-    dragging = { el, sign: el.getAttribute('aria-expanded') === 'true' ? -away : away, y0: e.touches[0].clientY, d: 0 };
+    stretching = null;
+    lastTouchY = e.touches[0]?.clientY ?? 0;
   },
   { passive: true },
 );
@@ -415,27 +439,42 @@ window.addEventListener(
 window.addEventListener(
   'touchmove',
   (e) => {
-    if (!dragging || !dragging.el.isConnected) return;
+    if (e.touches.length !== 1 || document.querySelector('dialog[open]')) return;
+    const y = e.touches[0].clientY;
+    const moved = y - lastTouchY;
+    lastTouchY = y;
+    if (!stretching) {
+      // Only once the page can go no further: at its top with the finger going down, or at its
+      // bottom with the finger going up, and only when that end has more to bring in.
+      const top = document.querySelector<HTMLElement>('.ladder-end.up');
+      const bottom = document.querySelector<HTMLElement>('.ladder-end.down');
+      if (moved > 0 && window.scrollY <= 0 && top && top.dataset.left !== '0') stretching = { el: top, end: 'up', y0: y, d: 0 };
+      else if (moved < 0 && atPageBottom() && bottom && bottom.dataset.left !== '0') stretching = { el: bottom, end: 'down', y0: y, d: 0 };
+      else return;
+      stretching.el.classList.add('stretching');
+    }
+    const dy = stretching.end === 'up' ? y - stretching.y0 : stretching.y0 - y;
+    // Ours while it stretches: the browser's own bounce (or refresh) is held back.
     e.preventDefault();
-    const dy = (e.touches[0].clientY - dragging.y0) * dragging.sign;
-    dragging.d = dy > 0 ? resist(dy) : 0;
-    dragging.el.classList.add('pulling');
-    pullTo(dragging.el, dragging.d, dragging.sign);
+    stretching.d = dy > 0 ? resist(dy) : 0;
+    stretchTo(stretching.el, stretching.d);
+    // At the bottom the page grows as it stretches; it stays pinned to its end, so what is above moves up.
+    if (stretching.end === 'down') window.scrollTo(0, document.documentElement.scrollHeight);
   },
   { passive: false },
 );
 
-function endPull(): void {
-  if (!dragging) return;
-  const { el, d, sign } = dragging;
-  dragging = null;
-  el.classList.remove('pulling');
-  // Far enough: the same action as a tap, so there is one path to keep right.
-  if (d >= PULL_OPEN) return void el.click();
-  pullTo(el, 0, sign);
+function endStretch(): void {
+  if (!stretching) return;
+  const { el, d } = stretching;
+  stretching = null;
+  el.classList.remove('stretching');
+  // Far enough: the same as a tap on that end, so there is one path to keep right.
+  if (d >= PULL_OPEN) el.querySelector<HTMLElement>('.end-more')?.click();
+  stretchTo(el, 0);
 }
-window.addEventListener('touchend', endPull, { passive: true });
-window.addEventListener('touchcancel', endPull, { passive: true });
+window.addEventListener('touchend', endStretch, { passive: true });
+window.addEventListener('touchcancel', endStretch, { passive: true });
 
 // ------------------------------------------------------------------ match a budget
 

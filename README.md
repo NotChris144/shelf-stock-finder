@@ -39,11 +39,17 @@ How step-up options are chosen (`stepUps` in `src/sell.ts`):
   that marks the limit. The best value and best step up keep their names wherever they fall. At
   first only the three smallest steps show, so a £10 or £15 step is never hidden behind a bigger
   one. When nothing within the limit is worth it, the nearest real step beyond it is shown.
-- **Stretching it.** A grip at the top of the ladder pulls up for the dearer options. A grip at
-  its foot pulls down for the cheaper ones (better on balance for the same money or less), which
-  are never shown unasked because the customer has picked theirs. Pushed back, either folds away.
-  Each follows the finger with growing resistance, says "Release" once it has gone far enough,
-  and springs back if let go sooner. A tap does the same.
+- **It carries on past either end.** The ladder is the last thing on the page.
+  - Scrolled up past the top, it stretches with growing resistance. Let go once it says
+    "Release", and the next three dearer phones come in above.
+  - Scrolled down past the bottom, the same brings in the next three cheaper phones below the
+    pick. These are every phone of its kind for the same money or less, nearest first. Going down
+    is about the saving, so each says first what it gives up. The few that are better on balance
+    anyway are marked "Better for less".
+  - Each end works on its own, and "Fold back" returns it to how it started. A tap on either end
+    does the same as a pull.
+  - Nothing cheaper shows until asked for, because the customer has picked theirs. The
+    side-by-side table waits behind "Compare side by side".
 - **"What matters most?"** (battery, camera, speed, storage, updates, condition, bigger screen)
   filters rather than tilts. Every option shown improves that thing: the cheapest that does, the
   one that improves it most, and the best all-round of those. Each chip shows how many phones

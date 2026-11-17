@@ -3828,122 +3828,105 @@ dialog {
   font-variant-numeric: tabular-nums;
 }
 
-/* ================================================================ step up: stretching the ladder
-   The ladder shows the smallest steps first. A grip at its top pulls up for dearer options and
-   one at its foot pulls down for cheaper ones; pushed back, they fold away. Each follows the
-   finger with growing resistance: the grip stretches and warms to coral as the pull nears
-   enough, the words change to "Release", and short of that it springs back. */
+/* ================================================================ step up: the ladder carries on
+   The ladder shows the smallest steps first and carries on past either end. Where it could go
+   further its rail turns to dashes, with a line saying which way to scroll. Scrolled past an end
+   it stretches there, with growing resistance; the words turn coral and say "Release" once it
+   has gone far enough, and letting go brings the next few in. */
 
-.pull {
-  --pull: 0;
-  display: grid;
-  justify-items: center;
-  gap: 4px;
-  width: 100%;
-  padding: 10px 16px 14px;
-  border-radius: var(--radius);
-  background: var(--surface);
-  text-align: center;
-  /* A grip is a handle: touching it never scrolls the page. */
-  touch-action: none;
-  transition: transform 0.55s var(--ease), background 0.25s;
-}
-
-.pull-top {
-  margin: 4px 0 10px;
-}
-
-.pull-bottom {
-  margin: 10px 0 4px;
-  padding: 14px 16px 10px;
-}
-
-.pull.pulling {
-  transition: background 0.25s;
-}
-
-.pull-grip {
+.ladder-end {
   position: relative;
-  width: calc(36px + 28px * var(--pull));
-  height: 5px;
-  border-radius: 3px;
-  background: var(--fill-2);
+  list-style: none;
 }
 
-.pull-top .pull-grip {
-  margin-bottom: 6px;
-}
-
-.pull-bottom .pull-grip {
-  margin-top: 6px;
-}
-
-/* The coral comes up as the pull nears enough. */
-.pull-grip::after {
+/* The rail carries on in dashes: there is more this way. */
+.ladder-end::before {
   content: '';
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--accent);
-  opacity: var(--pull);
+  left: 15px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: repeating-linear-gradient(to bottom, color-mix(in srgb, var(--text) 30%, transparent) 0 5px, transparent 5px 10px);
 }
 
-.pull:not(.pulling) .pull-grip {
-  transition: width 0.55s var(--ease);
+.end-in {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  padding: 12px 6px 12px 34px;
 }
 
-.pull-label {
+.ladder-end.up .end-in {
+  padding-bottom: calc(14px + var(--stretch, 0px));
+}
+
+.ladder-end.down .end-in {
+  padding-top: calc(14px + var(--stretch, 0px));
+}
+
+.ladder-end:not(.stretching) .end-in {
+  transition: padding 0.5s var(--ease);
+}
+
+.end-more {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 15.5px;
+  padding: 4px 0;
+  border-radius: 10px;
+  font-size: 15px;
   font-weight: 600;
+  color: var(--text);
+  transition: color 0.2s;
 }
 
-.pull-label svg {
+.end-more svg {
   width: 17px;
   height: 17px;
   stroke-width: 2.2;
   color: var(--muted);
+  transition: color 0.2s, transform 0.3s var(--ease);
 }
 
-.pull-sub {
+.end-sub {
   font-size: 13px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 
-/* Open, it is a quieter control: what it hides is already on show. */
-.pull.open {
-  background: none;
-  box-shadow: inset 0 0 0 1px var(--hair);
+.end-fold {
+  margin-top: 4px;
+  font-size: 14px;
 }
 
-.pull.ready {
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+.ladder-end.ready .end-more,
+.ladder-end.ready .end-more svg {
+  color: var(--accent);
 }
 
-.pull:active:not(.pulling) {
-  background: var(--fill);
+.ladder-end.ready .end-more svg {
+  transform: scale(1.2);
 }
 
-/* Fingers pull; a mouse or a keyboard just asks. */
-.pull-click {
+/* Fingers scroll; a mouse or a keyboard just asks. */
+.end-click {
   display: none;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .pull-touch {
+  .end-touch {
     display: none;
   }
 
-  .pull-click {
+  .end-click {
     display: inline;
   }
+}
 
-  .pull:hover {
-    background: color-mix(in srgb, var(--text) 4%, var(--surface));
-  }
+.compare-row {
+  display: flex;
+  margin: 16px 0 4px;
 }
 
 /* The line on the ladder above which options cost more than the limit. */
@@ -3953,8 +3936,8 @@ dialog {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pull,
-  .pull-grip {
+  .ladder-end:not(.stretching) .end-in,
+  .end-more svg {
     transition: none;
   }
 }
