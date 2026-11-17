@@ -14,8 +14,9 @@
 // product carries the time of its last update. Arriving at the branch is such an update, so that
 // time (kept within the gap between two looks) says when it came in, however late a look runs.
 // The app also asks CeX directly for the branch's tech when Just in is open, against the list
-// of tech at the last look (`seen`), so a phone shows as soon as CeX lists it. The job keeps the record on the repository's `stock-data` branch, and the
-// app reads `log.json` from there.
+// of tech at the last look (`seen`), so a phone shows as soon as CeX lists it. The job keeps the
+// record on the repository's `stock-data` branch, and the app reads `log.json` from there, and
+// `since.json` for when each product in stock came in (`trackSince`, read by src/arrived.ts).
 
 import { CONFIG } from './api.ts';
 import type { Hit } from './types.ts';
@@ -75,6 +76,32 @@ export interface State {
   tech: Record<string, Rec>;
   /** Gone at the last look but not yet confirmed: when that was noticed (`s`) and last seen (`l`). */
   missing: Record<string, { s: number; l: number; r?: Rec; e?: 1 }>;
+  /** When each product in stock came in, if that was after the first look (see `trackSince`). */
+  since?: Record<string, Since>;
+}
+
+/**
+ * When a product came in: CeX's own time (`t`), or, where that is not known, some time between
+ * two looks (`a` to `t`). `g` is when it was found gone; the entry is kept for `HOLD` after that,
+ * in case it was only on hold.
+ */
+export interface Since {
+  t: number;
+  a?: number;
+  g?: number;
+}
+
+/**
+ * What the app reads to say when something in stock came in (`since.json`). `in` holds every
+ * product in stock at the latest look: its arrival in minutes since 1970, `[from, to]` when only
+ * the gap between two looks is known, or 0 when it was already there at the first look (`from`).
+ * A product in stock that is not listed came in after the latest look (`at`).
+ */
+export interface SinceFile {
+  store: string;
+  from: number;
+  at: number;
+  in: Record<string, number | [number, number]>;
 }
 
 const FILTER = 'boxVisibilityOnWeb=1 AND boxSaleAllowed=1 AND sellPrice > 0';
@@ -337,6 +364,58 @@ export function record(log: Log | null, out: Outcome, store: string, now: number
     sold: keep(both.sold.map(plain), 14, 400),
     seen: [...Object.keys(out.state.tech), ...Object.keys(out.state.missing).filter((id) => out.state.missing[id].r)],
   };
+}
+
+// ------------------------------------------------------------------ when each product came in
+
+const sinceOf = (e: Ev): Since => (e.e ? { t: e.t } : { t: e.t, a: e.a });
+
+/**
+ * When each product in stock came in, kept for as long as it stays in stock. The record of
+ * arrivals only goes back a week, but a product can sit on the shelf for months.
+ *
+ * `prev` is the last look's (absent the first time, when it is built from the record of
+ * arrivals, `log`, as it stood before this look). A product in stock with no entry was already
+ * there at the first look. One that leaves and is back within `HOLD` keeps its time: it was on
+ * hold, reserved or returned, as the record of arrivals has it too.
+ *
+ * With more than one copy, this is when the product came into stock and has stayed in stock: a
+ * second copy arriving while the first is on the shelf changes nothing CeX shows.
+ */
+export function trackSince(prev: Record<string, Since> | undefined, log: Log | null, out: Outcome, now: number): Record<string, Since> {
+  const inStock = new Set(out.state.ids);
+  const since: Record<string, Since> = {};
+  if (prev) for (const [id, s] of Object.entries(prev)) since[id] = { ...s };
+  // Oldest first, so the latest arrival of each product is the one kept.
+  else if (log) for (const e of [...log.arrivals].reverse()) if (inStock.has(e.r.id)) since[e.r.id] = sinceOf(e);
+  for (const e of out.arrivals) {
+    const was = since[e.r.id];
+    if (was?.g !== undefined && e.t - was.g <= HOLD) delete was.g;
+    else since[e.r.id] = sinceOf(e);
+  }
+  for (const [id, s] of Object.entries(since)) {
+    if (inStock.has(id)) {
+      // Back without being counted as an arrival (missing from one list, say): still the same stock.
+      delete s.g;
+      continue;
+    }
+    s.g ??= now;
+    if (now - s.g > HOLD) delete since[id];
+  }
+  return since;
+}
+
+const minutes = (t: number): number => Math.round(t / 60_000);
+
+/** The app's copy: every product in stock now, sorted so it packs small. */
+export function sinceFile(state: State, log: Log): SinceFile {
+  const since = state.since ?? {};
+  const out: SinceFile['in'] = {};
+  for (const id of [...state.ids].sort()) {
+    const s = since[id];
+    out[id] = !s ? 0 : s.a !== undefined ? [minutes(s.a), minutes(s.t)] : minutes(s.t);
+  }
+  return { store: state.store, from: log.started, at: state.at, in: out };
 }
 
 // ------------------------------------------------------------------ asking CeX directly

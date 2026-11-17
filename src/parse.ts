@@ -177,6 +177,8 @@ export function toItem(h: Hit, idx: number, ctx: SupportCtx): Item {
     grade,
     rating: Number(h.rating) || 0,
     priceChanged: Date.parse(String(h.priceLastChanged ?? '').replace(' ', 'T')) || 0,
+    // CeX writes it as "2026-11-13 04:00:33", in UTC.
+    stamp: Date.parse(`${String(h.timestamp ?? '').replace(' ', 'T')}Z`) || 0,
     kind,
     brand,
     model,

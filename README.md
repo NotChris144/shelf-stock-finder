@@ -201,6 +201,26 @@ redeploying. It holds a week of arrivals and a fortnight of sales. Until it reco
 both screens show sample data (real items from the shelf with made-up times), clearly marked; the
 first real change replaces it.
 
+### When something came in
+
+An opened card says when the item came into stock (**Came in**), and so does a label read by the
+scanner, in its tray. Where a card holds several copies of one model, each copy says it in the list.
+
+- The watch keeps, for every product in stock, when it came in, for as long as it stays in stock
+  (the activity record above only keeps a week). Each look writes it to `since.json` on the
+  `stock-data` branch (`trackSince` in `src/tracker.ts`). The app reads it when a card opens and
+  keeps it for two minutes (`src/arrived.ts`).
+- The time is CeX's own, from its 10-minute updates, so it reads "about 2:40pm". Where only the
+  gap between two looks is known, it gives the gap.
+- Anything already on the shelf when the watch began (13 November 2026) shows as "over 4 days ago
+  (records begin Fri 13 Nov)". There will be fewer of these as the old stock sells.
+- Anything that came in since the latest look is timed by CeX's own update time, as on Just in, or
+  failing that, "after" the latest look.
+- Gone and back within 12 hours keeps its first time: it was on hold, reserved or returned.
+- With more than one copy, it is when the product came into stock and has stayed in stock since.
+  CeX lists one entry per product, so a second copy arriving while the first is on the shelf
+  doesn't show.
+
 ## Film spines
 
 Film & TV cards have a **Spine** button. It opens a scan of the whole printed sleeve (back, spine,

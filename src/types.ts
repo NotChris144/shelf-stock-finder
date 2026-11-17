@@ -63,6 +63,8 @@ export interface Item {
   rating: number;
   /** Epoch ms of the last price change on CeX's system (0 when unknown). */
   priceChanged: number;
+  /** Epoch ms of CeX's last update to the product, whatever changed (0 when unknown). */
+  stamp: number;
   kind: Kind;
   brand: string;
   model: string;

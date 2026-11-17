@@ -568,6 +568,18 @@ main {
   overflow-wrap: anywhere;
 }
 
+/* A line still waiting for its words (when a scanned label came in) takes no room. */
+.meta:empty {
+  display: none;
+}
+
+/* When one copy of several came in, under its name. */
+.v-in {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
 .v-price {
   font-weight: 700;
   font-variant-numeric: tabular-nums;

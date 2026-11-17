@@ -2,11 +2,11 @@
 //
 // Reads state.json and log.json from the folder (absent on the first run), lists everything the
 // branch has in stock now, records what has come in and what has gone (src/tracker.ts), and
-// writes both files back. Run every 15 minutes through the day by scripts/stock-watch.sh, which
+// writes both files back, with since.json: when each product in stock came in, for the app. Run every 15 minutes through the day by scripts/stock-watch.sh, which
 // keeps the folder on the repository's `stock-data` branch.
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { Busy, checkGone, compare, fetchStock, queries, record, type Log, type State } from '../src/tracker.ts';
+import { Busy, checkGone, compare, fetchStock, queries, record, sinceFile, trackSince, type Log, type State } from '../src/tracker.ts';
 
 const STORE = 'Eastbourne';
 const dir = process.argv[2] ?? 'stock-data';
@@ -46,8 +46,11 @@ if (out.skipped) {
   process.exit(0);
 }
 const next = record(log, out, STORE, now);
+// When each product in stock came in, kept for as long as it stays (the record above keeps a week).
+out.state.since = trackSince(prev?.store === STORE ? prev.since : undefined, prev?.store === STORE ? log : null, out, now);
 writeFileSync(`${dir}/state.json`, JSON.stringify(out.state));
 writeFileSync(`${dir}/log.json`, JSON.stringify(next));
+writeFileSync(`${dir}/since.json`, JSON.stringify(sinceFile(out.state, next)));
 if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, 'changed=1\n');
 
 const tech = out.arrivals.filter((e) => e.r.t).length;

@@ -31,10 +31,12 @@ publish_stock() {
   local tmp
   tmp=$(mktemp -d)
   cp "$DATA/state.json" "$DATA/log.json" "$tmp/"
+  # When each product in stock came in, for the app's cards (written by the newer track-stock.ts).
+  if [[ -f "$DATA/since.json" ]]; then cp "$DATA/since.json" "$tmp/"; fi
   (
     cd "$tmp" &&
       git init -q -b stock-data &&
-      git add state.json log.json &&
+      git add -A &&
       git "${BOT[@]}" commit -q -m "Stock at $(date -u +'%Y-%m-%d %H:%M') UTC" &&
       git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" stock-data
   ) || echo "Could not save the stock record this time; the next look will."

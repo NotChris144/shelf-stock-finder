@@ -4,6 +4,7 @@ import sheetFile from './data/specs.json';
 import { PRESETS, addonStock, clearCache, fetchStores, lookupIds, sampleStock, search } from './api.ts';
 import { fillActivity, forgetLog } from './activity.ts';
 import { slotsFor } from './addons.ts';
+import { cameIn, cameShort, cameText, capitalise, loadSince, sinceInHand } from './arrived.ts';
 import { findCover, forget, remembered, spineOf, type Cover } from './covers.ts';
 import { DEMO_HITS } from './demo.ts';
 import { fetchEolDb, type EolDb } from './eol.ts';
@@ -808,7 +809,7 @@ function perfBadge(it: Item): string {
 }
 
 /** `when` puts a time under the price; `plain` leaves off the extras (the spine button). */
-function cardHtml(g: Group, note = '', opts: { cls?: string; tag?: string; vt?: string; when?: string; plain?: boolean } = {}): string {
+function cardHtml(g: Group, note = '', opts: { cls?: string; tag?: string; vt?: string; when?: string; plain?: boolean; came?: Item } = {}): string {
   const it = g.head;
   const n = g.items.length;
   const grades = [...new Set(g.items.map((i) => i.grade).filter(Boolean))].sort();
@@ -828,6 +829,7 @@ function cardHtml(g: Group, note = '', opts: { cls?: string; tag?: string; vt?: 
         <span class="sub">${esc(it.sub)}</span>
         ${meta ? `<span class="meta">${esc(meta)}</span>` : ''}
         ${note ? `<span class="meta">${esc(note)}</span>` : ''}
+        ${opts.came ? cameHtml(opts.came, 'note') : ''}
         <span class="badges">${tag}${supportBadge(it)}${perfBadge(it)}</span>
       </span>
       <span class="price">${price}${opts.when ? `<span class="when">${esc(opts.when)}</span>` : ''}</span>
@@ -1054,11 +1056,57 @@ const ICON_CHEVRON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l
 const ICON_OUT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 16 16 8M9.5 8H16v6.5"/></svg>';
 const DOT = '<i class="dot" aria-hidden="true"></i>';
 
+// ------------------------------------------------------------------ when it came in
+//
+// From the stock watch's record (src/arrived.ts). It is read when first wanted and kept for a
+// couple of minutes, so a card drawn before it arrives shows a placeholder that is filled in
+// once it does, or taken away if there is no record to go by.
+
+type CameAt = 'row' | 'copy' | 'note';
+
+function cameWords(it: { id: string; stamp: number }, at: CameAt): string | null | undefined {
+  const file = sinceInHand();
+  if (file === undefined) return undefined;
+  const c = file && cameIn(file, branch, it.id, it.stamp);
+  if (!c) return null;
+  return at === 'row' ? cameText(c) : capitalise(cameShort(c));
+}
+
+function cameHtml(it: Item, at: CameAt): string {
+  const words = cameWords(it, at);
+  if (words === null) return '';
+  const attrs = words === undefined ? ` data-came="${esc(it.id)}" data-stamp="${it.stamp}" data-at="${at}"` : '';
+  if (words === undefined) void loadSince().then(fillCame);
+  const text = words === undefined ? (at === 'row' ? 'Checking…' : '') : esc(words);
+  return at === 'row' ? `<dd class="came"${attrs}>${text}</dd>` : at === 'copy' ? `<small class="v-in"${attrs}>${text}</small>` : `<span class="meta"${attrs}>${text}</span>`;
+}
+
+/** Fill in the placeholders once the record is in hand, or take them away without one. */
+function fillCame(): void {
+  for (const el of document.querySelectorAll<HTMLElement>('[data-came]')) {
+    const words = cameWords({ id: el.dataset.came ?? '', stamp: Number(el.dataset.stamp) || 0 }, (el.dataset.at ?? 'row') as CameAt);
+    if (words === undefined) continue;
+    delete el.dataset.came;
+    if (words !== null) {
+      el.textContent = words;
+      continue;
+    }
+    if (el.dataset.at === 'row') {
+      const dl = el.parentElement;
+      el.previousElementSibling?.remove();
+      el.remove();
+      // Nothing else to say: no empty box either.
+      if (dl && !dl.children.length) dl.remove();
+    } else el.remove();
+  }
+}
+
 /**
  * An opened card says only what the card itself doesn't:
  *  - update status only when it needs explaining (ending, ended, unknown); otherwise the badge says it;
  *  - the price only when it has just changed, so the label may need reprinting, or for a scanned
  *    label, what it should read;
+ *  - when it came in, for anything on the shelf here;
  *  - the spec sheet, naming the chip once; how fast it is is the badge's job;
  *  - a list of copies only when there is more than one to choose from;
  *  - what to do next: add-ons, and CeX's own page.
@@ -1077,6 +1125,10 @@ function detailHtml(g: Group): string {
   const fresh = it.priceChanged > 0 && Date.now() - it.priceChanged < 14 * DAY;
   if (scanned) fact('Label', `${fresh ? DOT : ''}Should read ${money(it.price)}${fresh ? `. Changed ${daysAgo(it.priceChanged)}` : ''}`, fresh ? 'st-warn' : '');
   else if (fresh) fact('Price', `${DOT}Changed ${daysAgo(it.priceChanged)}. Check the label matches.`, 'st-warn');
+  // When it came in: only for what is on the shelf here. Several copies each say so in the list below.
+  const here = !demo && (!scanned || scanResults.get(it.id)?.here === true);
+  const came = here && one ? cameHtml(it, 'row') : '';
+  if (came) facts.push(`<dt>Came in</dt>${came}`);
   for (const [k, v] of specRows(it)) fact(k, esc(v));
 
   const sh = it.specs?.sheet;
@@ -1090,7 +1142,7 @@ function detailHtml(g: Group): string {
         .map((v) => {
           const label = v.variant || (v.grade ? `Grade ${v.grade}` : v.name);
           return `<li><a href="${cexPage(v)}" target="_blank" rel="noopener">
-        <span class="v-name">${esc(label)}</span>
+        <span class="v-name">${esc(label)}${here ? cameHtml(v, 'copy') : ''}</span>
         ${v.variant && v.grade ? `<span class="grade g${v.grade}">${v.grade}</span>` : ''}
         <span class="v-price">${money(v.price)}</span>${ICON_CHEVRON}
       </a></li>`;
@@ -1297,7 +1349,8 @@ function renderTray(): void {
   }
   const cards = scanOrder.map((id) => {
     const here = scanResults.get(id)?.here;
-    return cardHtml(scanGroups.get('scan:' + id)!, here ? `Listed in stock at ${branch}` : `Not listed in ${branch}'s online stock`);
+    const g = scanGroups.get('scan:' + id)!;
+    return cardHtml(g, here ? `Listed in stock at ${branch}` : `Not listed in ${branch}'s online stock`, { came: here && !demo ? g.head : undefined });
   });
   tray.innerHTML = `<p class="summary">${scanOrder.length} scanned · tap for details</p><ul class="list">${cards.join('')}</ul>`;
 }
@@ -2650,7 +2703,9 @@ if (import.meta.env.DEV) {
     console.log(auditText(report, branch));
     return report;
   };
-  Object.assign(window, { shelf: { items: () => items, hits: () => hits, openScan, sim, audit } });
+  // A label as if the camera had read it: `shelf.scan('SAPPI1264GBLUNLC')` with the scanner open.
+  const scan = (code: string): void => scanHost.onCode(code);
+  Object.assign(window, { shelf: { items: () => items, hits: () => hits, openScan, sim, audit, scan } });
 }
 if (!F.mode && matchMedia('(hover: hover) and (pointer: fine)').matches) $<HTMLInputElement>('#q').focus();
 
