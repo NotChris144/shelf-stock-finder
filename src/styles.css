@@ -3848,3 +3848,125 @@ dialog {
   margin-left: 2px;
   font-variant-numeric: tabular-nums;
 }
+
+/* ================================================================ step up: more on purpose
+   The further options wait at the foot of the page behind a panel that is pulled up to open. It
+   follows the finger with growing resistance: the grip stretches and warms to coral as the pull
+   nears enough, the words change to "Release", and short of that it springs back. */
+
+.pull {
+  --pull: 0;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  width: 100%;
+  margin: 26px 0 6px;
+  padding: 12px 16px 18px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+  touch-action: pan-y;
+  transition: transform 0.55s var(--ease), background 0.25s;
+}
+
+.pull.pulling {
+  transition: background 0.25s;
+}
+
+.pull-grip {
+  position: relative;
+  width: calc(36px + 28px * var(--pull));
+  height: 5px;
+  margin-bottom: 7px;
+  border-radius: 3px;
+  background: var(--fill-2);
+}
+
+/* The coral comes up as the pull nears enough. */
+.pull-grip::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--accent);
+  opacity: var(--pull);
+}
+
+.pull:not(.pulling) .pull-grip {
+  transition: width 0.55s var(--ease), background 0.25s;
+}
+
+.pull-label {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.pull-sub {
+  font-size: 13.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pull.ready {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.pull:active:not(.pulling) {
+  background: var(--fill);
+}
+
+/* Fingers pull; a mouse or a keyboard just asks. */
+.pull-click {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pull-touch {
+    display: none;
+  }
+
+  .pull-click {
+    display: inline;
+  }
+
+  .pull:hover {
+    background: color-mix(in srgb, var(--text) 4%, var(--surface));
+  }
+}
+
+.reveal-row {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0 0;
+}
+
+/* Opening is the one moment that moves: the new sections rise into place below the ladder. */
+.more-sec {
+  scroll-margin-top: 130px;
+}
+
+.more-sec.rise {
+  animation: rise-in 0.6s var(--ease) both;
+}
+
+.more-sec.rise + .more-sec.rise {
+  animation-delay: 0.08s;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pull,
+  .pull-grip {
+    transition: none;
+  }
+
+  .more-sec.rise {
+    animation: none;
+  }
+}

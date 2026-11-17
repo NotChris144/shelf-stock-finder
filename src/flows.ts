@@ -298,7 +298,7 @@ async function drawUp(host: FlowHost, s: FlowState, body: HTMLElement): Promise<
   const far = ups.find((x) => x.kind === 'reach');
   // Said plainly when what they asked about is not on offer, so the options are not read as an answer to it.
   if (fallback) html += `<p class="hint">Nothing up to ${host.money(limit)} more is better for ${asked}. These are the best all-round steps, and none is worse for it.</p>`;
-  else if (!ups.length && focus) html += `<p class="hint">Nothing up to ${host.money(limit)} more is better for ${asked}.${beyond.length ? ' A bigger step is below.' : ''}</p>`;
+  else if (!ups.length && focus) html += `<p class="hint">Nothing up to ${host.money(limit)} more is better for ${asked}.${beyond.length ? ' There is a bigger step for a bit more, further down.' : ''}</p>`;
   else if (!ups.length) html += `<p class="hint">Nothing up to ${host.money(limit * 3)} more is clearly better than it.</p>`;
   else if (far) html += `<p class="hint">Nothing up to ${host.money(limit)} more is ${focus ? `better for ${asked}` : 'clearly better'}. The next step that is costs ${more$(far.product)}.</p>`;
   html += '<ol class="ladder options">';
@@ -306,24 +306,143 @@ async function drawUp(host: FlowHost, s: FlowState, body: HTMLElement): Promise<
     html += rungHtml(host, st.product, tags[st.kind], st === lead) + stepHtml(host, st.product.price - base.price, st.diff, baseName);
   }
   html += rungHtml(host, base, 'Your pick') + '</ol>';
-  if (side) {
-    html += `<h3>For the same money</h3><ol class="ladder options">${rungHtml(host, side.product, 'Worth a look')}${stepHtml(host, side.product.price - base.price, side.diff, baseName)}</ol>`;
-  }
   const cols = [base, ...ups.map((x) => x.product)];
   html += tableHtml(host, cols, ['Your pick', ...ups.map((x) => more$(x.product))], lead ? cols.indexOf(lead.product) : -1);
-  // Every other phone within the limit that is better on balance, each with what it gains and what it gives up.
-  if (more.length) {
-    html += `<h3>More options${focus ? ` for ${asked}` : ''} within ${host.money(limit)}</h3><ul class="list more-opts">${more.map((st) => optionHtml(host, st, more$(st.product))).join('')}</ul>`;
+
+  // They picked this phone: something cheaper is not what the screen is for, so it waits behind a button.
+  if (side && cheaperFor === s.pick) {
+    html += `<h3>For the same money or less</h3><ol class="ladder options">${rungHtml(host, side.product, 'Worth a look')}${stepHtml(host, side.product.price - base.price, side.diff, baseName)}</ol>`;
   }
-  // A much bigger step for a little past the limit, so it is seen without changing the setting.
-  if (beyond.length) {
-    html += `<h3>For a bit more</h3><p class="hint">A bigger step than anything within ${host.money(limit)}${focus ? `, for ${asked}` : ''}.</p><ol class="ladder options">`;
-    for (const st of [...beyond].reverse()) html += rungHtml(host, st.product, more$(st.product)) + stepHtml(host, st.product.price - base.price, st.diff, baseName);
-    html += '</ol>';
+  const extra = more.length + beyond.length;
+  const open = extra > 0 && openFor === s.pick;
+  // The rest of the options, once asked for: every other phone within the limit that is better on
+  // balance, then a much bigger step for a little past it.
+  if (open) {
+    const rise = justOpened ? ' rise' : '';
+    justOpened = false;
+    if (more.length) {
+      html += `<section class="more-sec${rise}"><h3>More options${focus ? ` for ${asked}` : ''} within ${host.money(limit)}</h3><ul class="list more-opts">${more.map((st) => optionHtml(host, st, more$(st.product))).join('')}</ul></section>`;
+    }
+    if (beyond.length) {
+      html += `<section class="more-sec${rise}"><h3>For a bit more</h3><p class="hint">A bigger step than anything within ${host.money(limit)}${focus ? `, for ${asked}` : ''}.</p><ol class="ladder options">`;
+      for (const st of [...beyond].reverse()) html += rungHtml(host, st.product, more$(st.product)) + stepHtml(host, st.product.price - base.price, st.diff, baseName);
+      html += '</ol></section>';
+    }
   }
+  if (side && cheaperFor !== s.pick) html += `<div class="reveal-row"><button type="button" class="chip ghost" data-act="cheaper">Show a cheaper option</button></div>`;
   html += limitHtml(host, 'Staff setting: suggest options up to this much more');
+  // The way to the rest sits last, so pulling up past the end of the page is how it is reached.
+  if (extra && !open) {
+    const parts = [more.length && `${more.length} more within ${host.money(limit)}`, beyond.length && `${beyond.length} for a bit more`].filter(Boolean).join(' · ');
+    html += `<button type="button" class="pull" id="pullMore" data-act="more-open" aria-expanded="false">
+      <span class="pull-grip" aria-hidden="true"></span>
+      <span class="pull-label"><span class="pull-touch">Pull up for more options</span><span class="pull-click">Show more options</span></span>
+      <span class="pull-sub">${parts}</span>
+    </button>`;
+  } else if (open) {
+    html += `<div class="reveal-row"><button type="button" class="link" data-act="more-close">Show fewer options</button></div>`;
+  }
   swap(body, html);
 }
+
+// ------------------------------------------------------------------ more options, on purpose
+//
+// The further options are there for the asking, not in the way: they open with a deliberate pull
+// up past the end of the page. The pull has some give: the panel follows the finger with growing
+// resistance, says "Release" once it has gone far enough, and springs back if let go before then.
+// A tap (or a click, or the keyboard) opens it too.
+
+/** The pick whose further options are open, and whose cheaper option is shown ('' for none). */
+let openFor = '';
+let cheaperFor = '';
+/** The draw straight after opening animates the new sections in; later redraws don't. */
+let justOpened = false;
+
+export async function openMore(host: FlowHost, s: FlowState, root: HTMLElement, show: boolean): Promise<void> {
+  openFor = show ? s.pick : '';
+  justOpened = show;
+  const body = root.querySelector<HTMLElement>('#flowBody');
+  if (!body) return;
+  await drawUp(host, s, body);
+  // Opened from the foot of the page: take the reader to what has just appeared.
+  if (show) document.querySelector('.more-sec')?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+}
+
+export function showCheaper(host: FlowHost, s: FlowState, root: HTMLElement): void {
+  cheaperFor = s.pick;
+  const body = root.querySelector<HTMLElement>('#flowBody');
+  if (body) void drawUp(host, s, body);
+}
+
+/** How far the panel moves for a finger travel of `dy`: freely at first, then ever more stiffly. */
+const resist = (dy: number): number => 260 * (1 - 1 / ((dy * 0.55) / 260 + 1));
+/** How far the panel has to travel before letting go opens it (about 170px of finger). */
+const PULL_OPEN = 68;
+
+let pulling: { y0: number; d: number; el: HTMLElement; armed: boolean } | null = null;
+const atBottom = (): boolean => window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 6;
+
+function pullTo(el: HTMLElement, d: number): void {
+  el.style.transform = d ? `translateY(${-d.toFixed(1)}px)` : '';
+  el.style.setProperty('--pull', String(Math.min(1, d / PULL_OPEN)));
+  el.classList.toggle('ready', d >= PULL_OPEN);
+  const label = el.querySelector('.pull-touch');
+  if (label) label.textContent = d >= PULL_OPEN ? 'Release for more options' : 'Pull up for more options';
+}
+
+window.addEventListener(
+  'touchstart',
+  (e) => {
+    const el = document.getElementById('pullMore');
+    if (!el || e.touches.length !== 1) return void (pulling = null);
+    pulling = { y0: e.touches[0].clientY, d: 0, el, armed: atBottom() };
+  },
+  { passive: true },
+);
+
+window.addEventListener(
+  'touchmove',
+  (e) => {
+    if (!pulling || !pulling.el.isConnected) return;
+    const y = e.touches[0].clientY;
+    // The pull starts only once the page is at its end and the finger is still going up.
+    if (!pulling.armed) {
+      if (atBottom() && y < pulling.y0) {
+        pulling.armed = true;
+        pulling.y0 = y;
+      }
+      return;
+    }
+    const dy = pulling.y0 - y;
+    if (dy <= 0) {
+      pulling.d = 0;
+      pullTo(pulling.el, 0);
+      return;
+    }
+    // Ours from here: the page has nowhere further to go, so the browser's own bounce is held back.
+    e.preventDefault();
+    pulling.el.classList.add('pulling');
+    pulling.d = resist(dy);
+    pullTo(pulling.el, pulling.d);
+  },
+  { passive: false },
+);
+
+function endPull(): void {
+  if (!pulling) return;
+  const { el, d } = pulling;
+  pulling = null;
+  el.classList.remove('pulling');
+  if (d >= PULL_OPEN) {
+    // Opened by the pull: the same action as a tap, so there is one path to keep right.
+    el.click();
+    return;
+  }
+  // Not far enough: it springs back.
+  pullTo(el, 0);
+}
+window.addEventListener('touchend', endPull, { passive: true });
+window.addEventListener('touchcancel', endPull, { passive: true });
 
 /** A further option in brief: its card, its two strongest reasons and the main thing it gives up. */
 function optionHtml(host: FlowHost, st: Step, tag: string): string {

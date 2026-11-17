@@ -40,6 +40,12 @@ How step-up options are chosen (`stepUps` in `src/sell.ts`):
   first, each with its two strongest reasons and the main thing it gives up.
 - **For a bit more** shows one or two much bigger steps just past the limit (up to 2½ times it),
   so they are seen without changing the setting.
+- Both stay hidden until asked for. A panel at the foot of the page says how many there are.
+  Pulling up past the end of the page opens it: the panel follows the finger with growing
+  resistance, says "Release" once it has gone far enough, and springs back if let go sooner. A
+  tap opens it too.
+- A cheaper phone ("for the same money or less") is never shown unasked, because they've picked
+  this one. A "Show a cheaper option" button reveals it.
 - **"What matters most?"** (battery, camera, speed, storage, updates, condition, bigger screen)
   filters rather than tilts. Every option shown improves that thing: the cheapest that does, the
   one that improves it most, and the best all-round of those. Each chip shows how many phones

@@ -7,7 +7,7 @@ import { slotsFor } from './addons.ts';
 import { findCover, forget, remembered, spineOf, type Cover } from './covers.ts';
 import { DEMO_HITS } from './demo.ts';
 import { fetchEolDb, type EolDb } from './eol.ts';
-import { FOCI, clearAddons, clearStock, homeHtml, moreAddons, renderFlow, resetPickQuery, setPickQuery, toggleAddon, type FlowHost } from './flows.ts';
+import { FOCI, clearAddons, clearStock, homeHtml, moreAddons, openMore, renderFlow, resetPickQuery, setPickQuery, showCheaper, toggleAddon, type FlowHost } from './flows.ts';
 import { getsUpdates, type FitType } from './sell.ts';
 import { cameraText, useSheets, waterTight, type SheetFile } from './specs.ts';
 import { toItem } from './parse.ts';
@@ -2437,6 +2437,13 @@ document.addEventListener('click', (ev) => {
       break;
     case 'addon-clear':
       clearAddons(flowHost);
+      break;
+    case 'more-open':
+    case 'more-close':
+      void openMore(flowHost, F, $('#results'), el.dataset.act === 'more-open');
+      break;
+    case 'cheaper':
+      showCheaper(flowHost, F, $('#results'));
       break;
     case 'pick':
       apply({ ...DEFAULTS, mode: 'up', pick: v }, true, true);
