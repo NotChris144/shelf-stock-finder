@@ -4662,3 +4662,77 @@ body.cmp-on .hold-tip {
   font-size: 11px;
   letter-spacing: -0.01em;
 }
+
+/* ---------------------------------------------------------------- swiping a card */
+
+/* Up and down stays the page's; sideways is the card's. */
+#results .card > .card-main {
+  touch-action: pan-y;
+}
+
+/* The card slides over a well that says what letting go will do. */
+.card.swiping {
+  background: var(--surface-2);
+}
+
+.card.swiping > .card-main {
+  position: relative;
+  z-index: 1;
+  border-radius: inherit;
+  background: var(--surface);
+  will-change: transform;
+}
+
+.card.settling > .card-main {
+  transition: transform 0.34s var(--ease);
+}
+
+.swipe-under {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 22px;
+  border-radius: inherit;
+  color: var(--text);
+}
+
+/* To the right: into the comparison, in the "on" colours of a switch. To the left: the budget
+   screen, the one thing being done, in coral. */
+.swipe-under[data-side='cmp'] {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.swipe-under[data-side='bud'] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.sw {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  font-weight: 650;
+  white-space: nowrap;
+  opacity: var(--p, 0);
+  visibility: hidden;
+}
+
+.swipe-under[data-side='cmp'] .sw-cmp,
+.swipe-under[data-side='bud'] .sw-bud {
+  visibility: visible;
+}
+
+.sw svg {
+  width: 24px;
+  height: 24px;
+  transition: transform 0.28s var(--ease);
+}
+
+/* Far enough to do it: the mark grows, so the thumb knows before letting go. */
+.swipe-under.armed .sw svg {
+  transform: scale(1.22);
+}

@@ -157,6 +157,23 @@ is always in the same place:
 - The main action last, under the thumb, in coral: **Add-ons**, or **Step up** for a scanned
   phone or tablet.
 
+## Swiping a card
+
+In search, a card can be swiped instead of opened:
+
+- **Left** opens **Match a budget** at the card's price, for its kind of device (iPhone, Android
+  phone, iPad or Android tablet): the best match for that money, a cheaper one, one a little
+  dearer, and the side-by-side table. Back returns to the search. Phones and tablets only.
+- **Right** puts the model into **Compare**, or takes it out again if it is already there, so a
+  comparison can be gathered from a list without opening anything. Phones, tablets and computers.
+
+The card slides over a coloured strip that says what letting go will do: coral with the budget
+("£280 budget") to the left, light with **Compare** (or **Remove**) to the right. Past about a third of
+the way, or flicked, it happens; otherwise the card springs back. A direction a card can't go
+gives a little and no more, and games, films and accessories don't move. Swipes start clear of
+the screen's left edge, which stays the phone's own Back gesture. Up and down still scrolls, and a
+tap still opens the card.
+
 ## Compare
 
 Models side by side, fact by fact, sized for a phone (`src/compare.ts`).

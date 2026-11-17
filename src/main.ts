@@ -1220,13 +1220,12 @@ function compareBtn(it: Item): string {
 const compareBtnInner = (on: boolean): string => (on ? `${ICON_CHECK}<span>Comparing</span>` : `${ICON_COMPARE}<span>Compare</span>`);
 const shortName = (it: Item): string => `${it.title}${it.storage ? ' ' + it.storage.split(' ')[0] : ''}`;
 
-function toggleComparing(id: string): void {
+function toggleComparing(id: string, it = known.get(id)): void {
   if (comparing.has(id)) {
     comparing.remove(id);
     toast('Taken out of the comparison');
     return;
   }
-  const it = known.get(id);
   if (!it) return;
   if (comparing.full()) {
     toast(`Compare takes ${COMPARE_MAX} at a time. Take one out first.`);
@@ -1234,7 +1233,7 @@ function toggleComparing(id: string): void {
   }
   comparing.add(it);
   const n = comparing.count();
-  toast(n === 1 ? 'Added. Open another and tap Compare to set them side by side.' : `${n} to compare. Tap Compare to see them.`);
+  toast(n === 1 ? 'Added to compare. Add another to set them side by side.' : `${n} to compare. Tap Compare to see them.`);
 }
 
 /** The pill above the bottom bar, the buttons on opened cards, and the sheet if it is open. */
@@ -2901,6 +2900,158 @@ function remember(q: string): void {
 }
 
 const toggleIn = (list: string[], v: string): string[] => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+
+// ------------------------------------------------------------------ swiping a card
+//
+// In search, a card can be swiped instead of opened.
+//  - To the left, it opens Match a budget at its price, for its kind of device: the best match
+//    for that money, a cheaper one and a dearer one, side by side.
+//  - To the right, it goes into the comparison, or comes out again, so a comparison can be
+//    gathered from a list without opening anything.
+// The card slides over a coloured well that says what letting go will do. Past about a third of
+// the way, or flicked, it does it; otherwise it springs back. A direction the card can't go
+// gives a little and no more.
+
+/** Which of the budget screen's kinds of device it is, if it has one. */
+function fitTypeOf(it: Item): FitType | null {
+  if (it.kind === 'phone') return it.os === 'iOS' ? 'iphone' : it.os === 'Android' ? 'android' : 'phone';
+  if (it.kind === 'tablet') return it.os === 'iPadOS' ? 'ipad' : it.os === 'Android' ? 'androidtab' : null;
+  return null;
+}
+
+interface Swipe {
+  pointer: number;
+  card: HTMLElement;
+  main: HTMLElement;
+  under: HTMLElement | null;
+  g: Group;
+  x0: number;
+  y0: number;
+  dx: number;
+  /** Decided it is a sideways swipe, not a scroll or a tap. */
+  on: boolean;
+  /** 1 to the right (compare), -1 to the left (budget). */
+  side: number;
+  armed: boolean;
+  recent: { x: number; t: number }[];
+}
+
+let swipe: Swipe | null = null;
+/** When a swipe last let go, so the tap the browser may send after it doesn't open the card. */
+let swipeEnded = 0;
+
+const budgetOf = (g: Group): number => Math.ceil(g.min);
+
+document.addEventListener(
+  'pointerdown',
+  (ev) => {
+    if (swipe || F.mode || isHome() || ev.button !== 0 || document.body.classList.contains('sliding')) return;
+    // The phone's own edge swipe (Back) keeps the left edge.
+    if (ev.clientX < 24) return;
+    const main = (ev.target as HTMLElement).closest<HTMLElement>('#results .card:not(.open) > .card-main');
+    const card = main?.parentElement;
+    const g = card && groups.find((x) => x.key === card.dataset.key);
+    if (!main || !card || !g) return;
+    if (!fitTypeOf(g.head) && !comparable(g.head)) return;
+    swipe = { pointer: ev.pointerId, card, main, under: null, g, x0: ev.clientX, y0: ev.clientY, dx: 0, on: false, side: 0, armed: false, recent: [] };
+  },
+  { passive: true },
+);
+
+document.addEventListener('pointermove', (ev) => {
+  const s = swipe;
+  if (!s || ev.pointerId !== s.pointer) return;
+  const dx = ev.clientX - s.x0;
+  const dy = ev.clientY - s.y0;
+  if (!s.on) {
+    if (Math.hypot(dx, dy) < 10) return;
+    // Mostly up or down: a scroll, left to the page.
+    if (Math.abs(dx) < Math.abs(dy) * 1.3) return void (swipe = null);
+    s.on = true;
+    try {
+      s.main.setPointerCapture(s.pointer);
+    } catch {
+      /* the finger has already lifted */
+    }
+    s.card.classList.add('swiping');
+    const on = comparing.has(s.g.head.id);
+    s.card.insertAdjacentHTML(
+      'afterbegin',
+      `<div class="swipe-under" aria-hidden="true">
+        <span class="sw sw-cmp">${on ? ICON_X : ICON_COMPARE}<span>${on ? 'Remove' : 'Compare'}</span></span>
+        <span class="sw sw-bud">${ICON_STEP}<span>${money(budgetOf(s.g))} budget</span></span>
+      </div>`,
+    );
+    s.under = s.card.firstElementChild as HTMLElement;
+  }
+  const can = dx > 0 ? comparable(s.g.head) : Boolean(fitTypeOf(s.g.head));
+  const w = s.card.offsetWidth;
+  // Where the card can go it follows the finger, and drags past the halfway mark; where it
+  // can't, it barely moves.
+  let x = can ? dx : dx * 0.12;
+  const lim = w * 0.5;
+  if (Math.abs(x) > lim) x = Math.sign(x) * (lim + (Math.abs(x) - lim) * 0.25);
+  s.dx = x;
+  s.side = Math.sign(x);
+  const arm = Math.min(120, w * 0.34);
+  s.armed = can && Math.abs(x) >= arm;
+  const now = performance.now();
+  s.recent.push({ x: ev.clientX, t: now });
+  while (s.recent.length > 2 && now - s.recent[0].t > 100) s.recent.shift();
+  s.main.style.transform = `translateX(${x}px)`;
+  const u = s.under!;
+  u.dataset.side = !can ? '' : x > 0 ? 'cmp' : 'bud';
+  u.style.setProperty('--p', String(Math.min(1, Math.abs(x) / arm)));
+  u.classList.toggle('armed', s.armed);
+});
+
+function endSwipe(ev: PointerEvent): void {
+  const s = swipe;
+  if (!s || ev.pointerId !== s.pointer) return;
+  swipe = null;
+  if (!s.on) return;
+  swipeEnded = performance.now();
+  // Pixels a millisecond, sideways, over the last moment before letting go.
+  const a = s.recent[0];
+  const b = s.recent[s.recent.length - 1];
+  const speed = a && b && b.t > a.t ? (b.x - a.x) / (b.t - a.t) : 0;
+  const can = s.side > 0 ? comparable(s.g.head) : s.side < 0 && Boolean(fitTypeOf(s.g.head));
+  const flick = can && Math.abs(s.dx) > 48 && Math.sign(speed) === s.side && Math.abs(speed) > 0.6;
+  const go = ev.type === 'pointerup' && (s.armed || flick);
+  const { card, main, under, g } = s;
+  const tidy = (): void => {
+    card.classList.remove('swiping', 'settling');
+    under?.remove();
+    main.style.removeProperty('transform');
+  };
+  card.classList.add('settling');
+  if (go && s.side < 0) {
+    // Off it goes the way it was pushed, and the budget screen comes in after it.
+    main.style.transform = 'translateX(-104%)';
+    window.setTimeout(() => {
+      apply({ ...DEFAULTS, mode: 'fit', bud: budgetOf(g), ft: fitTypeOf(g.head)! }, true, true);
+      window.scrollTo({ top: 0 });
+      tidy();
+    }, 170);
+    return;
+  }
+  main.style.transform = '';
+  window.setTimeout(tidy, 340);
+  if (go) toggleComparing(g.head.id, g.head);
+}
+document.addEventListener('pointerup', endSwipe);
+document.addEventListener('pointercancel', endSwipe);
+
+// A swipe is not a tap: the click some browsers send when the finger lifts is swallowed.
+document.addEventListener(
+  'click',
+  (ev) => {
+    if (performance.now() - swipeEnded > 400) return;
+    ev.stopPropagation();
+    ev.preventDefault();
+  },
+  true,
+);
 
 document.addEventListener('click', (ev) => {
   const el = (ev.target as HTMLElement).closest<HTMLElement>('[data-act]');
