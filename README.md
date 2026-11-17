@@ -76,8 +76,9 @@ item (`src/addons.ts`). It covers:
 
 Each kind of item has slots in the order they are worth offering. For a PS5 that is a second
 controller, games, a headset, controller charging, a stand, the Portal, a wheel and VR. Each slot
-says in one line why it goes with the item. Tapping suggestions adds them to a running total for
-the whole bundle.
+says in one line why it goes with the item. Tapping a suggestion puts it in the basket (below).
+The first one takes the item itself in too, so the basket's total at the foot of the screen is
+the price of the whole sale.
 
 - **Fit** comes from the names and the item's spec sheet. Some examples:
   - the Slim stand for a PS5 Slim or Pro;
@@ -117,6 +118,24 @@ Nothing here is judged by eye or by an AI. Three checks keep the suggestions rig
   - which slots rely most on "Check it fits".
 
   In the dev build, `await shelf.audit()` does the same in the console.
+
+## Basket
+
+What the customer at the counter is having, and what it comes to (`src/basket.ts`).
+
+- **Putting things in:**
+  - An opened card has **Add to basket**.
+  - Where a card holds several copies, each copy's row has a round **+** of its own.
+  - Add-ons go in from the add-ons screen.
+  - Tapping the same button again takes it out.
+- **The basket:** the bottom bar's **Basket** button says how many are in it and opens it. It
+  shows each item with its colour and grade, its price, the total, a cross to take one out, and
+  **Empty the basket**.
+- **Checked on opening:** each line is checked against CeX again, at most once a minute. A price
+  that has changed since it went in is updated and says what it was ("Was £120"). Anything no
+  longer listed in stock at the branch is dimmed and says so. It stays in the total, as it may be
+  in hand.
+- **Kept on the phone:** a reload or a spell in a pocket loses nothing. It is emptied by hand.
 
 ## Phone and tablet spec sheets
 

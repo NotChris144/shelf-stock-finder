@@ -7,6 +7,7 @@
 // The home screen is the staff member's own. Once a flow shows results the phone gets turned
 // round, so from there every line is a plain fact addressed to the customer.
 
+import { basket } from './basket.ts';
 import { compareRows, diffProducts, fit, fitKind, focusCounts, products, stepOptions, type Aspect, type Diff, type FitNeeds, type FitType, type Product, type Step } from './sell.ts';
 import { activityRows, drawActivity, TITLES, type ActivityKind } from './activity.ts';
 import { arrange, categoriesFor, slotsFor, type Offer } from './addons.ts';
@@ -52,6 +53,8 @@ export interface FlowHost {
   lookup(id: string): Promise<Item | null>;
   /** The branch's stock in these categories, each list in CeX's popularity order (see addonStock). */
   addonStock(cats: string[], ranked: string[][]): Promise<Item[][]>;
+  /** A line of news that needs no answer. */
+  toast(text: string): void;
   demo: boolean;
 }
 
@@ -529,22 +532,24 @@ async function drawFit(host: FlowHost, s: FlowState, body: HTMLElement): Promise
 // ------------------------------------------------------------------ add-ons
 //
 // What else on the shelf goes with the item: a slot per kind of add-on (src/addons.ts), each
-// with two or three picks. Tapping a pick adds it to a running total at the foot of the screen,
-// so the price of the whole bundle is there to say.
+// with two or three picks. Tapping a pick puts it in the basket (src/basket.ts), and the basket's
+// total sits at the foot of the screen, so the price of the whole sale is there to say. The first
+// add-on takes the item itself in with it, since add-ons go with its sale.
 
-/** Which item the picks below belong to; they are forgotten when it changes. */
+/** Which item the picks below belong to. */
 let addFor = '';
-const picked = new Map<string, number>();
 const opened = new Set<string>();
-let basePrice = 0;
+/** The item and the add-ons on screen, to go in the basket when tapped. */
+let baseItem: Item | null = null;
+const offered = new Map<string, Item>();
 const addStock = new Map<string, { at: number; p: Promise<Item[][]> }>();
 
 const plainName = (it: Item): string => (it.kind === 'other' ? it.name.replace(/,?\s*\b[ABC]$/, '').replace(/\s+,/g, ',').trim() : fullName(it));
-const pounds = (n: number): number => Math.round(n * 100) / 100;
 
 function addonRow(host: FlowHost, o: Offer): string {
   const a = o.item;
-  const on = picked.has(a.id);
+  offered.set(a.id, a);
+  const on = basket.has(a.id);
   const meta = [o.tag && host.esc(o.tag), a.grade && `Grade ${host.esc(a.grade)}`, o.fit === 'check' && '<span class="addon-check">Check it fits</span>'].filter(Boolean).join(' · ');
   const img = a.img ? `<img src="${host.esc(a.img)}" alt="" loading="lazy" decoding="async" width="44" height="44" onerror="this.remove()">` : '';
   return `<li><button type="button" class="addon" data-act="addon" data-v="${host.esc(a.id)}" data-price="${a.price}" aria-pressed="${on}">
@@ -557,23 +562,29 @@ function addonRow(host: FlowHost, o: Offer): string {
 }
 
 function bundleText(host: FlowHost): string {
-  const extra = pounds([...picked.values()].reduce((s, p) => s + p, 0));
-  const n = picked.size;
-  return `<span class="bundle-what">With ${n} add-on${n === 1 ? '' : 's'} (${host.money(extra)})</span><span class="bundle-total">${host.money(pounds(basePrice + extra))}</span><button type="button" class="bundle-clear" data-act="addon-clear">Clear</button>`;
+  const n = basket.count();
+  return `<span class="bundle-what">${n} ${n === 1 ? 'item' : 'items'} in the basket</span><span class="bundle-total">${host.money(basket.total())}</span><button type="button" class="bundle-clear" data-act="basket">View</button>`;
 }
 
-function showBundle(host: FlowHost): void {
+/** The basket has changed (here or anywhere else): the ticks and the total follow it. */
+export function basketChanged(host: FlowHost): void {
+  for (const b of document.querySelectorAll<HTMLElement>('.addon[data-v]')) {
+    const on = basket.has(b.dataset.v ?? '');
+    if (b.getAttribute('aria-pressed') === String(on)) continue;
+    b.setAttribute('aria-pressed', String(on));
+    b.querySelector('.addon-tick')!.innerHTML = on ? ICON_CHECK : ICON_PLUS;
+  }
   const bar = document.getElementById('bundle');
   if (!bar) return;
-  bar.hidden = picked.size === 0;
+  bar.hidden = basket.count() === 0;
   bar.innerHTML = bundleText(host);
 }
 
 async function drawAdd(host: FlowHost, s: FlowState, body: HTMLElement): Promise<void> {
   if (addFor !== s.pick) {
     addFor = s.pick;
-    picked.clear();
     opened.clear();
+    offered.clear();
   }
   const token = (drawn = `add|${s.pick}|${[...opened].join(',')}`);
   if (!body.childElementCount) body.innerHTML = skeleton;
@@ -603,7 +614,7 @@ async function drawAdd(host: FlowHost, s: FlowState, body: HTMLElement): Promise
     return;
   }
   if (token !== drawn) return;
-  basePrice = it.price;
+  baseItem = it;
   const shelves = arrange(it, slotsFor(it), lists.flat());
   const grade = it.grade ? `, grade ${host.esc(it.grade)}` : '';
   let html = `<p class="from-pick">For the ${host.esc(plainName(it))}${grade}, ${host.money(it.price)}</p>`;
@@ -620,31 +631,22 @@ async function drawAdd(host: FlowHost, s: FlowState, body: HTMLElement): Promise
       <ul class="addons">${list.map((o) => addonRow(host, o)).join('')}</ul>
     </section>`;
   }
-  if (shelves.length) html += `<p class="fine">Everything here is in stock at ${host.esc(host.branch())} now. “Check it fits” means its name doesn’t confirm it works with this one. Tap any to add it to the total.</p>`;
-  html += `<div class="bundle" id="bundle" aria-live="polite"${picked.size ? '' : ' hidden'}>${bundleText(host)}</div>`;
+  if (shelves.length) html += `<p class="fine">Everything here is in stock at ${host.esc(host.branch())} now. “Check it fits” means its name doesn’t confirm it works with this one. Tap any to add it to the basket.</p>`;
+  html += `<div class="bundle" id="bundle" aria-live="polite"${basket.count() ? '' : ' hidden'}>${bundleText(host)}</div>`;
   swap(body, html);
 }
 
-/** Add an item to the running total, or take it off. */
+/** Put an add-on in the basket, or take it out. The first one takes the item itself in too. */
 export function toggleAddon(host: FlowHost, btn: HTMLElement): void {
   const id = btn.dataset.v ?? '';
-  if (picked.has(id)) picked.delete(id);
-  else picked.set(id, Number(btn.dataset.price) || 0);
-  const on = picked.has(id);
-  for (const b of document.querySelectorAll<HTMLElement>(`.addon[data-v="${CSS.escape(id)}"]`)) {
-    b.setAttribute('aria-pressed', String(on));
-    b.querySelector('.addon-tick')!.innerHTML = on ? ICON_CHECK : ICON_PLUS;
-  }
-  showBundle(host);
-}
-
-export function clearAddons(host: FlowHost): void {
-  picked.clear();
-  for (const b of document.querySelectorAll<HTMLElement>('.addon[aria-pressed="true"]')) {
-    b.setAttribute('aria-pressed', 'false');
-    b.querySelector('.addon-tick')!.innerHTML = ICON_PLUS;
-  }
-  showBundle(host);
+  if (basket.has(id)) return basket.remove(id);
+  const it = offered.get(id);
+  if (!it) return;
+  const base = baseItem;
+  const withBase = base && !basket.has(base.id) && ![...offered.keys()].some((k) => basket.has(k));
+  if (withBase) basket.add(base);
+  basket.add(it);
+  if (withBase) host.toast(`The ${plainName(base).split(',')[0]} went in too`);
 }
 
 /** Show every option in a slot, or go back to the picks. */

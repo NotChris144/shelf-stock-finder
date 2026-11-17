@@ -4,11 +4,12 @@ import sheetFile from './data/specs.json';
 import { PRESETS, addonStock, clearCache, fetchStores, lookupIds, sampleStock, search } from './api.ts';
 import { fillActivity, forgetLog } from './activity.ts';
 import { slotsFor } from './addons.ts';
+import { basket } from './basket.ts';
 import { cameIn, cameShort, cameText, capitalise, loadSince, sinceInHand } from './arrived.ts';
 import { findCover, forget, remembered, spineOf, type Cover } from './covers.ts';
 import { DEMO_HITS } from './demo.ts';
 import { fetchEolDb, type EolDb } from './eol.ts';
-import { FOCI, clearAddons, clearStock, extend, fold, homeHtml, moreAddons, renderFlow, resetPickQuery, setPickQuery, toggleAddon, toggleCompare, type FlowHost } from './flows.ts';
+import { FOCI, basketChanged, clearStock, extend, fold, homeHtml, moreAddons, renderFlow, resetPickQuery, setPickQuery, toggleAddon, toggleCompare, type FlowHost } from './flows.ts';
 import { getsUpdates, type FitType } from './sell.ts';
 import { cameraText, useSheets, waterTight, type SheetFile } from './specs.ts';
 import { toItem } from './parse.ts';
@@ -1056,6 +1057,118 @@ const ICON_CHEVRON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l
 const ICON_OUT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 16 16 8M9.5 8H16v6.5"/></svg>';
 const DOT = '<i class="dot" aria-hidden="true"></i>';
 
+// ------------------------------------------------------------------ basket
+//
+// What the customer at the counter is having (src/basket.ts). An opened card puts it in, or one
+// copy of several from its row; the add-ons screen adds to the same basket. The bottom bar's
+// Basket button opens it, with the total, and says how many are in it.
+
+/** Items drawn in an opened card, so a tap can put one in the basket. */
+const known = new Map<string, Item>();
+const ICON_CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+const ICON_PLUS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg>';
+
+/** The way in: a chip on an opened card, or a round button on one copy's row. */
+function basketBtn(it: Item, as: 'chip' | 'copy'): string {
+  const on = basket.has(it.id);
+  return `<button type="button" class="${as === 'chip' ? 'chip basket-chip' : 'v-add'}" data-act="basket-add" data-v="${esc(it.id)}" data-on="${on}">${basketBtnInner(on, as)}</button>`;
+}
+
+function basketBtnInner(on: boolean, as: 'chip' | 'copy'): string {
+  if (as === 'copy') return `${on ? ICON_CHECK : ICON_PLUS}<span class="sr">${on ? 'In the basket, tap to take it out' : 'Add to basket'}</span>`;
+  return on ? `${ICON_CHECK}In basket` : 'Add to basket';
+}
+
+const basketSum = (): string => `${basket.count()} ${basket.count() === 1 ? 'item' : 'items'}, ${money(basket.total())}`;
+
+function toggleBasket(id: string): void {
+  if (basket.has(id)) {
+    basket.remove(id);
+    toast('Taken out of the basket');
+    return;
+  }
+  const it = known.get(id);
+  if (!it) return;
+  basket.add(it);
+  toast(`In the basket: ${basketSum()}`);
+}
+
+/** Everything that shows the basket follows it, wherever it was changed. */
+function syncBasket(): void {
+  const n = basket.count();
+  $('#dockBasket').classList.toggle('has', n > 0);
+  $('#dockBasketLabel').textContent = n ? `Basket · ${n}` : 'Basket';
+  for (const b of document.querySelectorAll<HTMLElement>('[data-act="basket-add"]')) {
+    const on = basket.has(b.dataset.v ?? '');
+    if (b.dataset.on === String(on)) continue;
+    b.dataset.on = String(on);
+    b.innerHTML = basketBtnInner(on, b.classList.contains('v-add') ? 'copy' : 'chip');
+  }
+  basketChanged(flowHost);
+  if ($<HTMLDialogElement>('#basket').open) drawBasket();
+}
+
+function drawBasket(): void {
+  const lines = basket.lines();
+  const n = lines.length;
+  const rows = lines
+    .map((l) => {
+      const img = l.img ? `<img src="${esc(l.img)}" alt="" loading="lazy" decoding="async" width="44" height="44" onerror="this.remove()">` : '';
+      const notes = [l.gone && `${DOT}Not in stock here now`, l.was !== undefined && `Was ${money(l.was)}`].filter(Boolean).join(' · ');
+      return `<li class="b-line${l.gone ? ' gone' : ''}">
+        <span class="b-img">${img}</span>
+        <span class="b-name">${esc(l.name)}</span>
+        <span class="b-meta">${[l.detail && esc(l.detail), notes].filter(Boolean).join(' · ')}</span>
+        <span class="b-price">${money(l.price)}</span>
+        <button type="button" class="b-remove" data-act="basket-remove" data-v="${esc(l.id)}" aria-label="Take ${esc(l.name)} out"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg></button>
+      </li>`;
+    })
+    .join('');
+  $('#basket').innerHTML = `<form method="dialog" class="sheet-in">
+    <header class="sheet-bar"><h2>Basket</h2><button class="done" value="close">Done</button></header>
+    ${
+      n
+        ? `<ul class="basket">${rows}</ul>
+      <p class="b-total"><span>${n} ${n === 1 ? 'item' : 'items'}</span><strong>${money(basket.total())}</strong></p>
+      <button type="button" class="link b-clear" data-act="basket-clear">Empty the basket</button>`
+        : '<p class="b-empty">Nothing in it yet. Open any item and tap Add to basket.</p>'
+    }
+  </form>`;
+}
+
+/** When the basket was last checked against CeX. */
+let basketChecked = 0;
+
+async function openBasket(): Promise<void> {
+  const d = $<HTMLDialogElement>('#basket');
+  drawBasket();
+  if (!d.open) {
+    d.showModal();
+    d.focus({ preventScroll: true });
+    history.pushState({ ui: true }, '');
+  }
+  // Prices move and stock sells: each line is checked again, at most once a minute.
+  if (demo || !basket.count() || Date.now() - basketChecked < 60_000) return;
+  basketChecked = Date.now();
+  try {
+    const ids = basket.lines().map((l) => l.id);
+    const r = await lookupIds(ids, branch);
+    basket.recheck(
+      new Map(
+        ids.map((id) => {
+          const h = r.hits.find((x) => String(x.boxId) === id);
+          return [id, h ? { price: Number(h.sellPrice) || 0, here: r.here.has(id) } : null];
+        }),
+      ),
+    );
+  } catch {
+    basketChecked = 0;
+  }
+}
+
+basket.onChange(syncBasket);
+
+
 // ------------------------------------------------------------------ when it came in
 //
 // From the stock watch's record (src/arrived.ts). It is read when first wanted and kept for a
@@ -1113,6 +1226,7 @@ function fillCame(): void {
  */
 function detailHtml(g: Group): string {
   const it = g.head;
+  for (const v of g.items) known.set(v.id, v);
   const one = g.items.length === 1;
   const scanned = g.key.startsWith('scan:');
   const facts: string[] = [];
@@ -1145,12 +1259,14 @@ function detailHtml(g: Group): string {
         <span class="v-name">${esc(label)}${here ? cameHtml(v, 'copy') : ''}</span>
         ${v.variant && v.grade ? `<span class="grade g${v.grade}">${v.grade}</span>` : ''}
         <span class="v-price">${money(v.price)}</span>${ICON_CHEVRON}
-      </a></li>`;
+      </a>${basketBtn(v, 'copy')}</li>`;
         })
         .join('')}</ul>`;
 
   // One filled action at most: a step up for a scanned phone, otherwise add-ons.
   const acts: string[] = [];
+  // Several copies: each goes in the basket from its own row above.
+  if (one) acts.push(basketBtn(it, 'chip'));
   const stepUp = scanned && (it.kind === 'phone' || it.kind === 'tablet');
   if (stepUp) acts.push(`<button type="button" class="chip" aria-pressed="true" data-act="stepup" data-v="${esc(it.id)}">Find a step up</button>`);
   if (!demo && slotsFor(it).length) acts.push(`<button type="button" class="chip" aria-pressed="${!stepUp}" data-act="addons" data-v="${esc(it.id)}">Suggest add-ons</button>`);
@@ -1321,6 +1437,7 @@ const flowHost: FlowHost = {
     // Each list keeps CeX's popularity order in `idx`, which is how the most popular pick is found.
     return (await addonStock(branch, cats, ranked)).map((list) => list.map((h, i) => toItem(h, i, ctx)));
   },
+  toast,
   demo,
 };
 
@@ -1979,7 +2096,7 @@ function dismiss(d: HTMLDialogElement): void {
 
 // The phone's Back button closes whatever is open before it leaves the page. A cover can be
 // opened over the scanner, so Back closes one layer at a time, the top one first.
-const LAYERS = ['#cover', '#sheet', '#scanner'];
+const LAYERS = ['#cover', '#sheet', '#basket', '#scanner'];
 /** The next history step is ours, undoing the entry a layer added when it opened. */
 let ownBack = false;
 for (const id of LAYERS) {
@@ -2106,6 +2223,7 @@ function pullToClose(d: HTMLDialogElement, from: (target: HTMLElement, fromTop: 
 // down, so it pulls from anywhere.
 pullToClose($<HTMLDialogElement>('#sheet'), (t, fromTop) => Boolean(t.closest('.sheet-bar')) || fromTop < 30);
 pullToClose($<HTMLDialogElement>('#cover'), () => true);
+pullToClose($<HTMLDialogElement>('#basket'), (t, fromTop) => Boolean(t.closest('.sheet-bar')) || fromTop < 30);
 // Tapping the dimmed page above the cover puts it away too.
 $('#cover').addEventListener('click', (ev) => {
   if (ev.target === ev.currentTarget && ev.clientY < (ev.currentTarget as HTMLElement).getBoundingClientRect().top) dismiss(ev.currentTarget as HTMLDialogElement);
@@ -2488,8 +2606,18 @@ document.addEventListener('click', (ev) => {
     case 'addon-more':
       moreAddons(flowHost, F, $('#results'), v);
       break;
-    case 'addon-clear':
-      clearAddons(flowHost);
+    case 'basket':
+      if (!holdEl.hidden) closeHold();
+      void openBasket();
+      break;
+    case 'basket-add':
+      toggleBasket(v);
+      break;
+    case 'basket-remove':
+      basket.remove(v);
+      break;
+    case 'basket-clear':
+      basket.clear();
       break;
     case 'extend':
       extend(flowHost, F, $('#results'), v);
@@ -2648,10 +2776,12 @@ document.addEventListener('keydown', (ev) => {
   }
 });
 
-// Tapping the backdrop closes the sheet.
-$('#sheet').addEventListener('click', (ev) => {
-  if (ev.target === ev.currentTarget) dismiss(ev.currentTarget as HTMLDialogElement);
-});
+// Tapping the backdrop closes a sheet.
+for (const id of ['#sheet', '#basket']) {
+  $(id).addEventListener('click', (ev) => {
+    if (ev.target === ev.currentTarget) dismiss(ev.currentTarget as HTMLDialogElement);
+  });
+}
 
 // Stock moves while the phone is in a pocket: on return, anything over a minute old is fetched again.
 // The stock record moves on while the phone is in a pocket too.
@@ -2689,6 +2819,7 @@ window.addEventListener('hashchange', () => {
 
 readHash();
 $<HTMLInputElement>('#q').value = F.q;
+syncBasket();
 void load();
 // Handy when checking parsing against live data from the dev console.
 if (import.meta.env.DEV) {
