@@ -34,18 +34,16 @@ How step-up options are chosen (`stepUps` in `src/sell.ts`):
   a much bigger or smaller one, or one nothing is known about has to earn its place.
 - Other phones are compared in at least the pick's condition where such a copy is in stock; a
   tidier copy of the pick itself is offered too.
-- Up to three rungs: the same phone bigger or tidier, the best value step, and the best step. When
-  nothing inside the limit is worth it, the nearest real step beyond it is shown instead.
-- **More options within the limit** lists every other phone that is better on balance, cheapest
-  first, each with its two strongest reasons and the main thing it gives up.
-- **For a bit more** shows one or two much bigger steps just past the limit (up to 2½ times it),
-  so they are seen without changing the setting.
-- Both stay hidden until asked for. A panel at the foot of the page says how many there are.
-  Pulling up past the end of the page opens it: the panel follows the finger with growing
-  resistance, says "Release" once it has gone far enough, and springs back if let go sooner. A
-  tap opens it too.
-- A cheaper phone ("for the same money or less") is never shown unasked, because they've picked
-  this one. A "Show a cheaper option" button reveals it.
+- **One ladder in price order.** Every option better on balance sits above the pick, dearest at the
+  top. This includes those within the limit and one or two much bigger steps past it, below a line
+  that marks the limit. The best value and best step up keep their names wherever they fall. At
+  first only the three smallest steps show, so a £10 or £15 step is never hidden behind a bigger
+  one. When nothing within the limit is worth it, the nearest real step beyond it is shown.
+- **Stretching it.** A grip at the top of the ladder pulls up for the dearer options. A grip at
+  its foot pulls down for the cheaper ones (better on balance for the same money or less), which
+  are never shown unasked because the customer has picked theirs. Pushed back, either folds away.
+  Each follows the finger with growing resistance, says "Release" once it has gone far enough,
+  and springs back if let go sooner. A tap does the same.
 - **"What matters most?"** (battery, camera, speed, storage, updates, condition, bigger screen)
   filters rather than tilts. Every option shown improves that thing: the cheapest that does, the
   one that improves it most, and the best all-round of those. Each chip shows how many phones

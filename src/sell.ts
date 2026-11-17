@@ -387,6 +387,8 @@ export interface Options {
   more: Step[];
   /** One or two that are a much bigger improvement for a little past the limit. */
   beyond: Step[];
+  /** Better on balance for the same money or less, nearest the pick's price first. */
+  cheaper: Step[];
   /**
    * Nothing within the limit improves what they asked about, so the ladder holds the best
    * all-round steps instead: each keeps that thing at least as good, and the screen says so.
@@ -479,7 +481,12 @@ export function stepOptions(base: Product, all: Product[], limit: number, focus?
 
   const swap = judged.filter((x) => !x.same && asked(x) && x.delta <= 0 && x.p.price >= base.price * 0.75 && x.gain >= 0.35).sort(byGain)[0];
   add('swap', swap);
-  return fallback ? { ladder, more, beyond, fallback: true } : { ladder, more, beyond };
+  // Better on balance for the same money or less, nearest their price first: shown only when asked for.
+  const cheaper = judged
+    .filter((x) => !x.same && asked(x) && x.delta <= 0 && x.p.price >= base.price * 0.6 && x.gain >= 0.35)
+    .sort((x, y) => y.p.price - x.p.price || y.gain - x.gain)
+    .map((x): Step => ({ kind: x === swap ? 'swap' : 'more', product: x.p, diff: x.d, gain: x.gain }));
+  return fallback ? { ladder, more, beyond, cheaper, fallback: true } : { ladder, more, beyond, cheaper };
 }
 
 /** The headline options only (see `stepOptions`). */
