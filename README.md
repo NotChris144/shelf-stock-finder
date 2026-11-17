@@ -36,8 +36,15 @@ How step-up options are chosen (`stepUps` in `src/sell.ts`):
   tidier copy of the pick itself is offered too.
 - Up to three rungs: the same phone bigger or tidier, the best value step, and the best step. When
   nothing inside the limit is worth it, the nearest real step beyond it is shown instead.
-- "What matters most?" (battery, camera, speed, storage, updates, condition, bigger screen) tilts
-  the choice, puts that reason first, and says so when nothing in reach improves it.
+- **More options within the limit** lists every other phone that is better on balance, cheapest
+  first, each with its two strongest reasons and the main thing it gives up.
+- **For a bit more** shows one or two much bigger steps just past the limit (up to 2½ times it),
+  so they are seen without changing the setting.
+- **"What matters most?"** (battery, camera, speed, storage, updates, condition, bigger screen)
+  filters rather than tilts. Every option shown improves that thing: the cheapest that does, the
+  one that improves it most, and the best all-round of those. Each chip shows how many phones
+  within the limit improve it. When none does, the screen says so and shows the best all-round
+  steps that keep it at least as good. (`stepOptions` in `src/sell.ts`.)
 
 `npm run sellcheck` prints sample recommendations. In the dev build, `await shelf.sim()` in the
 console runs twelve kinds of simulated customer over every phone and tablet in stock (`src/sim.ts`)

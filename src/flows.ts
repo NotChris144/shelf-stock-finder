@@ -7,7 +7,7 @@
 // The home screen is the staff member's own. Once a flow shows results the phone gets turned
 // round, so from there every line is a plain fact addressed to the customer.
 
-import { compareRows, diffProducts, fit, fitKind, products, stepUps, type Aspect, type Diff, type FitNeeds, type FitType, type Product } from './sell.ts';
+import { compareRows, diffProducts, fit, fitKind, focusCounts, products, stepOptions, type Aspect, type Diff, type FitNeeds, type FitType, type Product, type Step } from './sell.ts';
 import { activityRows, drawActivity, TITLES, type ActivityKind } from './activity.ts';
 import { arrange, categoriesFor, slotsFor, type Offer } from './addons.ts';
 import type { Group, Hit, Item } from './types.ts';
@@ -272,28 +272,35 @@ async function drawUp(host: FlowHost, s: FlowState, body: HTMLElement): Promise<
   const held = base.items.find((i) => i.id === s.pick);
   if (held && held !== base.head) base = { ...base, head: held, price: held.price };
   const focus = FOCI.find(([id]) => id === s.fo);
-  const steps = stepUps(base, all, host.limit(), focus?.[0]);
-  const ups = steps.filter((x) => x.kind !== 'swap');
-  const side = steps.find((x) => x.kind === 'swap');
+  const limit = host.limit();
+  const { ladder, more, beyond, fallback } = stepOptions(base, all, limit, focus?.[0]);
+  const ups = ladder.filter((x) => x.kind !== 'swap');
+  const side = ladder.find((x) => x.kind === 'swap');
   const lead = ups.find((x) => x.kind === 'focus') ?? ups.find((x) => x.kind === 'best') ?? ups[ups.length - 1];
+  const asked = focus?.[2] ?? '';
   const tags: Record<string, string> = {
     same: 'Same phone, better spec',
     value: 'Best value step',
-    focus: `Best for ${focus?.[2] ?? ''}`,
-    best: 'Best step up',
+    least: `Cheapest step for ${asked}`,
+    focus: `Best for ${asked}`,
+    best: focus ? 'Best all-round' : 'Best step up',
     reach: 'Next real step',
   };
   const baseName = fullName(base.head);
+  const more$ = (p: Product): string => `${host.money(p.price - base.price)} more`;
   // Higher prices sit higher, like rungs: the options are listed dearest first with the pick at
   // the foot. Each option is measured from the pick, and says so directly beneath its card.
   let html = `<p class="from-pick">From the ${host.esc(baseName)}${base.head.grade ? `, grade ${host.esc(base.head.grade)}` : ''}, ${host.money(base.price)}</p>`;
-  // One tap on what they care about re-picks the options and puts that reason first.
-  html += `<div class="frow wrap focus"><span class="flabel">What matters most?</span>${FOCI.map(([id, label]) => host.chip('focus', id, label, s.fo === id)).join('')}</div>`;
+  // One tap on what they care about shows only options that improve it. Each chip says how many
+  // there are within the limit, so the ones worth asking about are plain before they are tapped.
+  const counts = focusCounts(base, all, limit, FOCI.map(([id]) => id));
+  html += `<div class="frow wrap focus"><span class="flabel">What matters most?</span>${FOCI.map(([id, label]) => host.chip('focus', id, `${label} <em>${counts[id]}</em>`, s.fo === id, counts[id] ? '' : ' none')).join('')}</div>`;
   const far = ups.find((x) => x.kind === 'reach');
-  if (!ups.length) html += `<p class="hint">Nothing up to ${host.money(host.limit() * 3)} more is clearly better than it.</p>`;
-  else if (far) html += `<p class="hint">Nothing up to ${host.money(host.limit())} more is clearly better. The next step that is costs ${host.money(far.product.price - base.price)} more.</p>`;
   // Said plainly when what they asked about is not on offer, so the options are not read as an answer to it.
-  else if (focus && !steps.some((x) => x.diff.up.some((p) => p.aspect === focus[0]))) html += `<p class="hint">Nothing in reach is clearly better for ${focus[2]}. These are the best all-round steps.</p>`;
+  if (fallback) html += `<p class="hint">Nothing up to ${host.money(limit)} more is better for ${asked}. These are the best all-round steps, and none is worse for it.</p>`;
+  else if (!ups.length && focus) html += `<p class="hint">Nothing up to ${host.money(limit)} more is better for ${asked}.${beyond.length ? ' A bigger step is below.' : ''}</p>`;
+  else if (!ups.length) html += `<p class="hint">Nothing up to ${host.money(limit * 3)} more is clearly better than it.</p>`;
+  else if (far) html += `<p class="hint">Nothing up to ${host.money(limit)} more is ${focus ? `better for ${asked}` : 'clearly better'}. The next step that is costs ${more$(far.product)}.</p>`;
   html += '<ol class="ladder options">';
   for (const st of [...ups].reverse()) {
     html += rungHtml(host, st.product, tags[st.kind], st === lead) + stepHtml(host, st.product.price - base.price, st.diff, baseName);
@@ -303,9 +310,29 @@ async function drawUp(host: FlowHost, s: FlowState, body: HTMLElement): Promise<
     html += `<h3>For the same money</h3><ol class="ladder options">${rungHtml(host, side.product, 'Worth a look')}${stepHtml(host, side.product.price - base.price, side.diff, baseName)}</ol>`;
   }
   const cols = [base, ...ups.map((x) => x.product)];
-  html += tableHtml(host, cols, ['Your pick', ...ups.map((x) => `${host.money(x.product.price - base.price)} more`)], lead ? cols.indexOf(lead.product) : -1);
+  html += tableHtml(host, cols, ['Your pick', ...ups.map((x) => more$(x.product))], lead ? cols.indexOf(lead.product) : -1);
+  // Every other phone within the limit that is better on balance, each with what it gains and what it gives up.
+  if (more.length) {
+    html += `<h3>More options${focus ? ` for ${asked}` : ''} within ${host.money(limit)}</h3><ul class="list more-opts">${more.map((st) => optionHtml(host, st, more$(st.product))).join('')}</ul>`;
+  }
+  // A much bigger step for a little past the limit, so it is seen without changing the setting.
+  if (beyond.length) {
+    html += `<h3>For a bit more</h3><p class="hint">A bigger step than anything within ${host.money(limit)}${focus ? `, for ${asked}` : ''}.</p><ol class="ladder options">`;
+    for (const st of [...beyond].reverse()) html += rungHtml(host, st.product, more$(st.product)) + stepHtml(host, st.product.price - base.price, st.diff, baseName);
+    html += '</ol>';
+  }
   html += limitHtml(host, 'Staff setting: suggest options up to this much more');
   swap(body, html);
+}
+
+/** A further option in brief: its card, its two strongest reasons and the main thing it gives up. */
+function optionHtml(host: FlowHost, st: Step, tag: string): string {
+  const g = groupOf(st.product);
+  host.register(g);
+  const card = host.cardHtml(g, '', { cls: ' opt', tag, vt: vtName(st.product) });
+  const gains = st.diff.gains.slice(0, 2).map((t) => `<li>${ICON_CHECK}<span>${host.esc(t)}</span></li>`).join('');
+  const loss = st.diff.losses.slice(0, 1).map((t) => `<li class="lose">${ICON_MINUS}<span><span class="sr">Gives up: </span>${host.esc(t)}</span></li>`).join('');
+  return card.replace(/<\/li>\s*$/, `<ul class="gains brief">${gains}${loss}</ul></li>`);
 }
 
 // ------------------------------------------------------------------ match a budget

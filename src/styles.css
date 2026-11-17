@@ -3815,3 +3815,36 @@ dialog {
     animation: none;
   }
 }
+
+/* ================================================================ step up: more options
+   Every further option is its own card, with its two strongest reasons and the main thing it
+   gives up written beneath, so the list can be read without opening anything. */
+
+.more-opts {
+  margin-top: 0;
+}
+
+.card .gains.brief {
+  margin: -2px 14px 14px 90px;
+  font-size: 14px;
+  gap: 4px;
+}
+
+.card .gains.brief svg {
+  width: 16px;
+  height: 16px;
+}
+
+.card .gains.brief li {
+  grid-template-columns: 16px minmax(0, 1fr);
+}
+
+/* A focus nothing within the limit improves stays tappable (it says so), but steps back. */
+.focus .chip.none:not([aria-pressed='true']) {
+  color: var(--muted);
+}
+
+.focus .chip em {
+  margin-left: 2px;
+  font-variant-numeric: tabular-nums;
+}

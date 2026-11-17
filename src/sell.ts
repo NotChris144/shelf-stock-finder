@@ -298,7 +298,7 @@ const family = (it: Item): string => `${it.kind}|${it.brand.toLowerCase() === 'a
 // The 4G and 5G versions of a model are different phones inside, so the network stays in the name.
 const modelKey = (it: Item): string => `${it.brand.toLowerCase()}|${norm(it.model)}`;
 
-export type StepKind = 'same' | 'value' | 'focus' | 'best' | 'reach' | 'swap';
+export type StepKind = 'same' | 'value' | 'least' | 'focus' | 'best' | 'reach' | 'swap' | 'more' | 'beyond';
 export interface Step {
   kind: StepKind;
   product: Product;
@@ -327,19 +327,20 @@ function sizeShift(from: Item, to: Item, focus?: Aspect): number {
   return by >= 0.9 ? 0.3 : by >= 0.5 ? 0.15 : 0;
 }
 
+interface Judged {
+  p: Product;
+  d: Diff;
+  /** The same model as the pick (bigger, or tidier). */
+  same: boolean;
+  gain: number;
+  delta: number;
+}
+
 /**
- * Options for a customer who has already picked `base`, each measured against that pick:
- *   same  – the same model with more storage or in better condition (the easy yes)
- *   value – the most improvement for each extra pound
- *   best  – the most improvement the limit allows
- *   focus – the best for the one thing they said matters most, when `best` is not it
- *   reach – when nothing within the limit is worth it: the nearest real improvement beyond it
- *   swap  – something better for the same money or less
- * An option has to be better on balance after its losses are counted. It is never one that drops
- * updates or is clearly slower, and a phone whose updates have ended has to be much better to be
- * suggested at all. `focus` tilts every choice towards what this customer cares about.
+ * Every other phone of the pick's kind, set beside it like for like and weighed up. Kept: those
+ * with one solid reason, nothing that rules them out, and something on record about them.
  */
-export function stepUps(base: Product, all: Product[], limit: number, focus?: Aspect): Step[] {
+function judge(base: Product, all: Product[], focus?: Aspect): Judged[] {
   const fam = family(base.head);
   const mk = modelKey(base.head);
   const cond = (it: Item): number => GRADE[it.grade] ?? 0;
@@ -353,8 +354,8 @@ export function stepUps(base: Product, all: Product[], limit: number, focus?: As
   // The easiest step of all: the very same phone in better condition.
   const tidier = base.items.filter((i) => cond(i) > cond(base.head)).sort((x, y) => x.price - y.price);
   const ownBetter: Product[] = tidier.length ? [{ ...base, key: `${base.key}|tidier`, items: tidier, head: tidier[0], price: tidier[0].price }] : [];
-  const judged = [...ownBetter, ...all.filter((p) => p.key !== base.key && family(p.head) === fam).map(beside)]
-    .map((p) => {
+  return [...ownBetter, ...all.filter((p) => p.key !== base.key && family(p.head) === fam).map(beside)]
+    .map((p): Judged => {
       // Within the pick's own group the better grade is the whole point, so it is not filtered out.
       const d = ownBetter.includes(p) ? diff(base.head, p.head, focus) : diffProducts(base, p, focus);
       const same = modelKey(p.head) === mk;
@@ -365,50 +366,137 @@ export function stepUps(base: Product, all: Product[], limit: number, focus?: As
     // A different model is only suggested when its speed or its specs are on record: one fact
     // about a phone nothing else is known of is not a recommendation.
     .filter((x) => solid(x.d, focus) && !dealBreaker(x.d, focus) && (x.same || x.p.head.perf !== null || x.p.head.specs !== null));
-  type Judged = (typeof judged)[number];
-  const steps: Step[] = [];
-  const add = (kind: StepKind, x: Judged | undefined): void => {
-    if (x && !steps.some((s) => s.product.key === x.p.key)) steps.push({ kind, product: x.p, diff: x.d, gain: x.gain });
+}
+
+/**
+ * Better on balance, though not by the margin the headline options need: worth listing among
+ * "more options", where each states what it gains and what it gives up.
+ */
+const ALSO = 0.2;
+
+/** With "what matters most" chosen, a phone that improves it needs only to be better on balance. */
+const FOR_FOCUS = 0.2;
+
+/** How far past the limit "a bit more" looks: two and a half times it, and never under £60 beyond. */
+const beyondReach = (limit: number): number => Math.max(limit * 2.5, limit + 60);
+
+export interface Options {
+  /** The headline options, cheapest first, then a same-money swap if there is one (see `stepUps`). */
+  ladder: Step[];
+  /** Every other option within the limit that is better on balance, cheapest first. */
+  more: Step[];
+  /** One or two that are a much bigger improvement for a little past the limit. */
+  beyond: Step[];
+  /**
+   * Nothing within the limit improves what they asked about, so the ladder holds the best
+   * all-round steps instead: each keeps that thing at least as good, and the screen says so.
+   */
+  fallback?: true;
+}
+
+/**
+ * Options for a customer who has already picked `base`, each measured against that pick.
+ *
+ * The ladder, with no steer from the customer:
+ *   same  – the same model with more storage or in better condition (the easy yes)
+ *   value – the most improvement for each extra pound
+ *   best  – the most improvement the limit allows
+ * When they have said what matters most (`focus`), every option on the ladder improves it:
+ *   least – the cheapest that does
+ *   focus – the one that improves it most
+ *   best  – the best all-round of those that improve it
+ * And either way:
+ *   reach – when nothing within the limit is worth it: the nearest real improvement beyond it
+ *   swap  – something better for the same money or less
+ * An option has to be better on balance after its losses are counted. It is never one that drops
+ * updates or is clearly slower (or worse at what they asked about), and a phone whose updates
+ * have ended has to be much better to be suggested at all.
+ */
+export function stepOptions(base: Product, all: Product[], limit: number, focus?: Aspect): Options {
+  const judged = judge(base, all, focus);
+  const cond = (it: Item): number => GRADE[it.grade] ?? 0;
+  const ladder: Step[] = [];
+  const add = (kind: StepKind, x: Judged | undefined, to: Step[] = ladder): void => {
+    if (x && ![...ladder, ...to].some((s) => s.product.key === x.p.key)) to.push({ kind, product: x.p, diff: x.d, gain: x.gain });
   };
   const byGain = (x: Judged, y: Judged): number => y.gain - x.gain || x.delta - y.delta;
-  const asked = (x: Judged): boolean => x.d.up.some((p) => p.aspect === focus);
+  const byPrice = (x: Judged, y: Judged): number => x.delta - y.delta || y.gain - x.gain;
+  const asked = (x: Judged): boolean => focus === undefined || x.d.up.some((p) => p.aspect === focus);
+  const askedBy = (x: Judged): number => x.d.up.find((p) => p.aspect === focus)?.w ?? 0;
   const otherModel = (x: Judged, than: Judged): boolean => modelKey(x.p.head) !== modelKey(than.p.head);
-
+  // The same phone, bigger or tidier, gives nothing up, so any gain will do.
+  const clean = (x: Judged): boolean => x.same && x.p.head.storageGb >= base.head.storageGb && cond(x.p.head) >= cond(base.head) && !x.d.down.length;
   const dearer = judged.filter((x) => x.delta > 0 && x.delta <= limit);
-  // The same phone, bigger or tidier: nothing is given up, so any gain will do. Of those, the
-  // one that gives most for each pound.
-  const same = dearer
-    .filter((x) => x.same && x.p.head.storageGb >= base.head.storageGb && cond(x.p.head) >= cond(base.head) && !x.d.down.length)
-    .sort((x, y) => y.gain / (y.delta + 15) - x.gain / (x.delta + 15))[0];
-  // A different phone has to be clearly better on balance: more than one modest reason's worth.
-  const others = dearer.filter((x) => !x.same && x.gain >= CLEAR);
-  const best = [...others].sort(byGain)[0];
-  // What they asked about, if the best all-round option does not improve it.
-  const forFocus = focus && best && !asked(best) ? others.filter((x) => asked(x) && otherModel(x, best)).sort(byGain)[0] : undefined;
-  // Value: improvement per pound, with a few pounds of ballast so a £2 step with one small gain
-  // does not win. It has to be a real saving on the best option and still a real improvement.
-  const value =
-    best && !forFocus
+  let fallback = false;
+
+  if (focus) {
+    // Everything on the ladder improves what they asked about; the rest of the choice follows.
+    const pool = dearer.filter((x) => asked(x) && (clean(x) || (!x.same && x.gain >= FOR_FOCUS)));
+    const least = [...pool].sort(byPrice)[0];
+    const most = [...pool].sort((x, y) => askedBy(y) - askedBy(x) || byGain(x, y))[0];
+    const best = [...pool].sort(byGain)[0];
+    add('least', least);
+    add('focus', most);
+    add('best', best);
+  }
+  // With no steer, or when nothing within the limit improves what they asked about: the
+  // all-round choice. Judged with their focus in mind, none of these is worse at it.
+  if (!ladder.length) {
+    fallback = focus !== undefined;
+    const same = dearer.filter(clean).sort((x, y) => y.gain / (y.delta + 15) - x.gain / (x.delta + 15))[0];
+    // A different phone has to be clearly better on balance: more than one modest reason's worth.
+    const others = dearer.filter((x) => !x.same && x.gain >= CLEAR);
+    const best = [...others].sort(byGain)[0];
+    // Value: improvement per pound, with a few pounds of ballast so a £2 step with one small gain
+    // does not win. It has to be a real saving on the best option and still a real improvement.
+    const value = best
       ? others
           .filter((x) => x !== best && otherModel(x, best) && x.delta <= best.delta * 0.75 && x.gain >= Math.max(CLEAR, best.gain * 0.4))
           .sort((x, y) => y.gain / (y.delta + 15) - x.gain / (x.delta + 15))[0]
       : undefined;
-  add('same', same);
-  add('value', value);
-  add('focus', forFocus);
-  add('best', best);
-  // Nothing in reach: rather than a shrug, the nearest step that is really worth taking.
-  if (!steps.length) {
-    add(
-      'reach',
-      judged.filter((x) => x.delta > limit && x.delta <= limit * 3 && x.gain >= 0.5 && (!x.same || !x.d.down.length)).sort((x, y) => x.delta - y.delta || y.gain - x.gain)[0],
-    );
+    add('same', same);
+    add('value', value);
+    add('best', best);
+    if (!ladder.length) fallback = false;
   }
-  steps.sort((x, y) => x.product.price - y.product.price);
+  // Nothing in reach: rather than a shrug, the nearest step that is really worth taking.
+  if (!ladder.length) {
+    add('reach', judged.filter((x) => asked(x) && x.delta > limit && x.delta <= limit * 3 && x.gain >= 0.5 && (!x.same || !x.d.down.length)).sort(byPrice)[0]);
+  }
+  ladder.sort((x, y) => x.product.price - y.product.price);
 
-  const swap = judged.filter((x) => !x.same && x.delta <= 0 && x.p.price >= base.price * 0.75 && x.gain >= 0.35).sort(byGain)[0];
-  if (swap && !steps.some((s) => s.product.key === swap.p.key)) steps.push({ kind: 'swap', product: swap.p, diff: swap.d, gain: swap.gain });
-  return steps;
+  // Everything else within the limit that is better on balance, for the staff member to scroll.
+  const more: Step[] = [];
+  for (const x of dearer.filter((x) => asked(x) && (clean(x) || (!x.same && x.gain >= ALSO))).sort(byPrice)) add('more', x, more);
+
+  // A little past the limit: only a much bigger improvement than anything inside it is worth it.
+  const inside = Math.max(0, ...ladder.filter((s) => s.kind !== 'reach').map((s) => s.gain), ...more.map((s) => s.gain));
+  const far = judged.filter((x) => asked(x) && !x.same && x.delta > limit && x.delta <= beyondReach(limit) && x.gain >= Math.max(0.8, inside + 0.3));
+  const beyond: Step[] = [];
+  add('beyond', [...far].sort(byPrice)[0], beyond);
+  add('beyond', [...far].sort(byGain)[0], beyond);
+  beyond.sort((x, y) => x.product.price - y.product.price);
+
+  const swap = judged.filter((x) => !x.same && asked(x) && x.delta <= 0 && x.p.price >= base.price * 0.75 && x.gain >= 0.35).sort(byGain)[0];
+  add('swap', swap);
+  return fallback ? { ladder, more, beyond, fallback: true } : { ladder, more, beyond };
+}
+
+/** The headline options only (see `stepOptions`). */
+export function stepUps(base: Product, all: Product[], limit: number, focus?: Aspect): Step[] {
+  return stepOptions(base, all, limit, focus).ladder;
+}
+
+/** For each thing a customer might care about, how many options within the limit improve it. */
+export function focusCounts(base: Product, all: Product[], limit: number, aspects: Aspect[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const a of aspects) {
+    const o = stepOptions(base, all, limit, a);
+    // All-round steps standing in for ones that improve it are not counted as improving it.
+    const ladder = o.fallback ? [] : o.ladder.filter((s) => s.kind !== 'reach' && s.kind !== 'swap');
+    out[a] = new Set([...ladder, ...o.more].map((s) => s.product.key)).size;
+  }
+  return out;
 }
 
 export type FitType = 'phone' | 'iphone' | 'android' | 'ipad' | 'androidtab';
