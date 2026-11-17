@@ -5,6 +5,7 @@ import { PRESETS, addonStock, clearCache, fetchStores, lookupIds, sampleStock, s
 import { fillActivity, forgetLog } from './activity.ts';
 import { slotsFor } from './addons.ts';
 import { basket } from './basket.ts';
+import { COMPARE_MAX, NONE, comparable, compareSections, comparing } from './compare.ts';
 import { cameIn, cameShort, cameText, capitalise, loadSince, sinceInHand } from './arrived.ts';
 import { findCover, forget, remembered, spineOf, type Cover } from './covers.ts';
 import { DEMO_HITS } from './demo.ts';
@@ -1198,6 +1199,161 @@ async function openBasket(): Promise<void> {
 
 basket.onChange(syncBasket);
 
+// ------------------------------------------------------------------ compare
+//
+// Models side by side (src/compare.ts). An opened card puts one in; a pill above the bottom bar
+// says how many there are and opens them. It keeps across searches, so a phone found in one
+// search can be set beside one found in the next.
+
+
+function compareBtn(it: Item): string {
+  const on = comparing.has(it.id);
+  return `<button type="button" class="chip basket-chip cmp-chip" data-act="cmp-add" data-v="${esc(it.id)}" data-on="${on}">${compareBtnInner(on)}</button>`;
+}
+
+const compareBtnInner = (on: boolean): string => (on ? `${ICON_CHECK}Comparing` : 'Compare');
+const shortName = (it: Item): string => `${it.title}${it.storage ? ' ' + it.storage.split(' ')[0] : ''}`;
+
+function toggleComparing(id: string): void {
+  if (comparing.has(id)) {
+    comparing.remove(id);
+    toast('Taken out of the comparison');
+    return;
+  }
+  const it = known.get(id);
+  if (!it) return;
+  if (comparing.full()) {
+    toast(`Compare takes ${COMPARE_MAX} at a time. Take one out first.`);
+    return;
+  }
+  comparing.add(it);
+  const n = comparing.count();
+  toast(n === 1 ? 'Added. Open another and tap Compare to set them side by side.' : `${n} to compare. Tap Compare to see them.`);
+}
+
+/** The pill above the bottom bar, the buttons on opened cards, and the sheet if it is open. */
+function syncCompare(): void {
+  const list = comparing.list();
+  const n = list.length;
+  const tray = $('#cmpTray');
+  tray.hidden = n === 0;
+  document.body.classList.toggle('cmp-on', n > 0);
+  $('#cmpTrayLabel').textContent = `Compare · ${n}`;
+  $('#cmpTrayPics').innerHTML = list
+    .map((e) => {
+      const src = e.hit.imageUrls?.small ?? e.hit.imageUrls?.medium ?? '';
+      return `<i>${src ? `<img src="${esc(encodeURI(src))}" alt="" decoding="async" onerror="this.remove()">` : ''}</i>`;
+    })
+    .join('');
+  for (const b of document.querySelectorAll<HTMLElement>('[data-act="cmp-add"]')) {
+    const on = comparing.has(b.dataset.v ?? '');
+    if (b.dataset.on === String(on)) continue;
+    b.dataset.on = String(on);
+    b.innerHTML = compareBtnInner(on);
+  }
+  if ($<HTMLDialogElement>('#compare').open) drawCompare();
+}
+
+/**
+ * The models across the top, a picture each and then name and price, which stay in view as the
+ * facts scroll under them. Each fact is a row: its name, then a value per model in the same
+ * columns. "Only differences" hides the rows where they all read the same.
+ */
+function drawCompare(): void {
+  const d = $<HTMLDialogElement>('#compare');
+  const top = d.scrollTop;
+  const list = comparing.list();
+  const its = list.map((e) => toItem(e.hit, 0, ctx));
+  const n = its.length;
+  const only = n > 1 && store.get('cmpDiff', false);
+  const cols = ` style="--n:${Math.max(1, n)}"`;
+  const names = its.map(shortName);
+
+  const pics = its
+    .map((it, i) => {
+      const icon = it.kind === 'phone' || it.kind === 'tablet' ? ICON_PHONE : ICON_LAPTOP;
+      const img = it.img ? `<img src="${esc(it.img)}" alt="" decoding="async" onerror="this.remove()">` : '';
+      return `<div class="cmp-pic"><span class="cmp-img">${icon}${img}</span><button type="button" class="cmp-x" data-act="cmp-remove" data-v="${esc(it.id)}" aria-label="Take ${esc(names[i])} out of the comparison">${ICON_X}</button></div>`;
+    })
+    .join('');
+  const heads = its
+    .map((it, i) => {
+      const gone = list[i].gone;
+      return `<div class="cmp-head${gone ? ' gone' : ''}"><span class="cmp-name">${esc(names[i])}</span><span class="cmp-price">${money(it.price)}</span>${gone ? '<span class="cmp-gone">Not in stock here now</span>' : ''}</div>`;
+    })
+    .join('');
+
+  let shown = 0;
+  const body = compareSections(its, Date.now())
+    .map((sec) => {
+      const rows = sec.rows.filter((r) => !only || !r.same);
+      shown += rows.length;
+      if (!rows.length) return '';
+      return `<section class="cmp-sec"><h3>${esc(sec.title)}</h3>${rows
+        .map(
+          (r) => `<div class="cmp-row${r.best.length ? ' ranked' : ''}"><p class="cmp-label">${esc(r.label)}</p><div class="cmp-cells"${cols}>${r.cells
+            .map((c, i) => {
+              const cls = ['cmp-cell', r.best.includes(i) && 'best', c.text === NONE && 'none'].filter(Boolean).join(' ');
+              const dot = c.tone ? `<i class="dot st-${c.tone}" aria-hidden="true"></i>` : '';
+              const bar = c.bar !== undefined ? `<span class="cmp-bar" aria-hidden="true"><i style="width:${Math.max(4, Math.round(c.bar * 100))}%"></i></span>` : '';
+              const value = c.text === NONE ? `${NONE}<span class="sr">not recorded</span>` : esc(c.text);
+              return `<span class="${cls}"><span class="sr">${esc(names[i])}: </span>${dot}${value}${r.best.includes(i) && n > 1 ? '<span class="sr"> (better)</span>' : ''}${bar}</span>`;
+            })
+            .join('')}</div></div>`,
+        )
+        .join('')}</section>`;
+    })
+    .join('');
+
+  d.innerHTML = `<form method="dialog" class="sheet-in cmp">
+    <header class="sheet-bar"><h2>Compare</h2><button class="done" value="close">Done</button></header>
+    ${
+      n
+        ? `<div class="cmp-pics"${cols}>${pics}</div>
+      <div class="cmp-heads"${cols}>${heads}</div>
+      ${n > 1 ? `<div class="frow wrap cmp-tools">${chip('cmp-diff', 1, 'Only differences', only)}</div>` : ''}
+      ${n === 1 ? '<p class="cmp-hint">Open another phone, tablet or computer and tap Compare to set it beside this one. It can be from another search.</p>' : ''}
+      ${only && !shown ? '<p class="cmp-hint">They match on everything recorded.</p>' : body}
+      <p class="fine">Tested figures were measured by GSMArena. Speed ratings are approximate, and update dates for Apple devices are estimates.</p>
+      <button type="button" class="link b-clear" data-act="cmp-clear">Clear the comparison</button>`
+        : '<p class="b-empty">Nothing to compare yet. Open any phone, tablet or computer and tap Compare.</p>'
+    }
+  </form>`;
+  d.scrollTop = top;
+}
+
+/** When the comparison was last checked against CeX. */
+let compareChecked = 0;
+
+async function openCompare(): Promise<void> {
+  const d = $<HTMLDialogElement>('#compare');
+  drawCompare();
+  if (!d.open) {
+    d.showModal();
+    d.focus({ preventScroll: true });
+    history.pushState({ ui: true }, '');
+  }
+  // Prices move and stock sells: checked again, at most once a minute.
+  if (demo || !comparing.count() || Date.now() - compareChecked < 60_000) return;
+  compareChecked = Date.now();
+  try {
+    const ids = comparing.list().map((e) => e.id);
+    const r = await lookupIds(ids, branch);
+    comparing.recheck(
+      new Map(
+        ids.map((id) => {
+          const h = r.hits.find((x) => String(x.boxId) === id);
+          return [id, h ? { hit: h, here: r.here.has(id) } : null];
+        }),
+      ),
+    );
+  } catch {
+    compareChecked = 0;
+  }
+}
+
+comparing.onChange(syncCompare);
+
 
 // ------------------------------------------------------------------ when it came in
 //
@@ -1298,6 +1454,8 @@ function detailHtml(g: Group): string {
   const acts: string[] = [];
   // Several copies: each goes in the basket from its own row above.
   if (one) acts.push(basketBtn(it, 'chip'));
+  // The model, whichever copy: with several, the cheapest stands for them.
+  if (comparable(it)) acts.push(compareBtn(it));
   const stepUp = scanned && (it.kind === 'phone' || it.kind === 'tablet');
   if (stepUp) acts.push(`<button type="button" class="chip" aria-pressed="true" data-act="stepup" data-v="${esc(it.id)}">Find a step up</button>`);
   if (!demo && slotsFor(it).length) acts.push(`<button type="button" class="chip" aria-pressed="${!stepUp}" data-act="addons" data-v="${esc(it.id)}">Suggest add-ons</button>`);
@@ -2127,7 +2285,7 @@ function dismiss(d: HTMLDialogElement): void {
 
 // The phone's Back button closes whatever is open before it leaves the page. A cover can be
 // opened over the scanner, so Back closes one layer at a time, the top one first.
-const LAYERS = ['#cover', '#sheet', '#basket', '#scanner'];
+const LAYERS = ['#cover', '#sheet', '#basket', '#compare', '#scanner'];
 /** The next history step is ours, undoing the entry a layer added when it opened. */
 let ownBack = false;
 for (const id of LAYERS) {
@@ -2255,6 +2413,7 @@ function pullToClose(d: HTMLDialogElement, from: (target: HTMLElement, fromTop: 
 pullToClose($<HTMLDialogElement>('#sheet'), (t, fromTop) => Boolean(t.closest('.sheet-bar')) || fromTop < 30);
 pullToClose($<HTMLDialogElement>('#cover'), () => true);
 pullToClose($<HTMLDialogElement>('#basket'), (t, fromTop) => Boolean(t.closest('.sheet-bar')) || fromTop < 30);
+pullToClose($<HTMLDialogElement>('#compare'), (t, fromTop) => Boolean(t.closest('.sheet-bar')) || fromTop < 30);
 // Tapping the dimmed page above the cover puts it away too.
 $('#cover').addEventListener('click', (ev) => {
   if (ev.target === ev.currentTarget && ev.clientY < (ev.currentTarget as HTMLElement).getBoundingClientRect().top) dismiss(ev.currentTarget as HTMLDialogElement);
@@ -2651,6 +2810,23 @@ document.addEventListener('click', (ev) => {
     case 'basket-clear':
       basket.clear();
       break;
+    case 'cmp-add':
+      toggleComparing(v);
+      break;
+    case 'cmp-open':
+      if (!holdEl.hidden) closeHold();
+      void openCompare();
+      break;
+    case 'cmp-remove':
+      comparing.remove(v);
+      break;
+    case 'cmp-clear':
+      comparing.clear();
+      break;
+    case 'cmp-diff':
+      store.set('cmpDiff', !store.get('cmpDiff', false));
+      drawCompare();
+      break;
     case 'extend':
       extend(flowHost, F, $('#results'), v);
       break;
@@ -2811,7 +2987,7 @@ document.addEventListener('keydown', (ev) => {
 });
 
 // Tapping the backdrop closes a sheet.
-for (const id of ['#sheet', '#basket']) {
+for (const id of ['#sheet', '#basket', '#compare']) {
   $(id).addEventListener('click', (ev) => {
     if (ev.target === ev.currentTarget) dismiss(ev.currentTarget as HTMLDialogElement);
   });
@@ -2854,6 +3030,7 @@ window.addEventListener('hashchange', () => {
 readHash();
 $<HTMLInputElement>('#q').value = F.q;
 syncBasket();
+syncCompare();
 void load();
 // Handy when checking parsing against live data from the dev console.
 if (import.meta.env.DEV) {

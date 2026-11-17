@@ -4152,3 +4152,320 @@ dialog {
 .card.gone .price {
   opacity: 0.55;
 }
+
+/* ---------------------------------------------------------------- compare */
+
+/* Waiting to be compared: a pill above the bottom bar with a picture of each, and the way to them. */
+.cmp-tray {
+  position: fixed;
+  left: 50%;
+  bottom: calc(72px + var(--dock-gap));
+  z-index: 12;
+  translate: -50% 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 10px 0 6px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 14.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  box-shadow: var(--shadow);
+  animation: reveal 0.2s ease-out;
+  transition: transform 0.3s var(--ease);
+}
+
+.cmp-tray[hidden] {
+  display: none;
+}
+
+.cmp-tray:active {
+  transform: scale(0.95);
+  transition-duration: 0s;
+}
+
+.cmp-tray > svg {
+  width: 16px;
+  height: 16px;
+  margin-left: -2px;
+  stroke-width: 2.2;
+}
+
+.cmp-tray-pics {
+  display: flex;
+}
+
+.cmp-tray-pics i {
+  display: block;
+  width: 28px;
+  height: 28px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--thumb);
+  box-shadow: 0 0 0 2px var(--text);
+}
+
+.cmp-tray-pics i + i {
+  margin-left: -9px;
+}
+
+.cmp-tray-pics img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* The pill takes room at the foot, so the page, a toast and a tip all sit above it. */
+body.cmp-on {
+  padding-bottom: calc(134px + var(--dock-gap));
+}
+
+body.cmp-on .toast {
+  bottom: calc(126px + var(--dock-gap));
+}
+
+body.cmp-on .hold-tip {
+  bottom: calc(122px + var(--dock-gap));
+}
+
+/* The sheet: models across the top, then one row per fact with a value under each. */
+.cmp {
+  gap: 12px;
+}
+
+.cmp-tools {
+  margin-top: 2px;
+  padding: 0 var(--gutter);
+}
+
+.cmp-pics,
+.cmp-heads,
+.cmp-cells {
+  display: grid;
+  grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr));
+  column-gap: 12px;
+}
+
+.cmp-pics,
+.cmp-heads {
+  padding: 0 var(--gutter);
+}
+
+.cmp-pic {
+  position: relative;
+  width: min(100%, 88px);
+  margin-top: 6px;
+}
+
+.cmp-img {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--thumb);
+  color: #9aa2af;
+}
+
+.cmp-img svg {
+  width: 26px;
+  height: 26px;
+}
+
+.cmp-img img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 6%;
+  object-fit: contain;
+  background: var(--thumb);
+}
+
+/* A 40px target round a small disc on the photo's corner. */
+.cmp-x {
+  position: absolute;
+  top: -13px;
+  right: -13px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: var(--text);
+}
+
+.cmp-x::before {
+  content: '';
+  grid-area: 1 / 1;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  box-shadow: 0 0 0 2px var(--surface);
+  transition: transform 0.2s var(--ease);
+}
+
+.cmp-x:active::before {
+  transform: scale(0.88);
+  transition-duration: 0s;
+}
+
+.cmp-x svg {
+  grid-area: 1 / 1;
+  position: relative;
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.2;
+}
+
+/* Name and price stay in view while the facts scroll under them. */
+.cmp-heads {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin-top: -4px;
+  padding-block: 8px 10px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+  border-bottom: 0.5px solid var(--hair);
+}
+
+.cmp-head {
+  display: grid;
+  align-content: start;
+  gap: 1px;
+  min-width: 0;
+}
+
+.cmp-name {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.cmp-price {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.cmp-head.gone .cmp-name,
+.cmp-head.gone .cmp-price {
+  opacity: 0.55;
+}
+
+.cmp-gone {
+  font-size: 12px;
+  line-height: 1.25;
+  color: var(--muted);
+}
+
+.cmp-hint {
+  margin: 0 var(--gutter);
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.cmp-sec {
+  display: grid;
+  margin-top: 4px;
+}
+
+.sheet-in .cmp-sec h3 {
+  margin: 0 var(--gutter) 2px;
+  padding: 0;
+  border: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.cmp-row {
+  padding: 9px var(--gutter) 10px;
+}
+
+.cmp-row + .cmp-row {
+  border-top: 0.5px solid var(--hair);
+}
+
+.cmp-label {
+  margin: 0 0 3px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.cmp-cell {
+  min-width: 0;
+  font-size: 15px;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* Where one is better it is set in full ink, and the others step back. */
+.cmp-row.ranked .cmp-cell {
+  color: var(--muted);
+}
+
+.cmp-row.ranked .cmp-cell.best {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.cmp-cell.none {
+  color: var(--muted);
+}
+
+.cmp-cell .dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--c, var(--muted));
+  vertical-align: 1px;
+}
+
+.cmp-bar {
+  display: block;
+  height: 4px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--fill);
+}
+
+.cmp-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--text) 38%, transparent);
+}
+
+.cmp-cell.best .cmp-bar i {
+  background: var(--text);
+}
+
+.cmp > .fine {
+  margin-top: 6px;
+}
+
+/* No footer bar on these two, so the last link clears the phone's home bar by itself. */
+#basket .sheet-in,
+.cmp {
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+}

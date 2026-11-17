@@ -55,6 +55,9 @@
       <main id="results"></main>
     </div>
     <p class="hold-tip" id="holdTip" hidden>Tip: hold Filters and slide up. Slide left for more.</p>
+    <button type="button" class="cmp-tray" id="cmpTray" data-act="cmp-open" hidden>
+      <span class="cmp-tray-pics" id="cmpTrayPics" aria-hidden="true"></span><span id="cmpTrayLabel">Compare</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+    </button>
     <nav class="dock" aria-label="Quick actions">
       <button type="button" class="dock-btn" id="dockHome" data-act="home">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z" /></svg><span>Start</span>
@@ -72,6 +75,7 @@
     <div class="hold" id="hold" hidden></div>
     <dialog class="sheet" id="sheet" aria-label="Filters" tabindex="-1" autofocus></dialog>
     <dialog class="sheet" id="basket" aria-label="Basket" tabindex="-1" autofocus></dialog>
+    <dialog class="sheet" id="compare" aria-label="Compare" tabindex="-1" autofocus></dialog>
     <dialog class="scanner" id="scanner" aria-label="Barcode scanner" tabindex="-1" autofocus></dialog>
     <dialog class="cover" id="cover" aria-label="Spine and cover" tabindex="-1" autofocus></dialog>
     <p class="toast" id="toast" role="status" popover="manual" hidden></p>

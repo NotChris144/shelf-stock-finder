@@ -141,6 +141,31 @@ What the customer at the counter is having, and what it comes to (`src/basket.ts
   in hand.
 - **Kept on the phone:** a reload or a spell in a pocket loses nothing. It is emptied by hand.
 
+## Compare
+
+Models side by side, fact by fact, sized for a phone (`src/compare.ts`).
+
+- **Putting them in:** an opened phone, tablet or computer card has **Compare**. Up to four at a
+  time, from any number of searches: the list keeps until it is cleared, so an iPhone found in one
+  search can sit beside a Galaxy found in the next. Where a card holds several copies, the
+  cheapest stands for the model.
+- **The pill:** while anything is waiting, a pill above the bottom bar shows a picture of each and
+  how many there are. Tapping it opens the comparison.
+- **The comparison:** a picture of each model across the top, then its name and price, which stay
+  in view while the facts scroll under them. Each fact is a row: its name, then a value under each
+  model, so no column of labels takes up the width. Sections run At a glance, Screen, Battery,
+  Camera, Inside, Build and Software.
+  - Where one is better, it is set in full ink and the others step back. Figures that can be
+    weighed (speed, tested battery life and brightness, charging, Geekbench) get a bar.
+  - Battery capacity only marks a winner when all are on the same system, as iPhones last as long
+    on fewer mAh.
+  - Megapixels, screen size and weight are shown but never called better.
+  - A fact nobody recorded is a dash. Nothing is estimated.
+  - **Only differences** hides the rows where they all read the same.
+  - A cross on each picture takes that model out, and **Clear the comparison** empties it.
+- **Checked on opening:** prices are read again from CeX at most once a minute, and anything no
+  longer in stock at the branch says so under its price.
+
 ## Phone and tablet spec sheets
 
 CeX's records name a phone but hold nothing about its camera, battery, screen or chip. Those come
