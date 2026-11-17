@@ -4665,8 +4665,8 @@ body.cmp-on .hold-tip {
 
 /* ---------------------------------------------------------------- swiping a card */
 
-/* Up and down stays the page's; sideways is the card's. */
-#results .card > .card-main {
+/* Up and down stays the page's; sideways is the card's, open or not. */
+#results .card {
   touch-action: pan-y;
 }
 
@@ -4675,15 +4675,27 @@ body.cmp-on .hold-tip {
   background: var(--surface-2);
 }
 
-.card.swiping > .card-main {
+.card.swiping > :not(.swipe-under) {
   position: relative;
   z-index: 1;
-  border-radius: inherit;
   background: var(--surface);
   will-change: transform;
 }
 
-.card.settling > .card-main {
+.card.swiping > .card-main {
+  border-radius: inherit;
+}
+
+/* Open, the header and the details slide together as one card: rounded only at its outer corners. */
+.card.swiping.open > .card-main {
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.card.swiping.open > .detail {
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.card.settling > :not(.swipe-under) {
   transition: transform 0.34s var(--ease);
 }
 
@@ -4691,10 +4703,11 @@ body.cmp-on .hold-tip {
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   padding: 0 22px;
   border-radius: inherit;
+  background: var(--surface-2);
   color: var(--text);
 }
 
@@ -4710,10 +4723,12 @@ body.cmp-on .hold-tip {
   color: var(--accent-ink);
 }
 
+/* Centred on the height the thumb is at (the middle, on a closed card). */
 .sw {
   display: grid;
   justify-items: center;
   gap: 4px;
+  translate: 0 calc(var(--y, 50%) - 50%);
   font-size: 12.5px;
   font-weight: 650;
   white-space: nowrap;

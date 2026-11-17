@@ -2910,7 +2910,9 @@ const toggleIn = (list: string[], v: string): string[] => (list.includes(v) ? li
 //    gathered from a list without opening anything.
 // The card slides over a coloured well that says what letting go will do. Past about a third of
 // the way, or flicked, it does it; otherwise it springs back. A direction the card can't go
-// gives a little and no more.
+// gives a little and no more. An opened card swipes the same way, all of it as one piece, from
+// wherever the thumb lands on it, and the well's words sit level with the thumb so they are on
+// screen however tall the card is.
 
 /** Which of the budget screen's kinds of device it is, if it has one. */
 function fitTypeOf(it: Item): FitType | null {
@@ -2922,7 +2924,8 @@ function fitTypeOf(it: Item): FitType | null {
 interface Swipe {
   pointer: number;
   card: HTMLElement;
-  main: HTMLElement;
+  /** What slides: the card's header, and its details when it is open. */
+  parts: HTMLElement[];
   under: HTMLElement | null;
   g: Group;
   x0: number;
@@ -2948,12 +2951,13 @@ document.addEventListener(
     if (swipe || F.mode || isHome() || ev.button !== 0 || document.body.classList.contains('sliding')) return;
     // The phone's own edge swipe (Back) keeps the left edge.
     if (ev.clientX < 24) return;
-    const main = (ev.target as HTMLElement).closest<HTMLElement>('#results .card:not(.open) > .card-main');
-    const card = main?.parentElement;
+    const t = ev.target as HTMLElement;
+    if (t.closest('input, select, textarea')) return;
+    const card = t.closest<HTMLElement>('#results .card');
     const g = card && groups.find((x) => x.key === card.dataset.key);
-    if (!main || !card || !g) return;
+    if (!card || !g) return;
     if (!fitTypeOf(g.head) && !comparable(g.head)) return;
-    swipe = { pointer: ev.pointerId, card, main, under: null, g, x0: ev.clientX, y0: ev.clientY, dx: 0, on: false, side: 0, armed: false, recent: [] };
+    swipe = { pointer: ev.pointerId, card, parts: [], under: null, g, x0: ev.clientX, y0: ev.clientY, dx: 0, on: false, side: 0, armed: false, recent: [] };
   },
   { passive: true },
 );
@@ -2969,10 +2973,11 @@ document.addEventListener('pointermove', (ev) => {
     if (Math.abs(dx) < Math.abs(dy) * 1.3) return void (swipe = null);
     s.on = true;
     try {
-      s.main.setPointerCapture(s.pointer);
+      s.card.setPointerCapture(s.pointer);
     } catch {
       /* the finger has already lifted */
     }
+    s.parts = [...s.card.children] as HTMLElement[];
     s.card.classList.add('swiping');
     const on = comparing.has(s.g.head.id);
     s.card.insertAdjacentHTML(
@@ -2983,6 +2988,10 @@ document.addEventListener('pointermove', (ev) => {
       </div>`,
     );
     s.under = s.card.firstElementChild as HTMLElement;
+    // Level with the thumb, kept clear of the card's top and bottom edges.
+    const box = s.card.getBoundingClientRect();
+    const y = s.card.classList.contains('open') ? Math.min(box.height - 40, Math.max(40, s.y0 - box.top)) : box.height / 2;
+    s.under.style.setProperty('--y', `${Math.round(y)}px`);
   }
   const can = dx > 0 ? comparable(s.g.head) : Boolean(fitTypeOf(s.g.head));
   const w = s.card.offsetWidth;
@@ -2998,7 +3007,7 @@ document.addEventListener('pointermove', (ev) => {
   const now = performance.now();
   s.recent.push({ x: ev.clientX, t: now });
   while (s.recent.length > 2 && now - s.recent[0].t > 100) s.recent.shift();
-  s.main.style.transform = `translateX(${x}px)`;
+  for (const el of s.parts) el.style.transform = `translateX(${x}px)`;
   const u = s.under!;
   u.dataset.side = !can ? '' : x > 0 ? 'cmp' : 'bud';
   u.style.setProperty('--p', String(Math.min(1, Math.abs(x) / arm)));
@@ -3018,16 +3027,19 @@ function endSwipe(ev: PointerEvent): void {
   const can = s.side > 0 ? comparable(s.g.head) : s.side < 0 && Boolean(fitTypeOf(s.g.head));
   const flick = can && Math.abs(s.dx) > 48 && Math.sign(speed) === s.side && Math.abs(speed) > 0.6;
   const go = ev.type === 'pointerup' && (s.armed || flick);
-  const { card, main, under, g } = s;
+  const { card, parts, under, g } = s;
+  const move = (to: string): void => {
+    for (const el of parts) el.style.transform = to;
+  };
   const tidy = (): void => {
     card.classList.remove('swiping', 'settling');
     under?.remove();
-    main.style.removeProperty('transform');
+    for (const el of parts) el.style.removeProperty('transform');
   };
   card.classList.add('settling');
   if (go && s.side < 0) {
     // Off it goes the way it was pushed, and the budget screen comes in after it.
-    main.style.transform = 'translateX(-104%)';
+    move('translateX(-104%)');
     window.setTimeout(() => {
       apply({ ...DEFAULTS, mode: 'fit', bud: budgetOf(g), ft: fitTypeOf(g.head)! }, true, true);
       window.scrollTo({ top: 0 });
@@ -3035,7 +3047,7 @@ function endSwipe(ev: PointerEvent): void {
     }, 170);
     return;
   }
-  main.style.transform = '';
+  move('');
   window.setTimeout(tidy, 340);
   if (go) toggleComparing(g.head.id, g.head);
 }

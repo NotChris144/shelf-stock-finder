@@ -159,7 +159,7 @@ is always in the same place:
 
 ## Swiping a card
 
-In search, a card can be swiped instead of opened:
+In search, a card can be swiped, closed or opened:
 
 - **Left** opens **Match a budget** at the card's price, for its kind of device (iPhone, Android
   phone, iPad or Android tablet): the best match for that money, a cheaper one, one a little
@@ -173,6 +173,10 @@ the way, or flicked, it happens; otherwise the card springs back. A direction a 
 gives a little and no more, and games, films and accessories don't move. Swipes start clear of
 the screen's left edge, which stays the phone's own Back gesture. Up and down still scrolls, and a
 tap still opens the card.
+
+An opened card swipes as one piece, from anywhere on it: its header, its facts or its buttons. A
+swipe that starts on a button doesn't press it, the card stays open afterwards, and the strip's
+words sit level with the thumb, so they are on screen however tall the card is.
 
 ## Compare
 
