@@ -810,7 +810,7 @@ function perfBadge(it: Item): string {
 }
 
 /** `when` puts a time under the price; `plain` leaves off the extras (the spine button). */
-function cardHtml(g: Group, note = '', opts: { cls?: string; tag?: string; vt?: string; when?: string; plain?: boolean; came?: Item } = {}): string {
+function cardHtml(g: Group, note = '', opts: { cls?: string; tag?: string; vt?: string; when?: string; plain?: boolean; came?: Item; remove?: boolean } = {}): string {
   const it = g.head;
   const n = g.items.length;
   const grades = [...new Set(g.items.map((i) => i.grade).filter(Boolean))].sort();
@@ -836,6 +836,7 @@ function cardHtml(g: Group, note = '', opts: { cls?: string; tag?: string; vt?: 
       <span class="price">${price}${opts.when ? `<span class="when">${esc(opts.when)}</span>` : ''}</span>
     </button>
     ${spine ? `<button type="button" class="spine-btn" data-act="cover" data-v="${esc(it.id)}" aria-label="Show the spine and cover of ${esc(it.title)}">${ICON_SPINE}<span>Spine</span></button>` : ''}
+    ${opts.remove ? `<button type="button" class="card-x" data-act="basket-remove" data-v="${esc(it.id)}" aria-label="Take ${esc(it.title)} out of the basket">${ICON_X}</button>` : ''}
   </li>`;
 }
 
@@ -1108,32 +1109,60 @@ function syncBasket(): void {
   if ($<HTMLDialogElement>('#basket').open) drawBasket();
 }
 
+/** The basket's lines as cards, by key, for the shared card handler to open. */
+const basketGroups = new Map<string, Group>();
+
+/**
+ * Each line is a card like a search result's, and opens the same way with every detail. One
+ * saved before the basket kept CeX's record has no card until that record is fetched again (on
+ * opening), and shows as a plain line meanwhile. Cards open before a redraw stay open.
+ */
 function drawBasket(): void {
+  const d = $<HTMLDialogElement>('#basket');
+  const wasOpen = new Set([...d.querySelectorAll<HTMLElement>('.card.open')].map((c) => c.dataset.key ?? ''));
+  const top = d.scrollTop;
   const lines = basket.lines();
   const n = lines.length;
+  basketGroups.clear();
   const rows = lines
     .map((l) => {
+      const notes = [l.gone && 'Not in stock here now', l.was !== undefined && `Was ${money(l.was)}`].filter(Boolean).join(' · ');
+      if (l.hit) {
+        const it = { ...toItem(l.hit, 0, ctx), price: l.price };
+        known.set(it.id, it);
+        const g: Group = { key: `basket:${l.id}`, items: [it], head: it, min: it.price, max: it.price };
+        basketGroups.set(g.key, g);
+        return cardHtml(g, notes, { cls: l.gone ? ' gone' : '', plain: true, remove: true });
+      }
       const img = l.img ? `<img src="${esc(l.img)}" alt="" loading="lazy" decoding="async" width="44" height="44" onerror="this.remove()">` : '';
-      const notes = [l.gone && `${DOT}Not in stock here now`, l.was !== undefined && `Was ${money(l.was)}`].filter(Boolean).join(' · ');
       return `<li class="b-line${l.gone ? ' gone' : ''}">
         <span class="b-img">${img}</span>
         <span class="b-name">${esc(l.name)}</span>
         <span class="b-meta">${[l.detail && esc(l.detail), notes].filter(Boolean).join(' · ')}</span>
         <span class="b-price">${money(l.price)}</span>
-        <button type="button" class="b-remove" data-act="basket-remove" data-v="${esc(l.id)}" aria-label="Take ${esc(l.name)} out"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg></button>
+        <button type="button" class="b-remove" data-act="basket-remove" data-v="${esc(l.id)}" aria-label="Take ${esc(l.name)} out">${ICON_X}</button>
       </li>`;
     })
     .join('');
-  $('#basket').innerHTML = `<form method="dialog" class="sheet-in">
+  d.innerHTML = `<form method="dialog" class="sheet-in">
     <header class="sheet-bar"><h2>Basket</h2><button class="done" value="close">Done</button></header>
     ${
       n
-        ? `<ul class="basket">${rows}</ul>
+        ? `<ul class="list basket-list">${rows}</ul>
       <p class="b-total"><span>${n} ${n === 1 ? 'item' : 'items'}</span><strong>${money(basket.total())}</strong></p>
       <button type="button" class="link b-clear" data-act="basket-clear">Empty the basket</button>`
         : '<p class="b-empty">Nothing in it yet. Open any item and tap Add to basket.</p>'
     }
   </form>`;
+  for (const key of wasOpen) {
+    const g = basketGroups.get(key);
+    const card = d.querySelector<HTMLElement>(`.card[data-key="${CSS.escape(key)}"]`);
+    if (!g || !card) continue;
+    card.classList.add('open');
+    card.querySelector('.card-main')?.setAttribute('aria-expanded', 'true');
+    card.insertAdjacentHTML('beforeend', detailHtml(g));
+  }
+  d.scrollTop = top;
 }
 
 /** When the basket was last checked against CeX. */
@@ -1147,8 +1176,9 @@ async function openBasket(): Promise<void> {
     d.focus({ preventScroll: true });
     history.pushState({ ui: true }, '');
   }
-  // Prices move and stock sells: each line is checked again, at most once a minute.
-  if (demo || !basket.count() || Date.now() - basketChecked < 60_000) return;
+  // Prices move and stock sells: each line is checked again, at most once a minute, or at once
+  // when a line has no record of CeX's to open with.
+  if (demo || !basket.count() || (Date.now() - basketChecked < 60_000 && basket.lines().every((l) => l.hit))) return;
   basketChecked = Date.now();
   try {
     const ids = basket.lines().map((l) => l.id);
@@ -1157,7 +1187,7 @@ async function openBasket(): Promise<void> {
       new Map(
         ids.map((id) => {
           const h = r.hits.find((x) => String(x.boxId) === id);
-          return [id, h ? { price: Number(h.sellPrice) || 0, here: r.here.has(id) } : null];
+          return [id, h ? { hit: h, here: r.here.has(id) } : null];
         }),
       ),
     );
@@ -1240,7 +1270,8 @@ function detailHtml(g: Group): string {
   if (scanned) fact('Label', `${fresh ? DOT : ''}Should read ${money(it.price)}${fresh ? `. Changed ${daysAgo(it.priceChanged)}` : ''}`, fresh ? 'st-warn' : '');
   else if (fresh) fact('Price', `${DOT}Changed ${daysAgo(it.priceChanged)}. Check the label matches.`, 'st-warn');
   // When it came in: only for what is on the shelf here. Several copies each say so in the list below.
-  const here = !demo && (!scanned || scanResults.get(it.id)?.here === true);
+  const inBasket = g.key.startsWith('basket:');
+  const here = !demo && (scanned ? scanResults.get(it.id)?.here === true : !inBasket || !basket.lines().find((l) => l.id === it.id)?.gone);
   const came = here && one ? cameHtml(it, 'row') : '';
   if (came) facts.push(`<dt>Came in</dt>${came}`);
   for (const [k, v] of specRows(it)) fact(k, esc(v));
@@ -2590,6 +2621,7 @@ document.addEventListener('click', (ev) => {
       break;
     case 'addons':
       $<HTMLDialogElement>('#scanner').close();
+      $<HTMLDialogElement>('#basket').close();
       addonsFrom = location.hash;
       apply({ ...DEFAULTS, mode: 'add', pick: v }, true, true);
       window.scrollTo({ top: 0 });
@@ -2639,6 +2671,7 @@ document.addEventListener('click', (ev) => {
       break;
     case 'stepup':
       $<HTMLDialogElement>('#scanner').close();
+      $<HTMLDialogElement>('#basket').close();
       apply({ ...DEFAULTS, mode: 'up', pick: v }, true, true);
       window.scrollTo({ top: 0 });
       break;
@@ -2698,6 +2731,7 @@ document.addEventListener('click', (ev) => {
       break;
     case 'similar':
       $<HTMLDialogElement>('#scanner').close();
+      $<HTMLDialogElement>('#basket').close();
       apply({ ...DEFAULTS, q: v }, true, true);
       window.scrollTo({ top: 0 });
       break;
@@ -2718,7 +2752,7 @@ document.addEventListener('click', (ev) => {
       break;
     case 'toggle': {
       const li = el.closest<HTMLElement>('.card')!;
-      const g = groups.find((x) => x.key === li.dataset.key) ?? scanGroups.get(li.dataset.key ?? '');
+      const g = groups.find((x) => x.key === li.dataset.key) ?? scanGroups.get(li.dataset.key ?? '') ?? basketGroups.get(li.dataset.key ?? '');
       if (!g) break;
       const open = li.classList.toggle('open');
       el.setAttribute('aria-expanded', String(open));

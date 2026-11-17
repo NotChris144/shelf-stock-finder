@@ -6,7 +6,7 @@
 // that has changed since it went in is updated and says what it was, and anything no longer in
 // stock at the branch says so.
 
-import type { Item } from './types.ts';
+import type { Hit, Item } from './types.ts';
 
 export interface Line {
   id: string;
@@ -20,6 +20,8 @@ export interface Line {
   was?: number;
   /** No longer listed in stock at the branch, as of the last check. */
   gone?: boolean;
+  /** CeX's record, so the line opens with every detail a search result has. */
+  hit?: Hit;
 }
 
 const KEY = 'shelf.basket';
@@ -49,7 +51,7 @@ function changed(): void {
 export function lineOf(it: Item): Line {
   const name = it.kind === 'other' ? it.name.replace(/,?\s*\b[ABC]$/, '').replace(/\s+,/g, ',').trim() : `${it.title}${it.storage ? ' ' + it.storage.split(' ')[0] : ''}`;
   const detail = [it.kind === 'other' ? '' : it.variant, it.grade && `Grade ${it.grade}`].filter(Boolean).join(' · ');
-  return { id: it.id, name, detail, price: it.price, img: it.img };
+  return { id: it.id, name, detail, price: it.price, img: it.img, ...(it.raw ? { hit: it.raw } : {}) };
 }
 
 export const basket = {
@@ -71,18 +73,18 @@ export const basket = {
     lines = [];
     changed();
   },
-  /** What CeX says now: the price, and whether the branch still lists it (`null` when CeX no longer has it at all). */
-  recheck(now: Map<string, { price: number; here: boolean } | null>): void {
+  /** What CeX says now: its record, and whether the branch still lists it (`null` when CeX no longer has it at all). */
+  recheck(now: Map<string, { hit: Hit; here: boolean } | null>): void {
     let moved = false;
     lines = lines.map((l) => {
       if (!now.has(l.id)) return l;
       const n = now.get(l.id);
       const gone = !n?.here;
-      const price = n?.price || l.price;
-      if (gone === Boolean(l.gone) && price === l.price) return l;
+      const price = Number(n?.hit.sellPrice) || l.price;
+      if (gone === Boolean(l.gone) && price === l.price && (!n || l.hit)) return l;
       moved = true;
       const was = price === l.price ? l.was : (l.was ?? l.price);
-      const next: Line = { ...l, price };
+      const next: Line = { ...l, price, ...(n ? { hit: n.hit } : {}) };
       // Back to what it went in at: nothing to say.
       if (was !== undefined && was !== price) next.was = was;
       else delete next.was;

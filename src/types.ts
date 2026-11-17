@@ -65,6 +65,8 @@ export interface Item {
   priceChanged: number;
   /** Epoch ms of CeX's last update to the product, whatever changed (0 when unknown). */
   stamp: number;
+  /** The search record it was read from, so it can be kept (in the basket) and read again. */
+  raw?: Hit;
   kind: Kind;
   brand: string;
   model: string;

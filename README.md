@@ -128,9 +128,13 @@ What the customer at the counter is having, and what it comes to (`src/basket.ts
   - Where a card holds several copies, each copy's row has a round **+** of its own.
   - Add-ons go in from the add-ons screen.
   - Tapping the same button again takes it out.
-- **The basket:** the bottom bar's **Basket** button says how many are in it and opens it. It
-  shows each item with its colour and grade, its price, the total, a cross to take one out, and
-  **Empty the basket**.
+- **The basket:** the bottom bar's **Basket** button says how many are in it and opens it.
+  - Each item is a card like a search result's. Tapping it opens every detail: updates, when it
+    came in, the spec sheet, add-ons and CeX's page.
+  - A cross under each price takes it out, and **Empty the basket** clears the lot.
+  - The total sits under the cards.
+  - Suggest add-ons from a card in the basket puts the basket away and opens the add-ons screen.
+  - Each line keeps CeX's record of the item, so it opens the same after a reload.
 - **Checked on opening:** each line is checked against CeX again, at most once a minute. A price
   that has changed since it went in is updated and says what it was ("Was £120"). Anything no
   longer listed in stock at the branch is dimmed and says so. It stays in the total, as it may be

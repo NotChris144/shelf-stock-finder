@@ -4116,3 +4116,39 @@ dialog {
   margin: 4px var(--gutter) 8px;
   color: var(--muted);
 }
+
+/* The basket's lines are cards like a search result's, on the page's own ground so they look the same. */
+#basket.sheet {
+  background: var(--bg);
+}
+
+.basket-list {
+  margin: 0 var(--gutter);
+}
+
+/* One tap takes a line out, under its price where a film's Spine button would be. */
+.card-x {
+  position: absolute;
+  top: 44px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--muted);
+}
+
+.card-x:active {
+  background: var(--fill);
+}
+
+.card-x svg {
+  width: 17px;
+  height: 17px;
+}
+
+.card.gone .title,
+.card.gone .price {
+  opacity: 0.55;
+}
