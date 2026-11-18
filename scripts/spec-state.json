@@ -1,8 +1,7 @@
 {
- "day": "2026-11-17",
+ "day": "2026-11-18",
  "used": {
-  "day": 0,
-  "evening": 10
+  "day": 4
  },
  "fresh": [],
  "missed": {
@@ -129,7 +128,11 @@
   "motorola|motog37": "2026-11-16",
   "honor|x5cplus": "2026-11-16",
   "samsung|galaxya52s": "2026-11-16",
-  "tcl|k70": "2026-11-16"
+  "tcl|k70": "2026-11-16",
+  "samsung|galaxya34": "2026-11-18",
+  "samsung|galaxya26": "2026-11-18",
+  "samsung|galaxyzfold8": "2026-11-18",
+  "samsung|galaxya33": "2026-11-18"
  },
  "stocked": [
   "amazon|alexatablet8",
@@ -195,7 +198,6 @@
   "honor|x5cplus",
   "huawei|mate20x",
   "huawei|mediapadt310",
-  "huawei|p10lite",
   "huawei|psmart2019",
   "microsoft|surface",
   "microsoft|surfacepro8",
@@ -222,6 +224,9 @@
   "samsung|galaxya20e",
   "samsung|galaxya21s",
   "samsung|galaxya25",
+  "samsung|galaxya26",
+  "samsung|galaxya33",
+  "samsung|galaxya34",
   "samsung|galaxya35",
   "samsung|galaxya52s",
   "samsung|galaxya54",
@@ -263,6 +268,7 @@
   "samsung|galaxyzfold5",
   "samsung|galaxyzfold6",
   "samsung|galaxyzfold7",
+  "samsung|galaxyzfold8",
   "samsung|galaxyzfold8ultra",
   "samsung|galazys26fe",
   "samsung|taba",
