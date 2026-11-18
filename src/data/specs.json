@@ -3393,6 +3393,37 @@
    "lufs": -26.9,
    "gb6": 6108
   },
+  "samsung|galaxyzfold4": {
+   "n": "Samsung Galaxy Z Fold4",
+   "id": 11737,
+   "y": 2022,
+   "scr": 7.6,
+   "mah": 4400,
+   "mp": 50,
+   "chip": "Snapdragon 8+ Gen 1",
+   "m": 8,
+   "pan": "OLED",
+   "hz": 120,
+   "res": "1812x2176",
+   "w": 25,
+   "wl": 15,
+   "uw": 1,
+   "tz": 3,
+   "sf": 4,
+   "ram": [
+    12
+   ],
+   "g5": 1,
+   "ip": "IPX8",
+   "nfc": 1,
+   "wt": 263,
+   "usbc": 1,
+   "os": "Android 12L",
+   "end": 101,
+   "nits": 1000,
+   "lufs": -28.3,
+   "gb5": 3981
+  },
   "samsung|galaxyzfold5": {
    "n": "Samsung Galaxy Z Fold5",
    "id": 12418,
