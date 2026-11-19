@@ -1,7 +1,8 @@
 {
  "day": "2026-11-19",
  "used": {
-  "day": 4
+  "day": 4,
+  "evening": 2
  },
  "fresh": [],
  "missed": {
@@ -217,7 +218,6 @@
   "motorola|motoe3rdgen",
   "motorola|motog06",
   "motorola|motog24",
-  "motorola|motog34",
   "motorola|motog37",
   "motorola|motog8",
   "oneplus|13",
