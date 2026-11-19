@@ -1,5 +1,5 @@
 {
- "at": "2026-11-18",
+ "at": "2026-11-19",
  "source": "GSMArena",
  "sheets": {
   "apple|iphone11": {
@@ -1699,6 +1699,28 @@
    "os": "Android 9.0 (Pie)",
    "end": 88
   },
+  "huawei|y62018": {
+   "n": "Huawei Y6 (2018)",
+   "id": 9162,
+   "y": 2018,
+   "scr": 5.7,
+   "mah": 3000,
+   "mp": 13,
+   "chip": "Snapdragon 425",
+   "m": 5,
+   "pan": "LCD",
+   "res": "720x1440",
+   "sf": 5,
+   "ram": [
+    2,
+    3
+   ],
+   "sd": 1,
+   "jack": 1,
+   "nfc": 1,
+   "wt": 150,
+   "os": "Android 8.0 (Oreo)"
+  },
   "motorola|edge70": {
    "n": "Motorola Edge 70",
    "id": 14216,
@@ -2923,6 +2945,37 @@
    "lufs": -27,
    "gb5": 4950
   },
+  "samsung|galaxys23fe": {
+   "n": "Samsung Galaxy S23 FE",
+   "id": 12520,
+   "y": 2023,
+   "scr": 6.4,
+   "mah": 4500,
+   "mp": 50,
+   "chip": "Exynos 2200",
+   "m": 10,
+   "pan": "OLED",
+   "hz": 120,
+   "res": "1080x2340",
+   "w": 25,
+   "wl": 15,
+   "uw": 1,
+   "tz": 3,
+   "sf": 10,
+   "ram": [
+    8
+   ],
+   "g5": 1,
+   "ip": "IP68",
+   "nfc": 1,
+   "wt": 209,
+   "usbc": 1,
+   "os": "Android 13",
+   "act": 508,
+   "nits": 985,
+   "lufs": -23.7,
+   "gb5": 3550
+  },
   "samsung|galaxys23ultra": {
    "n": "Samsung Galaxy S23 Ultra",
    "id": 12024,
@@ -3022,6 +3075,39 @@
    "nits": 1372,
    "lufs": -24.6,
    "gb6": 6299
+  },
+  "samsung|galaxys24plus": {
+   "n": "Samsung Galaxy S24+",
+   "id": 12772,
+   "y": 2024,
+   "scr": 6.7,
+   "mah": 4900,
+   "mp": 50,
+   "chip": "Exynos 2400",
+   "m": 1,
+   "pan": "OLED",
+   "hz": 120,
+   "res": "1440x3120",
+   "w": 45,
+   "wl": 15,
+   "uw": 1,
+   "tz": 3,
+   "sf": 12,
+   "ram": [
+    12
+   ],
+   "g5": 1,
+   "ip": "IP68",
+   "nfc": 1,
+   "wt": 196,
+   "usbc": 1,
+   "os": "Android 14",
+   "up": "Android 17",
+   "act": 750,
+   "nits": 1452,
+   "lufs": -25,
+   "gb5": 5987,
+   "gb6": 6926
   },
   "samsung|galaxys24ultra": {
    "n": "Samsung Galaxy S24 Ultra",

@@ -1,15 +1,15 @@
 {
- "day": "2026-11-18",
+ "day": "2026-11-19",
  "used": {
-  "day": 8,
-  "evening": 14
+  "day": 3
  },
  "fresh": [],
  "missed": {
   "motorola|motoe3rdgen": "2026-11-13",
   "samsung|taba": "2026-11-14",
   "amazon|firehd8": "2026-11-14",
-  "samsung|galaxytab3": "2026-11-16"
+  "samsung|galaxytab3": "2026-11-16",
+  "samsung|galaxytabs4": "2026-11-19"
  },
  "read": {
   "samsung|galaxya04e": "2026-11-13",
@@ -137,7 +137,10 @@
   "samsung|galaxys20ultra": "2026-11-18",
   "samsung|galaxya40": "2026-11-18",
   "oneplus|8t": "2026-11-18",
-  "samsung|galaxyzfold4": "2026-11-18"
+  "samsung|galaxyzfold4": "2026-11-18",
+  "samsung|galaxys23fe": "2026-11-19",
+  "samsung|galaxys24plus": "2026-11-19",
+  "huawei|y62018": "2026-11-19"
  },
  "stocked": [
   "amazon|alexatablet8",
@@ -179,6 +182,7 @@
   "apple|iphone8",
   "apple|iphone8plus",
   "apple|iphoneair",
+  "apple|iphonese",
   "apple|iphonese2ndgen",
   "apple|iphonese3rdgen",
   "apple|iphonex",
@@ -204,6 +208,7 @@
   "huawei|mate20x",
   "huawei|mediapadt310",
   "huawei|psmart2019",
+  "huawei|y62018",
   "microsoft|surface",
   "microsoft|surfacepro8",
   "motorola|edge70",
@@ -244,9 +249,11 @@
   "samsung|galaxys22",
   "samsung|galaxys22plus",
   "samsung|galaxys23",
+  "samsung|galaxys23fe",
   "samsung|galaxys23ultra",
   "samsung|galaxys24",
   "samsung|galaxys24fe",
+  "samsung|galaxys24plus",
   "samsung|galaxys24ultra",
   "samsung|galaxys25",
   "samsung|galaxys25ultra",
@@ -267,6 +274,7 @@
   "samsung|galaxytabs10lite",
   "samsung|galaxytabs10ultra",
   "samsung|galaxytabs11ultra",
+  "samsung|galaxytabs4",
   "samsung|galaxytabs7",
   "samsung|galaxytabs9fe5g",
   "samsung|galaxyzflip3",

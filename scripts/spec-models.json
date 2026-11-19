@@ -50,7 +50,9 @@
       "Galaxy A33",
       "Galaxy S20 Ultra",
       "Galaxy A40",
-      "Galaxy Z Fold4"
+      "Galaxy Z Fold4",
+      "Galaxy S23 FE",
+      "Galaxy S24 Plus"
     ],
     "Apple": [
       "iPhone 12",
@@ -147,7 +149,8 @@
     "Huawei": [
       "P Smart (2019)",
       "P10 Lite",
-      "Mate 20X"
+      "Mate 20X",
+      "Y6 (2018)"
     ]
   },
   "tablets": {
@@ -167,7 +170,8 @@
       "Galaxy Tab S6 Lite",
       "Galaxy Tab S7",
       "Galaxy Tab S9 FE 5G",
-      "Tab A"
+      "Tab A",
+      "Galaxy Tab S4"
     ],
     "Amazon": [
       "Alexa Tablet 8",
