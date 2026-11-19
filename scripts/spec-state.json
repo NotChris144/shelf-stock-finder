@@ -1,7 +1,7 @@
 {
  "day": "2026-11-19",
  "used": {
-  "day": 3
+  "day": 4
  },
  "fresh": [],
  "missed": {
@@ -140,7 +140,8 @@
   "samsung|galaxyzfold4": "2026-11-18",
   "samsung|galaxys23fe": "2026-11-19",
   "samsung|galaxys24plus": "2026-11-19",
-  "huawei|y62018": "2026-11-19"
+  "huawei|y62018": "2026-11-19",
+  "apple|iphone11promax": "2026-11-19"
  },
  "stocked": [
   "amazon|alexatablet8",
@@ -151,6 +152,7 @@
   "amazon|tablet82026",
   "apple|iphone11",
   "apple|iphone11pro",
+  "apple|iphone11promax",
   "apple|iphone12",
   "apple|iphone12mini",
   "apple|iphone12pro",

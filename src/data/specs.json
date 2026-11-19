@@ -54,6 +54,34 @@
    "nits": 805,
    "lufs": -24.3
   },
+  "apple|iphone11promax": {
+   "n": "Apple iPhone 11 Pro Max",
+   "id": 9846,
+   "y": 2019,
+   "scr": 6.5,
+   "mah": 3969,
+   "mp": 12,
+   "chip": "Apple A13 Bionic (7 nm+)",
+   "m": 9,
+   "pan": "OLED",
+   "res": "1242x2688",
+   "wl": 0,
+   "uw": 1,
+   "tz": 2,
+   "sf": 12,
+   "ram": [
+    4
+   ],
+   "ip": "IP68",
+   "nfc": 1,
+   "wt": 226,
+   "os": "iOS 13",
+   "up": "iOS 27.2",
+   "end": 102,
+   "nits": 820,
+   "lufs": -25.6,
+   "gb5": 3503
+  },
   "apple|iphone12": {
    "n": "Apple iPhone 12",
    "id": 10509,
