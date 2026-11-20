@@ -1,5 +1,5 @@
 {
- "at": "2026-11-19",
+ "at": "2026-11-20",
  "source": "GSMArena",
  "sheets": {
   "apple|iphone11": {
@@ -3003,6 +3003,39 @@
    "nits": 985,
    "lufs": -23.7,
    "gb5": 3550
+  },
+  "samsung|galaxys23plus": {
+   "n": "Samsung Galaxy S23+",
+   "id": 12083,
+   "y": 2023,
+   "scr": 6.6,
+   "mah": 4700,
+   "mp": 50,
+   "chip": "Snapdragon 8 Gen 2",
+   "m": 2,
+   "pan": "OLED",
+   "hz": 120,
+   "res": "1080x2340",
+   "w": 45,
+   "wl": 15,
+   "uw": 1,
+   "tz": 3,
+   "sf": 12,
+   "ram": [
+    8
+   ],
+   "g5": 1,
+   "ip": "IP68",
+   "nfc": 1,
+   "wt": 196,
+   "usbc": 1,
+   "os": "Android 13",
+   "up": "Android 17",
+   "act": 831,
+   "end": 111,
+   "nits": 1205,
+   "lufs": -26.5,
+   "gb5": 5073
   },
   "samsung|galaxys23ultra": {
    "n": "Samsung Galaxy S23 Ultra",
