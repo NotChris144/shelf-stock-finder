@@ -2125,6 +2125,26 @@
    "usbc": 1,
    "os": "Android 16"
   },
+  "samsung|galaxya03core": {
+   "n": "Samsung Galaxy A03 Core",
+   "id": 11215,
+   "y": 2021,
+   "scr": 6.5,
+   "mah": 5000,
+   "mp": 8,
+   "chip": "Unisoc",
+   "m": 11,
+   "pan": "LCD",
+   "res": "720x1600",
+   "sf": 5,
+   "ram": [
+    2
+   ],
+   "sd": 1,
+   "jack": 1,
+   "wt": 211,
+   "os": "Android 11 (Go edition)"
+  },
   "samsung|galaxya04e": {
    "n": "Samsung Galaxy A04e",
    "id": 11945,

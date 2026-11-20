@@ -1,7 +1,7 @@
 {
  "day": "2026-11-20",
  "used": {
-  "day": 1
+  "day": 2
  },
  "fresh": [],
  "missed": {
@@ -142,7 +142,8 @@
   "samsung|galaxys24plus": "2026-11-19",
   "huawei|y62018": "2026-11-19",
   "apple|iphone11promax": "2026-11-19",
-  "samsung|galaxys23plus": "2026-11-20"
+  "samsung|galaxys23plus": "2026-11-20",
+  "samsung|galaxya03core": "2026-11-20"
  },
  "stocked": [
   "amazon|alexatablet8",
@@ -222,6 +223,7 @@
   "oppo|findx9",
   "redmi|13c",
   "redmi|a7pro",
+  "samsung|galaxya03core",
   "samsung|galaxya04e",
   "samsung|galaxya11",
   "samsung|galaxya12",
