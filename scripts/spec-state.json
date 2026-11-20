@@ -1,7 +1,8 @@
 {
  "day": "2026-11-20",
  "used": {
-  "day": 2
+  "day": 2,
+  "evening": 2
  },
  "fresh": [],
  "missed": {
@@ -263,7 +264,6 @@
   "samsung|galaxys26fe",
   "samsung|galaxys26ultra",
   "samsung|galaxys7",
-  "samsung|galaxys8plus",
   "samsung|galaxytab3",
   "samsung|galaxytaba101",
   "samsung|galaxytaba1012019",
