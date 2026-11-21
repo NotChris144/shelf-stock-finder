@@ -1,7 +1,8 @@
 {
  "day": "2026-11-21",
  "used": {
-  "day": 0
+  "day": 0,
+  "evening": 3
  },
  "fresh": [],
  "missed": {
@@ -9,7 +10,8 @@
   "samsung|taba": "2026-11-14",
   "amazon|firehd8": "2026-11-14",
   "samsung|galaxytab3": "2026-11-16",
-  "samsung|galaxytabs4": "2026-11-19"
+  "samsung|galaxytabs4": "2026-11-19",
+  "google|pixel2": "2026-11-21"
  },
  "read": {
   "samsung|galaxya04e": "2026-11-13",
@@ -197,6 +199,7 @@
   "google|pixel11",
   "google|pixel11pro",
   "google|pixel11proxl",
+  "google|pixel2",
   "google|pixel4a",
   "google|pixel6",
   "google|pixel6pro",
