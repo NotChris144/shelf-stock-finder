@@ -1,8 +1,7 @@
 {
- "day": "2026-11-21",
+ "day": "2026-11-22",
  "used": {
-  "day": 0,
-  "evening": 15
+  "day": 0
  },
  "fresh": [],
  "missed": {
@@ -183,6 +182,7 @@
   "apple|iphone17promax",
   "apple|iphone18pro",
   "apple|iphone4s",
+  "apple|iphone7",
   "apple|iphone7plus",
   "apple|iphone8",
   "apple|iphone8plus",
@@ -232,12 +232,10 @@
   "samsung|galaxya15",
   "samsung|galaxya16",
   "samsung|galaxya17",
-  "samsung|galaxya18",
   "samsung|galaxya20e",
   "samsung|galaxya21s",
   "samsung|galaxya25",
   "samsung|galaxya26",
-  "samsung|galaxya33",
   "samsung|galaxya34",
   "samsung|galaxya40",
   "samsung|galaxya52s",
