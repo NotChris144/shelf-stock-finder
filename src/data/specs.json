@@ -1,5 +1,5 @@
 {
- "at": "2026-11-20",
+ "at": "2026-11-23",
  "source": "GSMArena",
  "sheets": {
   "apple|iphone11": {
@@ -3253,6 +3253,38 @@
    "nits": 1395,
    "lufs": -26.1,
    "gb6": 10050
+  },
+  "samsung|galaxys25plus": {
+   "n": "Samsung Galaxy S25+",
+   "id": 13609,
+   "y": 2025,
+   "scr": 6.7,
+   "mah": 4900,
+   "mp": 50,
+   "chip": "Snapdragon 8 Elite",
+   "m": 1,
+   "pan": "OLED",
+   "hz": 120,
+   "res": "1440x3120",
+   "w": 45,
+   "wl": 15,
+   "uw": 1,
+   "tz": 3,
+   "sf": 12,
+   "ram": [
+    12
+   ],
+   "g5": 1,
+   "ip": "IP68",
+   "nfc": 1,
+   "wt": 190,
+   "usbc": 1,
+   "os": "Android 15",
+   "up": "Android 17",
+   "act": 866,
+   "nits": 1449,
+   "lufs": -25.1,
+   "gb6": 9669
   },
   "samsung|galaxys25ultra": {
    "n": "Samsung Galaxy S25 Ultra",
