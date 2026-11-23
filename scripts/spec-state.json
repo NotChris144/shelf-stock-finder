@@ -1,11 +1,9 @@
 {
  "day": "2026-11-23",
  "used": {
-  "evening": 10
+  "evening": 13
  },
- "fresh": [
-  "samsung|galaxys5neo"
- ],
+ "fresh": [],
  "missed": {
   "motorola|motoe3rdgen": "2026-11-13",
   "samsung|taba": "2026-11-14",
@@ -147,7 +145,8 @@
   "apple|iphone11promax": "2026-11-19",
   "samsung|galaxys23plus": "2026-11-20",
   "samsung|galaxya03core": "2026-11-20",
-  "samsung|galaxys25plus": "2026-11-23"
+  "samsung|galaxys25plus": "2026-11-23",
+  "samsung|galaxys5neo": "2026-11-23"
  },
  "stocked": [
   "amazon|alexatablet8",

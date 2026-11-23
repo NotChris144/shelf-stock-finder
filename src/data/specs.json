@@ -3415,6 +3415,29 @@
    "lufs": -25.9,
    "gb6": 11566
   },
+  "samsung|galaxys5neo": {
+   "n": "Samsung Galaxy S5 Neo",
+   "id": 6506,
+   "y": 2015,
+   "scr": 5.1,
+   "mah": 2800,
+   "mp": 16,
+   "chip": "Exynos 7580 Octa",
+   "m": 8,
+   "pan": "OLED",
+   "res": "1080x1920",
+   "sf": 5,
+   "ram": [
+    2
+   ],
+   "ip": "IP67",
+   "sd": 1,
+   "jack": 1,
+   "nfc": 1,
+   "wt": 145,
+   "os": "Android 5.1.1 (Lollipop)",
+   "up": "7.0 (Nougat)"
+  },
   "samsung|galaxys7": {
    "n": "Samsung Galaxy S7",
    "id": 7821,
