@@ -1,5 +1,5 @@
 {
- "at": "2026-11-23",
+ "at": "2026-11-24",
  "source": "GSMArena",
  "sheets": {
   "apple|iphone11": {
@@ -1435,6 +1435,40 @@
    "lufs": -26,
    "gb5": 3526,
    "gb6": 4404
+  },
+  "google|pixel8pro": {
+   "n": "Google Pixel 8 Pro",
+   "id": 12545,
+   "y": 2023,
+   "scr": 6.7,
+   "mah": 5050,
+   "mp": 50,
+   "chip": "Google Tensor G3",
+   "m": 10,
+   "pan": "OLED",
+   "hz": 120,
+   "res": "1344x2992",
+   "w": 30,
+   "wl": 23,
+   "uw": 1,
+   "tz": 5,
+   "sf": 10.5,
+   "ram": [
+    12
+   ],
+   "g5": 1,
+   "ip": "IP68",
+   "nfc": 1,
+   "wt": 213,
+   "usbc": 1,
+   "os": "Android 14",
+   "up": "Android 17",
+   "act": 674,
+   "end": 90,
+   "nits": 1600,
+   "lufs": -26.6,
+   "gb5": 3613,
+   "gb6": 4462
   },
   "google|pixel9a": {
    "n": "Google Pixel 9a",
