@@ -1,5 +1,5 @@
 {
- "at": "2026-11-24",
+ "at": "2026-11-25",
  "source": "GSMArena",
  "sheets": {
   "apple|iphone11": {
@@ -1939,6 +1939,35 @@
    "usbc": 1,
    "os": "Android 10",
    "up": "Android 11"
+  },
+  "motorola|motog8power": {
+   "n": "Motorola Moto G8 Power",
+   "id": 10052,
+   "y": 2020,
+   "scr": 6.4,
+   "mah": 5000,
+   "mp": 16,
+   "chip": "Snapdragon 665",
+   "m": 4,
+   "pan": "LCD",
+   "res": "1080x2300",
+   "w": 18,
+   "uw": 1,
+   "tz": 2,
+   "sf": 16,
+   "ram": [
+    2,
+    4
+   ],
+   "sd": 1,
+   "jack": 1,
+   "wt": 197,
+   "usbc": 1,
+   "os": "Android 10",
+   "up": "Android 11",
+   "end": 136,
+   "lufs": -24.6,
+   "gb5": 1394
   },
   "oneplus|13": {
    "n": "OnePlus 13",
