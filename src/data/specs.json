@@ -1,5 +1,5 @@
 {
- "at": "2026-11-25",
+ "at": "2026-11-26",
  "source": "GSMArena",
  "sheets": {
   "apple|iphone11": {
@@ -1402,6 +1402,39 @@
    "nits": 974,
    "lufs": -26.2,
    "gb5": 3288
+  },
+  "google|pixel7pro": {
+   "n": "Google Pixel 7 Pro",
+   "id": 11908,
+   "y": 2022,
+   "scr": 6.7,
+   "mah": 5000,
+   "mp": 50,
+   "chip": "Google Tensor G2",
+   "m": 10,
+   "pan": "OLED",
+   "hz": 120,
+   "res": "1440x3120",
+   "w": 23,
+   "wl": 23,
+   "uw": 1,
+   "tz": 5,
+   "sf": 10.8,
+   "ram": [
+    8,
+    12
+   ],
+   "g5": 1,
+   "ip": "IP68",
+   "nfc": 1,
+   "wt": 212,
+   "usbc": 1,
+   "os": "Android 13",
+   "up": "Android 17",
+   "end": 83,
+   "nits": 1090,
+   "lufs": -24.8,
+   "gb5": 3187
   },
   "google|pixel8": {
    "n": "Google Pixel 8",
