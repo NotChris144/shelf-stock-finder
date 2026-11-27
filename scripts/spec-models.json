@@ -141,7 +141,8 @@
       "Magic V6",
       "Magic7 Lite",
       "Magic8 Lite",
-      "X5C Plus"
+      "X5C Plus",
+      "Magic7 Pro"
     ],
     "OnePlus": [
       "9",
@@ -160,6 +161,9 @@
       "P10 Lite",
       "Mate 20X",
       "Y6 (2018)"
+    ],
+    "Sony": [
+      "Xperia 1 VI"
     ]
   },
   "tablets": {

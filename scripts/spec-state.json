@@ -1,8 +1,7 @@
 {
- "day": "2026-11-26",
+ "day": "2026-11-27",
  "used": {
-  "day": 1,
-  "evening": 12
+  "day": 4
  },
  "fresh": [],
  "missed": {
@@ -151,12 +150,13 @@
   "samsung|galaxys5neo": "2026-11-23",
   "google|pixel8pro": "2026-11-24",
   "motorola|motog8power": "2026-11-25",
-  "google|pixel7pro": "2026-11-26"
+  "google|pixel7pro": "2026-11-26",
+  "honor|magic7pro": "2026-11-27",
+  "sony|xperia1vi": "2026-11-27"
  },
  "stocked": [
   "amazon|alexatablet8",
   "amazon|fire7",
-  "amazon|firehd8",
   "amazon|kindlefirehd10",
   "amazon|kindlefirehdx",
   "amazon|tablet82026",
@@ -198,7 +198,6 @@
   "apple|iphonex",
   "apple|iphonexr",
   "apple|iphonexs",
-  "apple|iphonexsmax",
   "bush|spirab3",
   "google|pixel11",
   "google|pixel11pro",
@@ -209,10 +208,9 @@
   "google|pixel7",
   "google|pixel7pro",
   "google|pixel8",
-  "google|pixel8pro",
-  "google|pixel9a",
   "google|pixel9pro",
   "honor|magic7lite",
+  "honor|magic7pro",
   "honor|magic8lite",
   "honor|magicv6",
   "honor|x5cplus",
@@ -223,7 +221,6 @@
   "motorola|motog37",
   "motorola|motog8power",
   "oneplus|13",
-  "oneplus|8t",
   "oppo|findx9",
   "redmi|13c",
   "samsung|galaxya03core",
@@ -260,6 +257,7 @@
   "samsung|galaxys26fe",
   "samsung|galaxys26ultra",
   "samsung|galaxys7",
+  "samsung|galaxys8plus",
   "samsung|galaxytab3",
   "samsung|galaxytaba101",
   "samsung|galaxytaba1012019",
@@ -281,6 +279,7 @@
   "samsung|galaxyzfold8ultra",
   "samsung|galazys26fe",
   "samsung|taba",
+  "sony|xperia1vi",
   "tcl|605"
  ]
 }

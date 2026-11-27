@@ -1,5 +1,5 @@
 {
- "at": "2026-11-26",
+ "at": "2026-11-27",
  "source": "GSMArena",
  "sheets": {
   "apple|iphone11": {
@@ -1628,6 +1628,39 @@
    "os": "Android 14",
    "act": 902,
    "gb6": 2705
+  },
+  "honor|magic7pro": {
+   "n": "Honor Magic7 Pro",
+   "id": 13480,
+   "y": 2024,
+   "scr": 6.8,
+   "mah": 5850,
+   "mp": 50,
+   "chip": "Snapdragon 8 Elite",
+   "m": 10,
+   "pan": "OLED",
+   "hz": 120,
+   "res": "1280x2800",
+   "w": 100,
+   "wl": 80,
+   "uw": 1,
+   "tz": 3,
+   "sf": 50,
+   "ram": [
+    12,
+    16
+   ],
+   "g5": 1,
+   "ip": "IP68",
+   "nfc": 1,
+   "wt": 223,
+   "usbc": 1,
+   "os": "Android 15",
+   "up": "Android 16",
+   "act": 833,
+   "nits": 1521,
+   "lufs": -22.8,
+   "gb6": 9291
   },
   "honor|magic8lite": {
    "n": "Honor Magic8 Lite",
@@ -3933,6 +3966,39 @@
    "nits": 1268,
    "lufs": -26.6,
    "gb6": 8035
+  },
+  "sony|xperia1vi": {
+   "n": "Sony Xperia 1 VI",
+   "id": 13003,
+   "y": 2024,
+   "scr": 6.5,
+   "mah": 5000,
+   "mp": 48,
+   "chip": "Snapdragon 8 Gen 3",
+   "m": 5,
+   "pan": "OLED",
+   "hz": 120,
+   "res": "1080x2340",
+   "w": 30,
+   "wl": 15,
+   "uw": 1,
+   "sf": 12,
+   "ram": [
+    12
+   ],
+   "g5": 1,
+   "ip": "IP65",
+   "sd": 1,
+   "jack": 1,
+   "nfc": 1,
+   "wt": 192,
+   "usbc": 1,
+   "os": "Android 14",
+   "up": "Android 16",
+   "act": 1047,
+   "nits": 1310,
+   "lufs": -24.3,
+   "gb6": 6119
   },
   "tcl|605": {
    "n": "TCL 605",
