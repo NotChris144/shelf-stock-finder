@@ -1,7 +1,8 @@
 {
  "day": "2026-11-27",
  "used": {
-  "day": 4
+  "day": 4,
+  "evening": 2
  },
  "fresh": [],
  "missed": {
